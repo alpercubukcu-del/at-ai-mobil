@@ -11,6 +11,9 @@ const DATA_URL =
 const ROWS_URL =
   `${TJK}/TR/YarisSever/Query/DataRows/KosuSorgulama`;
 
+const SORT =
+  'Tarih desc, Sehir asc, KosuSirasi asc';
+
 const HEADERS = {
   'user-agent':
     'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/138 Safari/537.36',
@@ -21,6 +24,85 @@ const HEADERS = {
   referer:
     PAGE_URL
 };
+
+/* =========================================================
+   2026 GENEL HÜKÜMLER
+   SAYFA 28 - HANDİKAP PUAN ARALIKLARI
+========================================================= */
+
+const HANDICAP_BANDS = {
+  13: {
+    H1: [1, 45],
+    H2: [1, 40],
+    H3: [1, 35]
+  },
+
+  14: {
+    H1: [1, 55],
+    H2: [1, 50],
+    H3: [1, 45]
+  },
+
+  15: {
+    H1: [1, 65],
+    H2: [1, 60],
+    H3: [1, 55]
+  },
+
+  16: {
+    H1: [1, 75],
+    H2: [1, 70],
+    H3: [1, 65]
+  },
+
+  17: {
+    H1: [46, 88],
+    H2: [41, 83],
+    H3: [1, 75]
+  },
+
+  21: {
+    H1: [56, 93],
+    H2: [51, 88]
+  },
+
+  22: {
+    H1: [61, 98],
+    H2: [56, 93]
+  },
+
+  24: {
+    H1: [66, 105],
+    H2: [61, 100]
+  }
+};
+
+const G3_HANDICAP_BAND =
+  [71, 110];
+
+/* =========================================================
+   2026 GENEL HÜKÜMLER
+   SAYFA 29 - HİPODROM KADEMELERİ
+========================================================= */
+
+const TRACK_TIERS = {
+  'İSTANBUL': 1,
+  'ANKARA': 1,
+
+  'ADANA': 2,
+  'İZMİR': 2,
+  'BURSA': 2,
+  'ANTALYA': 2,
+  'KOCAELİ': 2,
+
+  'ŞANLIURFA': 3,
+  'ELAZIĞ': 3,
+  'DİYARBAKIR': 3
+};
+
+/* =========================================================
+   TEMEL YARDIMCILAR
+========================================================= */
 
 function clean(v = '') {
   return String(v)
@@ -34,23 +116,35 @@ function upper(v = '') {
     .toLocaleUpperCase('tr-TR');
 }
 
+function normalizeLetters(v = '') {
+  return upper(v)
+    .replace(/HANDIKAP/g, 'HANDİKAP')
+    .replace(/INGILIZ/g, 'İNGİLİZ')
+    .replace(/INGİLİZ/g, 'İNGİLİZ');
+}
+
 function parseDate(value = '') {
-  const m = clean(value).match(
-    /^(\d{2})[./](\d{2})[./](\d{4})$/
-  );
+  const m =
+    clean(value).match(
+      /^(\d{2})[./](\d{2})[./](\d{4})$/
+    );
 
   if (!m) return null;
 
   return {
-    display: `${m[1]}.${m[2]}.${m[3]}`,
-    iso: `${m[3]}-${m[2]}-${m[1]}`
+    display:
+      `${m[1]}.${m[2]}.${m[3]}`,
+
+    iso:
+      `${m[3]}-${m[2]}-${m[1]}`
   };
 }
 
 function isoToDisplay(iso = '') {
-  const m = String(iso).match(
-    /^(\d{4})-(\d{2})-(\d{2})$/
-  );
+  const m =
+    String(iso).match(
+      /^(\d{4})-(\d{2})-(\d{2})$/
+    );
 
   if (!m) return '';
 
@@ -58,17 +152,24 @@ function isoToDisplay(iso = '') {
 }
 
 function normalizeTrack(v = '') {
-  const t = upper(v);
+  const t =
+    normalizeLetters(v);
 
-  if (t.includes('SENTETİK')) {
+  if (
+    t.includes('SENTETİK')
+  ) {
     return 'Sentetik';
   }
 
-  if (t.includes('ÇİM')) {
+  if (
+    t.includes('ÇİM')
+  ) {
     return 'Çim';
   }
 
-  if (t.includes('KUM')) {
+  if (
+    t.includes('KUM')
+  ) {
     return 'Kum';
   }
 
@@ -82,27 +183,374 @@ function normalizeClass(v = '') {
     .trim();
 }
 
-function baseClass(v = '') {
-  const t = upper(
-    normalizeClass(v)
-  );
+function normalizeAgeGroup(v = '') {
+  return normalizeLetters(v);
+}
+
+/* =========================================================
+   YAŞ GRUBU ÇÖZÜMLEME
+========================================================= */
+
+function parseAgeGroup(v = '') {
+  const t =
+    normalizeAgeGroup(v);
+
+  let breed = '';
+
+  if (
+    t.includes('İNGİLİZ')
+  ) {
+    breed = 'I';
+  } else if (
+    t.includes('ARAP')
+  ) {
+    breed = 'A';
+  }
+
+  let minAge = null;
+  let maxAge = null;
 
   let m =
     t.match(
-      /(HANDİKAP|HANDIKAP)\s*(\d+)/
+      /(\d+)\s*VE\s*YUKARI/
     );
 
   if (m) {
-    return `HANDİKAP ${m[2]}`;
+    minAge =
+      Number(m[1]);
+
+    maxAge =
+      99;
+
+    return {
+      breed,
+      minAge,
+      maxAge,
+      raw: t
+    };
   }
 
   m =
+    t.match(
+      /(\d+)\s*YAŞLI/
+    );
+
+  if (m) {
+    minAge =
+      Number(m[1]);
+
+    maxAge =
+      Number(m[1]);
+
+    return {
+      breed,
+      minAge,
+      maxAge,
+      raw: t
+    };
+  }
+
+  /*
+    Kısa kodlar:
+    3İ
+    3+İ
+    4+A
+  */
+
+  m =
+    t.match(
+      /^(\d+)\+?([İIA])$/
+    );
+
+  if (m) {
+    minAge =
+      Number(m[1]);
+
+    maxAge =
+      t.includes('+')
+        ? 99
+        : minAge;
+
+    breed =
+      m[2] === 'A'
+        ? 'A'
+        : 'I';
+  }
+
+  return {
+    breed,
+    minAge,
+    maxAge,
+    raw: t
+  };
+}
+
+function ageGroupScore(
+  target,
+  past
+) {
+  const a =
+    parseAgeGroup(target);
+
+  const b =
+    parseAgeGroup(past);
+
+  if (
+    a.breed &&
+    b.breed &&
+    a.breed !== b.breed
+  ) {
+    return 0;
+  }
+
+  if (
+    normalizeAgeGroup(target) ===
+    normalizeAgeGroup(past)
+  ) {
+    return 20;
+  }
+
+  if (
+    a.minAge === null ||
+    b.minAge === null
+  ) {
+    return 0;
+  }
+
+  /*
+    Aynı yaş kümesi örtüşüyor mu?
+  */
+
+  const low =
+    Math.max(
+      a.minAge,
+      b.minAge
+    );
+
+  const high =
+    Math.min(
+      a.maxAge,
+      b.maxAge
+    );
+
+  if (
+    low > high
+  ) {
+    return 0;
+  }
+
+  /*
+    Örnek:
+    3 Yaşlı İngiliz
+    ↔ 3 ve Yukarı İngiliz
+
+    Tam aynı değil,
+    fakat ortak yaş var.
+  */
+
+  if (
+    a.minAge === b.minAge
+  ) {
+    return 14;
+  }
+
+  return 8;
+}
+
+/* =========================================================
+   HANDİKAP SINIFI
+========================================================= */
+
+function parseHandicap(
+  value = ''
+) {
+  const t =
+    normalizeLetters(
+      normalizeClass(value)
+    );
+
+  let m =
+    t.match(
+      /HANDİKAP\s*(\d+)/
+    );
+
+  if (!m) {
+    return null;
+  }
+
+  const number =
+    Number(m[1]);
+
+  const hm =
+    t.match(
+      /\/H([123])\b/
+    );
+
+  const hLevel =
+    hm
+      ? `H${hm[1]}`
+      : null;
+
+  return {
+    number,
+    hLevel,
+    raw: t
+  };
+}
+
+function handicapBand(
+  handicap
+) {
+  if (!handicap) {
+    return null;
+  }
+
+  if (
+    !HANDICAP_BANDS[
+      handicap.number
+    ]
+  ) {
+    return null;
+  }
+
+  if (
+    handicap.hLevel &&
+    HANDICAP_BANDS[
+      handicap.number
+    ][
+      handicap.hLevel
+    ]
+  ) {
+    return HANDICAP_BANDS[
+      handicap.number
+    ][
+      handicap.hLevel
+    ];
+  }
+
+  /*
+    H seviyesi yoksa o handikap
+    numarasının en geniş resmi bandı.
+  */
+
+  const bands =
+    Object.values(
+      HANDICAP_BANDS[
+        handicap.number
+      ]
+    );
+
+  if (!bands.length) {
+    return null;
+  }
+
+  return [
+    Math.min(
+      ...bands.map(
+        x => x[0]
+      )
+    ),
+
+    Math.max(
+      ...bands.map(
+        x => x[1]
+      )
+    )
+  ];
+}
+
+function bandOverlap(
+  a,
+  b
+) {
+  if (!a || !b) {
+    return 0;
+  }
+
+  const low =
+    Math.max(
+      a[0],
+      b[0]
+    );
+
+  const high =
+    Math.min(
+      a[1],
+      b[1]
+    );
+
+  if (
+    high < low
+  ) {
+    return 0;
+  }
+
+  const intersection =
+    high - low + 1;
+
+  const unionLow =
+    Math.min(
+      a[0],
+      b[0]
+    );
+
+  const unionHigh =
+    Math.max(
+      a[1],
+      b[1]
+    );
+
+  const union =
+    unionHigh -
+    unionLow +
+    1;
+
+  return (
+    intersection /
+    union
+  );
+}
+
+/* =========================================================
+   SINIF AİLESİ
+========================================================= */
+
+function parseRaceFamily(
+  value = ''
+) {
+  const t =
+    normalizeLetters(
+      normalizeClass(value)
+    );
+
+  const handicap =
+    parseHandicap(t);
+
+  if (handicap) {
+    return {
+      family:
+        'HANDICAP',
+
+      level:
+        handicap.number,
+
+      handicap
+    };
+  }
+
+  let m =
     t.match(
       /ŞARTLI\s*(\d+)/
     );
 
   if (m) {
-    return `ŞARTLI ${m[1]}`;
+    return {
+      family:
+        'SARTLI',
+
+      level:
+        Number(m[1])
+    };
   }
 
   m =
@@ -111,43 +559,40 @@ function baseClass(v = '') {
     );
 
   if (m) {
-    return `KV-${m[1]}`;
+    return {
+      family:
+        'KV',
+
+      level:
+        Number(m[1])
+    };
   }
 
-  if (
-    /\bG\s*1\b|\bG1\b/.test(t)
-  ) {
-    return 'G1';
-  }
+  m =
+    t.match(
+      /\bG([123])\b/
+    );
 
-  if (
-    /\bG\s*2\b|\bG2\b/.test(t)
-  ) {
-    return 'G2';
-  }
+  if (m) {
+    return {
+      family:
+        'GROUP',
 
-  if (
-    /\bG\s*3\b|\bG3\b/.test(t)
-  ) {
-    return 'G3';
-  }
-
-  if (
-    /\bA\s*2\b|\bA2\b/.test(t)
-  ) {
-    return 'A2';
-  }
-
-  if (
-    /\bA\s*3\b|\bA3\b/.test(t)
-  ) {
-    return 'A3';
+      level:
+        Number(m[1])
+    };
   }
 
   if (
     t.includes('MAIDEN')
   ) {
-    return 'MAIDEN';
+    return {
+      family:
+        'MAIDEN',
+
+      level:
+        0
+    };
   }
 
   if (
@@ -159,34 +604,811 @@ function baseClass(v = '') {
         /SATIŞ\s*(\d+)|SATIS\s*(\d+)/
       );
 
-    if (sm) {
-      return `SATIŞ ${sm[1] || sm[2]}`;
-    }
+    return {
+      family:
+        'SATIS',
 
-    return 'SATIŞ';
+      level:
+        sm
+          ? Number(
+              sm[1] ||
+              sm[2]
+            )
+          : 0
+    };
   }
 
-  return t
-    .split('/')[0]
-    .trim();
+  return {
+    family:
+      t.split('/')[0],
+    level:
+      null
+  };
 }
 
-function normalizeAgeGroup(v = '') {
-  return upper(v)
-    .replace(/\s+/g, ' ')
-    .trim();
+/* =========================================================
+   SINIF BENZERLİĞİ - 30 PUAN
+========================================================= */
+
+function classScore(
+  targetClass,
+  pastClass
+) {
+  const a =
+    parseRaceFamily(
+      targetClass
+    );
+
+  const b =
+    parseRaceFamily(
+      pastClass
+    );
+
+  if (
+    a.family !==
+    b.family
+  ) {
+    return {
+      score: 0,
+      reason:
+        'FARKLI_KOSU_AILESI'
+    };
+  }
+
+  /*
+    HANDİKAP:
+    resmi puan bantlarını kullan.
+  */
+
+  if (
+    a.family ===
+    'HANDICAP'
+  ) {
+    const bandA =
+      handicapBand(
+        a.handicap
+      );
+
+    const bandB =
+      handicapBand(
+        b.handicap
+      );
+
+    /*
+      Tam H16/H3 ↔ H16/H3
+    */
+
+    if (
+      a.handicap.number ===
+        b.handicap.number &&
+      a.handicap.hLevel &&
+      b.handicap.hLevel &&
+      a.handicap.hLevel ===
+        b.handicap.hLevel
+    ) {
+      return {
+        score: 30,
+        reason:
+          'HANDICAP_TAM_ESLESME',
+
+        bandA,
+        bandB,
+        overlap: 1
+      };
+    }
+
+    /*
+      Resmi bantların örtüşme oranı.
+    */
+
+    const overlap =
+      bandOverlap(
+        bandA,
+        bandB
+      );
+
+    /*
+      24 puan:
+      resmi HP bandı örtüşmesi.
+
+      6 puan:
+      aynı Handikap numarası bonusu.
+    */
+
+    let score =
+      overlap * 24;
+
+    if (
+      a.handicap.number ===
+      b.handicap.number
+    ) {
+      score += 6;
+    } else {
+      const diff =
+        Math.abs(
+          a.handicap.number -
+          b.handicap.number
+        );
+
+      if (diff === 1) {
+        score += 3;
+      } else if (
+        diff === 2
+      ) {
+        score += 1;
+      }
+    }
+
+    return {
+      score:
+        Math.min(
+          30,
+          Math.round(
+            score * 10
+          ) / 10
+        ),
+
+      reason:
+        'HANDICAP_RESMI_PUAN_BANDI',
+
+      bandA,
+      bandB,
+
+      overlap:
+        Math.round(
+          overlap * 1000
+        ) / 1000
+    };
+  }
+
+  /*
+    Aynı isim tam eşleşme.
+  */
+
+  const exactA =
+    normalizeLetters(
+      normalizeClass(
+        targetClass
+      )
+    );
+
+  const exactB =
+    normalizeLetters(
+      normalizeClass(
+        pastClass
+      )
+    );
+
+  if (
+    exactA ===
+    exactB
+  ) {
+    return {
+      score: 30,
+      reason:
+        'SINIF_TAM_ESLESME'
+    };
+  }
+
+  /*
+    Aynı yarış ailesindeki
+    seviye farkı.
+  */
+
+  if (
+    a.level !== null &&
+    b.level !== null
+  ) {
+    const diff =
+      Math.abs(
+        a.level -
+        b.level
+      );
+
+    if (diff === 0) {
+      return {
+        score: 27,
+        reason:
+          'AYNI_SINIF_ALT_SART_FARKLI'
+      };
+    }
+
+    if (diff === 1) {
+      return {
+        score: 22,
+        reason:
+          'SINIF_BIR_KADEME_FARK'
+      };
+    }
+
+    if (diff === 2) {
+      return {
+        score: 15,
+        reason:
+          'SINIF_IKI_KADEME_FARK'
+      };
+    }
+  }
+
+  return {
+    score: 8,
+    reason:
+      'AYNI_KOSU_AILESI'
+  };
 }
 
-function rowKey(r) {
-  return [
-    r.isoDate,
-    upper(r.city),
-    r.raceNo,
-    upper(r.class),
-    upper(r.ageGroup),
-    r.distance,
-    upper(r.track)
-  ].join('|');
+/* =========================================================
+   ÖZEL ŞARTLAR - 5 PUAN
+========================================================= */
+
+function extractSpecials(
+  value = ''
+) {
+  const t =
+    normalizeLetters(value);
+
+  return {
+    female:
+      /DİŞİ/.test(t),
+
+    male:
+      /\/E\b|ERKEK/.test(t),
+
+    dhow:
+      /DHÖW/.test(t),
+
+    dho:
+      /DHÖ(?!W)/.test(t),
+
+    dht:
+      /DHT/.test(t),
+
+    dh:
+      /(?:^|\/)DH(?:\/|$)/.test(t),
+
+    tr:
+      /(?:^|\/)TR(?:\/|$)/.test(t),
+
+    x1:
+      /X-1/.test(t),
+
+    x:
+      /(?:^|\/)X(?:\/|$)/.test(t),
+
+    yamak:
+      /Y-[0123]/.test(t),
+
+    amateur:
+      /AMATÖR/.test(t),
+
+    sale:
+      /SATIŞ|SATIS/.test(t)
+  };
+}
+
+function specialScore(
+  targetClass,
+  pastClass
+) {
+  const a =
+    extractSpecials(
+      targetClass
+    );
+
+  const b =
+    extractSpecials(
+      pastClass
+    );
+
+  const keys =
+    Object.keys(a);
+
+  let relevant = 0;
+  let equal = 0;
+
+  for (
+    const key of keys
+  ) {
+    if (
+      a[key] ||
+      b[key]
+    ) {
+      relevant++;
+
+      if (
+        a[key] ===
+        b[key]
+      ) {
+        equal++;
+      }
+    }
+  }
+
+  if (
+    relevant === 0
+  ) {
+    return {
+      score: 5,
+      matched: 0,
+      relevant: 0
+    };
+  }
+
+  return {
+    score:
+      Math.round(
+        (
+          equal /
+          relevant *
+          5
+        ) * 10
+      ) / 10,
+
+    matched:
+      equal,
+
+    relevant
+  };
+}
+
+/* =========================================================
+   MESAFE - 15 PUAN
+========================================================= */
+
+function distanceScore(
+  targetDistance,
+  pastDistance
+) {
+  const diff =
+    Math.abs(
+      Number(
+        targetDistance
+      ) -
+      Number(
+        pastDistance
+      )
+    );
+
+  if (diff === 0) {
+    return {
+      score: 15,
+      diff
+    };
+  }
+
+  if (diff <= 100) {
+    return {
+      score: 12,
+      diff
+    };
+  }
+
+  if (diff <= 200) {
+    return {
+      score: 8,
+      diff
+    };
+  }
+
+  if (diff <= 300) {
+    return {
+      score: 4,
+      diff
+    };
+  }
+
+  return {
+    score: 0,
+    diff
+  };
+}
+
+/* =========================================================
+   HİPODROM KADEMESİ - 10 PUAN
+========================================================= */
+
+function cityTier(
+  city = ''
+) {
+  return (
+    TRACK_TIERS[
+      upper(city)
+    ] || null
+  );
+}
+
+function cityScore(
+  targetCity,
+  pastCity
+) {
+  if (
+    upper(targetCity) ===
+    upper(pastCity)
+  ) {
+    return {
+      score: 10,
+      relation:
+        'AYNI_HIPODROM'
+    };
+  }
+
+  const a =
+    cityTier(
+      targetCity
+    );
+
+  const b =
+    cityTier(
+      pastCity
+    );
+
+  if (
+    a &&
+    b &&
+    a === b
+  ) {
+    return {
+      score: 7,
+      relation:
+        'AYNI_KADEME'
+    };
+  }
+
+  if (
+    a &&
+    b
+  ) {
+    return {
+      score: 3,
+      relation:
+        'FARKLI_KADEME'
+    };
+  }
+
+  return {
+    score: 2,
+    relation:
+      'KADEME_BILINMIYOR'
+  };
+}
+
+/* =========================================================
+   PİST - 15 PUAN
+========================================================= */
+
+function trackScore(
+  targetTrack,
+  pastTrack
+) {
+  if (
+    normalizeTrack(
+      targetTrack
+    ) ===
+    normalizeTrack(
+      pastTrack
+    )
+  ) {
+    return 15;
+  }
+
+  return 0;
+}
+
+/* =========================================================
+   HANDİKAP/SIKLET YAPISI - 5 PUAN
+========================================================= */
+
+function weightStructureScore(
+  targetClass,
+  pastClass
+) {
+  const a =
+    parseHandicap(
+      targetClass
+    );
+
+  const b =
+    parseHandicap(
+      pastClass
+    );
+
+  if (
+    !a &&
+    !b
+  ) {
+    return 5;
+  }
+
+  if (
+    !a ||
+    !b
+  ) {
+    return 0;
+  }
+
+  const bandA =
+    handicapBand(a);
+
+  const bandB =
+    handicapBand(b);
+
+  const overlap =
+    bandOverlap(
+      bandA,
+      bandB
+    );
+
+  return (
+    Math.round(
+      overlap *
+      5 *
+      10
+    ) / 10
+  );
+}
+
+/* =========================================================
+   TOPLAM BENZERLİK
+========================================================= */
+
+function similarityScore(
+  target,
+  past
+) {
+  /*
+    Look-ahead kesinlikle yok.
+  */
+
+  if (
+    !past.isoDate ||
+    past.isoDate >=
+      target.date
+  ) {
+    return null;
+  }
+
+  const cls =
+    classScore(
+      target.class,
+      past.class
+    );
+
+  /*
+    Tamamen farklı yarış ailesini
+    kabul etmiyoruz.
+  */
+
+  if (
+    cls.score <= 0
+  ) {
+    return null;
+  }
+
+  const age =
+    ageGroupScore(
+      target.ageGroup,
+      past.ageGroup
+    );
+
+  /*
+    Arap-İngiliz veya yaş kümesi
+    tamamen kopuksa alma.
+  */
+
+  if (
+    age <= 0
+  ) {
+    return null;
+  }
+
+  const trk =
+    trackScore(
+      target.track,
+      past.track
+    );
+
+  /*
+    V6'da farklı pist çekirdek
+    benzer kabul edilmiyor.
+  */
+
+  if (
+    trk <= 0
+  ) {
+    return null;
+  }
+
+  const dst =
+    distanceScore(
+      target.distance,
+      past.distance
+    );
+
+  if (
+    dst.score <= 0
+  ) {
+    return null;
+  }
+
+  const city =
+    cityScore(
+      target.city,
+      past.city
+    );
+
+  const weight =
+    weightStructureScore(
+      target.class,
+      past.class
+    );
+
+  const special =
+    specialScore(
+      target.class,
+      past.class
+    );
+
+  /*
+    TOPLAM = 100
+
+    Sınıf                30
+    Yaş                  20
+    Pist                 15
+    Mesafe               15
+    Hipodrom/kademe      10
+    Sıklet yapısı         5
+    Özel şart             5
+  */
+
+  const total =
+    cls.score +
+    age +
+    trk +
+    dst.score +
+    city.score +
+    weight +
+    special.score;
+
+  return {
+    score:
+      Math.round(
+        total * 10
+      ) / 10,
+
+    detail: {
+      class:
+        cls.score,
+
+      ageGroup:
+        age,
+
+      track:
+        trk,
+
+      distance:
+        dst.score,
+
+      cityTier:
+        city.score,
+
+      weightStructure:
+        weight,
+
+      specialConditions:
+        special.score
+    },
+
+    classDetail:
+      cls,
+
+    cityDetail:
+      city,
+
+    specialDetail:
+      special,
+
+    distanceDiff:
+      dst.diff
+  };
+}
+
+/* =========================================================
+   TJK OPTION ÇÖZÜMÜ
+========================================================= */
+
+function optionList(
+  $,
+  selector
+) {
+  const list = [];
+
+  $(selector)
+    .find('option')
+    .each((_, option) => {
+      list.push({
+        value:
+          clean(
+            $(option)
+              .attr('value') ||
+            ''
+          ),
+
+        text:
+          clean(
+            $(option).text()
+          )
+      });
+    });
+
+  return list;
+}
+
+function findClassOption(
+  options,
+  targetClass
+) {
+  const target =
+    parseRaceFamily(
+      targetClass
+    );
+
+  if (
+    target.family ===
+    'HANDICAP'
+  ) {
+    return (
+      options.find(
+        x => {
+          const f =
+            parseRaceFamily(
+              x.text
+            );
+
+          return (
+            f.family ===
+              'HANDICAP' &&
+            f.level ===
+              target.level
+          );
+        }
+      ) || null
+    );
+  }
+
+  return (
+    options.find(
+      x => {
+        const f =
+          parseRaceFamily(
+            x.text
+          );
+
+        return (
+          f.family ===
+            target.family &&
+          f.level ===
+            target.level
+        );
+      }
+    ) || null
+  );
+}
+
+function findTrackOption(
+  options,
+  targetTrack
+) {
+  return (
+    options.find(
+      x =>
+        normalizeTrack(
+          x.text
+        ) ===
+        normalizeTrack(
+          targetTrack
+        )
+    ) || null
+  );
 }
 
 async function fetchHtml(url) {
@@ -194,9 +1416,11 @@ async function fetchHtml(url) {
     await fetch(
       url,
       {
-        method: 'GET',
-        headers: HEADERS,
-        redirect: 'follow'
+        headers:
+          HEADERS,
+
+        redirect:
+          'follow'
       }
     );
 
@@ -208,6 +1432,48 @@ async function fetchHtml(url) {
 
   return await response.text();
 }
+
+async function resolveFilters(
+  target
+) {
+  const html =
+    await fetchHtml(
+      PAGE_URL
+    );
+
+  const $ =
+    cheerio.load(html);
+
+  const classes =
+    optionList(
+      $,
+      '#QueryParameter_KosuCinsiId'
+    );
+
+  const tracks =
+    optionList(
+      $,
+      '#QueryParameter_PistId'
+    );
+
+  return {
+    raceClass:
+      findClassOption(
+        classes,
+        target.class
+      ),
+
+    track:
+      findTrackOption(
+        tracks,
+        target.track
+      )
+  };
+}
+
+/* =========================================================
+   POST
+========================================================= */
 
 async function postForm(
   url,
@@ -237,7 +1503,8 @@ async function postForm(
     await fetch(
       url,
       {
-        method: 'POST',
+        method:
+          'POST',
 
         headers: {
           ...HEADERS,
@@ -267,273 +1534,13 @@ async function postForm(
 }
 
 /* =========================================================
-   TJK SELECT OPTION ÇÖZÜMÜ
-========================================================= */
-
-function normalizeOptionText(v = '') {
-  return upper(v)
-    .replace(/İNGILIZ/g, 'İNGİLİZ')
-    .replace(/HANDIKAP/g, 'HANDİKAP')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function getSelectOptions(
-  $,
-  selector
-) {
-  const list = [];
-
-  $(selector)
-    .find('option')
-    .each((_, option) => {
-      list.push({
-        value:
-          clean(
-            $(option).attr('value') || ''
-          ),
-
-        text:
-          clean(
-            $(option).text()
-          )
-      });
-    });
-
-  return list;
-}
-
-function findExactOption(
-  options,
-  wantedText
-) {
-  const wanted =
-    normalizeOptionText(
-      wantedText
-    );
-
-  return (
-    options.find(
-      x =>
-        normalizeOptionText(
-          x.text
-        ) === wanted
-    ) || null
-  );
-}
-
-function findClassOption(
-  options,
-  targetClass
-) {
-  const wanted =
-    baseClass(
-      targetClass
-    );
-
-  if (!wanted) {
-    return null;
-  }
-
-  /*
-    Örn:
-    Handikap 16 /H3
-    -> Handikap 16
-  */
-
-  const exact =
-    options.find(
-      x =>
-        baseClass(
-          x.text
-        ) === wanted
-    );
-
-  if (exact) {
-    return exact;
-  }
-
-  return null;
-}
-
-function findTrackOption(
-  options,
-  targetTrack
-) {
-  const wanted =
-    normalizeTrack(
-      targetTrack
-    );
-
-  return (
-    options.find(
-      x =>
-        normalizeTrack(
-          x.text
-        ) === wanted
-    ) || null
-  );
-}
-
-function findAgeGroupOption(
-  options,
-  targetAgeGroup
-) {
-  const wanted =
-    normalizeAgeGroup(
-      targetAgeGroup
-    );
-
-  return (
-    options.find(
-      x =>
-        normalizeAgeGroup(
-          x.text
-        ) === wanted
-    ) || null
-  );
-}
-
-function findCityOption(
-  options,
-  city
-) {
-  if (!clean(city)) {
-    return null;
-  }
-
-  const wanted =
-    upper(city);
-
-  return (
-    options.find(
-      x =>
-        upper(x.text) ===
-        wanted
-    ) || null
-  );
-}
-
-function findDistanceOption(
-  options,
-  distance
-) {
-  const wanted =
-    String(
-      Number(distance)
-    );
-
-  return (
-    options.find(
-      x =>
-        clean(x.text) ===
-        wanted
-    ) || null
-  );
-}
-
-async function resolveTjkFilters(
-  target
-) {
-  const html =
-    await fetchHtml(
-      PAGE_URL
-    );
-
-  const $ =
-    cheerio.load(html);
-
-  const cityOptions =
-    getSelectOptions(
-      $,
-      '#QueryParameter_SehirId'
-    );
-
-  const ageOptions =
-    getSelectOptions(
-      $,
-      '#QueryParameter_GrupId'
-    );
-
-  const classOptions =
-    getSelectOptions(
-      $,
-      '#QueryParameter_KosuCinsiId'
-    );
-
-  const trackOptions =
-    getSelectOptions(
-      $,
-      '#QueryParameter_PistId'
-    );
-
-  const distanceOptions =
-    getSelectOptions(
-      $,
-      '#QueryParameter_Mesafe'
-    );
-
-  const city =
-    findCityOption(
-      cityOptions,
-      target.city
-    );
-
-  const ageGroup =
-    findAgeGroupOption(
-      ageOptions,
-      target.ageGroup
-    );
-
-  const raceClass =
-    findClassOption(
-      classOptions,
-      target.class
-    );
-
-  const track =
-    findTrackOption(
-      trackOptions,
-      target.track
-    );
-
-  const distance =
-    findDistanceOption(
-      distanceOptions,
-      target.distance
-    );
-
-  return {
-    city,
-    ageGroup,
-    raceClass,
-    track,
-    distance,
-
-    counts: {
-      cityOptions:
-        cityOptions.length,
-
-      ageOptions:
-        ageOptions.length,
-
-      classOptions:
-        classOptions.length,
-
-      trackOptions:
-        trackOptions.length,
-
-      distanceOptions:
-        distanceOptions.length
-    }
-  };
-}
-
-/* =========================================================
    TABLO PARSER
 ========================================================= */
 
-function getHeaders($, table) {
+function getHeaders(
+  $,
+  table
+) {
   const headers = [];
 
   $(table)
@@ -545,20 +1552,6 @@ function getHeaders($, table) {
         )
       );
     });
-
-  if (!headers.length) {
-    $(table)
-      .find('tr')
-      .first()
-      .find('th,td')
-      .each((_, el) => {
-        headers.push(
-          clean(
-            $(el).text()
-          )
-        );
-      });
-  }
 
   return headers;
 }
@@ -575,7 +1568,9 @@ function findHeader(
   );
 }
 
-function parseQueryTable(html) {
+function parseQueryTable(
+  html
+) {
   const $ =
     cheerio.load(html);
 
@@ -660,13 +1655,11 @@ function parseQueryTable(html) {
                 )
                 .get();
 
-            if (!cells.length) {
-              return;
-            }
-
             const pd =
               parseDate(
-                cells[dateIx]
+                cells[
+                  dateIx
+                ]
               );
 
             if (!pd) {
@@ -676,15 +1669,25 @@ function parseQueryTable(html) {
             const raceNo =
               Number(
                 String(
-                  cells[raceIx] || ''
-                ).match(/\d+/)?.[0] || 0
+                  cells[
+                    raceIx
+                  ] || ''
+                ).match(
+                  /\d+/
+                )?.[0] ||
+                0
               );
 
             const distance =
               Number(
                 String(
-                  cells[distanceIx] || ''
-                ).match(/\d{3,4}/)?.[0] || 0
+                  cells[
+                    distanceIx
+                  ] || ''
+                ).match(
+                  /\d{3,4}/
+                )?.[0] ||
+                0
               );
 
             rows.push({
@@ -696,26 +1699,34 @@ function parseQueryTable(html) {
 
               city:
                 clean(
-                  cells[cityIx]
+                  cells[
+                    cityIx
+                  ]
                 ),
 
               raceNo,
 
               ageGroup:
                 clean(
-                  cells[ageIx]
+                  cells[
+                    ageIx
+                  ]
                 ),
 
               class:
                 normalizeClass(
-                  cells[classIx]
+                  cells[
+                    classIx
+                  ]
                 ),
 
               distance,
 
               track:
                 normalizeTrack(
-                  cells[trackIx]
+                  cells[
+                    trackIx
+                  ]
                 )
             });
           }
@@ -726,7 +1737,9 @@ function parseQueryTable(html) {
   return rows;
 }
 
-function parseRowsFragment(html) {
+function parseRowsFragment(
+  html
+) {
   let rows =
     parseQueryTable(
       html
@@ -738,13 +1751,9 @@ function parseRowsFragment(html) {
     return rows;
   }
 
-  /*
-    DataRows sadece <tr> döndürürse,
-    doğru sütun yapısıyla sarıyoruz.
-  */
-
   const wrapped =
-    `<table>
+    `
+    <table>
       <thead>
         <tr>
           <th>Tarih</th>
@@ -759,164 +1768,35 @@ function parseRowsFragment(html) {
       <tbody>
         ${html}
       </tbody>
-    </table>`;
+    </table>
+    `;
 
   return parseQueryTable(
     wrapped
   );
 }
 
-/* =========================================================
-   BENZERLİK
-========================================================= */
-
-function similarityScore(
-  target,
-  past
-) {
-  /*
-    Look-ahead kesinlikle yok.
-  */
-  if (
-    !past.isoDate ||
-    past.isoDate >=
-      target.date
-  ) {
-    return null;
-  }
-
-  let score = 0;
-
-  const detail = {
-    class: 0,
-    ageGroup: 0,
-    track: 0,
-    distance: 0,
-    city: 0
-  };
-
-  const targetClass =
-    baseClass(
-      target.class
-    );
-
-  const pastClass =
-    baseClass(
-      past.class
-    );
-
-  if (
-    !targetClass ||
-    !pastClass ||
-    targetClass !==
-      pastClass
-  ) {
-    return null;
-  }
-
-  detail.class = 35;
-  score += 35;
-
-  if (
-    normalizeAgeGroup(
-      target.ageGroup
-    ) !==
-    normalizeAgeGroup(
-      past.ageGroup
-    )
-  ) {
-    return null;
-  }
-
-  detail.ageGroup = 25;
-  score += 25;
-
-  if (
-    normalizeTrack(
-      target.track
-    ) !==
-    normalizeTrack(
-      past.track
-    )
-  ) {
-    return null;
-  }
-
-  detail.track = 20;
-  score += 20;
-
-  const diff =
-    Math.abs(
-      Number(
-        target.distance
-      ) -
-      Number(
-        past.distance
-      )
-    );
-
-  if (
-    diff === 0
-  ) {
-    detail.distance = 15;
-  } else if (
-    diff <= 100
-  ) {
-    detail.distance = 12;
-  } else if (
-    diff <= 200
-  ) {
-    detail.distance = 8;
-  } else if (
-    diff <= 300
-  ) {
-    detail.distance = 4;
-  } else {
-    return null;
-  }
-
-  score +=
-    detail.distance;
-
-  if (
-    upper(
-      target.city
-    ) ===
-    upper(
-      past.city
-    )
-  ) {
-    detail.city = 5;
-    score += 5;
-  }
-
-  return {
-    score,
-    detail,
-    distanceDiff:
-      diff
-  };
+function rowKey(r) {
+  return [
+    r.isoDate,
+    upper(r.city),
+    r.raceNo,
+    upper(r.class),
+    upper(r.ageGroup),
+    r.distance,
+    upper(r.track)
+  ].join('|');
 }
 
 /* =========================================================
-   İLK FİLTRELİ TJK POST
+   FORM
 ========================================================= */
 
-async function fetchFirstPage(
+function buildQueryForm(
   target,
   filters
 ) {
-  /*
-    Şehir filtresini bilinçli olarak
-    UYGULAMIYORUZ.
-
-    Çünkü tarihsel benzer yarışın
-    başka hipodromda olması da değerlidir.
-
-    Aynı şehir yalnız bonus puan.
-  */
-
-  const form = {
+  return {
     QueryParameter_Tarih_Start:
       '',
 
@@ -931,11 +1811,32 @@ async function fetchFirstPage(
     QueryParameter_IrkId:
       '',
 
+    /*
+      V6:
+      yaş grubunu TJK'de
+      filtrelemiyoruz.
+
+      3İ ↔ 3+İ gibi
+      kısmi benzerlikler
+      local scoring'de
+      değerlendirilecek.
+    */
+
     QueryParameter_GrupId:
-      filters.ageGroup?.value || '',
+      '',
+
+    /*
+      Koşu sınıfının ana TJK
+      kategorisini filtreliyoruz.
+      Örn Handikap 16.
+
+      H1/H2/H3 ayrımı local
+      resmi bant hesabıyla yapılır.
+    */
 
     QueryParameter_KosuCinsiId:
-      filters.raceClass?.value || '',
+      filters.raceClass
+        ?.value || '',
 
     QueryParameter_Cinsiyet:
       '',
@@ -943,19 +1844,12 @@ async function fetchFirstPage(
     QueryParameter_APRANTIKODU:
       '',
 
-    /*
-      Burada hedef mesafeyi doğrudan
-      filtrelemiyoruz.
-
-      Çünkü 1900 / 2000 / 2100 vb.
-      ±300 metre benzerliği kaçırmak
-      istemiyoruz.
-    */
     QueryParameter_Mesafe:
       '',
 
     QueryParameter_PistId:
-      filters.track?.value || '',
+      filters.track
+        ?.value || '',
 
     QueryParameter_BabaAdi:
       '',
@@ -967,39 +1861,49 @@ async function fetchFirstPage(
       'past',
 
     Sort:
-      'Tarih desc, Sehir asc, KosuSirasi asc'
+      SORT
   };
+}
 
+/* =========================================================
+   TJK SAYFALAMA
+========================================================= */
+
+async function fetchFirstPage(
+  form
+) {
   const html =
     await postForm(
       DATA_URL,
       form
     );
 
-  const rows =
-    parseQueryTable(
-      html
-    );
-
-  return {
-    rows,
-    form
-  };
+  return parseQueryTable(
+    html
+  );
 }
 
-/* =========================================================
-   DAHA FAZLA SONUÇ
-========================================================= */
-
 async function fetchMorePage(
-  pageNumber
+  pageNumber,
+  baseForm
 ) {
+  /*
+    V5'ten fark:
+    Sayfa 2+ isteklerinde
+    filtreleri de tekrar gönderiyoruz.
+
+    Böylece filtresiz global
+    listeye düşme riskini azaltıyoruz.
+  */
+
   const form = {
+    ...baseForm,
+
     PageNumber:
       pageNumber,
 
     Sort:
-      'Tarih desc, Sehir asc, KosuSirasi asc'
+      SORT
   };
 
   const html =
@@ -1008,19 +1912,13 @@ async function fetchMorePage(
       form
     );
 
-  const rows =
-    parseRowsFragment(
-      html
-    );
-
-  return {
-    rows,
-    form
-  };
+  return parseRowsFragment(
+    html
+  );
 }
 
 /* =========================================================
-   TARAMA
+   TARİHSEL TARAMA
 ========================================================= */
 
 async function scanHistorical({
@@ -1029,26 +1927,27 @@ async function scanHistorical({
   limit,
   maxPages
 }) {
-  const seen =
-    new Set();
-
-  const allRows = [];
-  const matches = [];
-  const diagnostics = [];
-
-  const first =
-    await fetchFirstPage(
+  const form =
+    buildQueryForm(
       target,
       filters
     );
 
-  function addRows(rows) {
+  const seen =
+    new Set();
+
+  const rows = [];
+  const matches = [];
+  const diagnostics = [];
+
+  function consume(
+    incoming
+  ) {
     let added = 0;
     let found = 0;
 
     for (
-      const row of
-      rows
+      const row of incoming
     ) {
       const key =
         rowKey(row);
@@ -1061,9 +1960,6 @@ async function scanHistorical({
 
       seen.add(key);
 
-      /*
-        Hedef tarih dahil değil.
-      */
       if (
         row.isoDate >=
         target.date
@@ -1071,7 +1967,7 @@ async function scanHistorical({
         continue;
       }
 
-      allRows.push(row);
+      rows.push(row);
       added++;
 
       const sim =
@@ -1116,7 +2012,16 @@ async function scanHistorical({
           sim.distanceDiff,
 
         similarityDetail:
-          sim.detail
+          sim.detail,
+
+        classDetail:
+          sim.classDetail,
+
+        cityDetail:
+          sim.cityDetail,
+
+        specialDetail:
+          sim.specialDetail
       });
 
       found++;
@@ -1128,20 +2033,19 @@ async function scanHistorical({
     };
   }
 
-  const firstResult =
-    addRows(
-      first.rows
+  const first =
+    await fetchFirstPage(
+      form
     );
 
-  diagnostics.push({
-    page:
-      1,
+  const firstResult =
+    consume(first);
 
-    endpoint:
-      'Data/KosuSorgulama',
+  diagnostics.push({
+    page: 1,
 
     rows:
-      first.rows.length,
+      first.length,
 
     newRows:
       firstResult.added,
@@ -1153,71 +2057,46 @@ async function scanHistorical({
       matches.length,
 
     status:
-      first.rows.length
+      first.length
         ? 'TAMAM'
         : 'BOS'
   });
 
-  if (
-    !first.rows.length
-  ) {
+  if (!first.length) {
     return {
-      rows:
-        allRows,
-
+      rows,
       matches,
-
       diagnostics
     };
   }
 
   /*
-    Sadece limit kadar değil;
-    kıyaslama yapabilmek için daha
-    fazla aday topluyoruz.
+    Daha geniş aday havuzu.
   */
+
   const wantedMatches =
     Math.max(
-      limit * 3,
-      20
+      limit * 4,
+      30
     );
-
-  if (
-    matches.length >=
-    wantedMatches
-  ) {
-    return {
-      rows:
-        allRows,
-
-      matches,
-
-      diagnostics
-    };
-  }
 
   for (
     let page = 2;
     page <= maxPages;
     page++
   ) {
-    const more =
+    const incoming =
       await fetchMorePage(
-        page
+        page,
+        form
       );
 
     if (
-      !more.rows.length
+      !incoming.length
     ) {
       diagnostics.push({
         page,
-
-        endpoint:
-          'DataRows/KosuSorgulama',
-
-        rows:
-          0,
-
+        rows: 0,
         status:
           'BOS'
       });
@@ -1226,21 +2105,18 @@ async function scanHistorical({
     }
 
     const before =
-      allRows.length;
+      rows.length;
 
     const result =
-      addRows(
-        more.rows
+      consume(
+        incoming
       );
 
     diagnostics.push({
       page,
 
-      endpoint:
-        'DataRows/KosuSorgulama',
-
       rows:
-        more.rows.length,
+        incoming.length,
 
       newRows:
         result.added,
@@ -1249,19 +2125,19 @@ async function scanHistorical({
         result.found,
 
       totalRows:
-        allRows.length,
+        rows.length,
 
       totalMatches:
         matches.length,
 
       status:
-        result.added > 0
+        result.added
           ? 'TAMAM'
           : 'TEKRAR'
     });
 
     if (
-      allRows.length ===
+      rows.length ===
       before
     ) {
       break;
@@ -1276,11 +2152,8 @@ async function scanHistorical({
   }
 
   return {
-    rows:
-      allRows,
-
+    rows,
     matches,
-
     diagnostics
   };
 }
@@ -1343,20 +2216,12 @@ export default async function handler(
         30
       );
 
-    /*
-      Filtreli sorguda 25 sayfa
-      çoğu yarış için fazlasıyla yeterli
-      olmalı.
-
-      İstersek testte maxPages=50
-      verebiliriz.
-    */
     const maxPages =
       Math.min(
         Math.max(
           Number(
             req.query.maxPages ||
-            25
+            30
           ),
           1
         ),
@@ -1439,33 +2304,16 @@ export default async function handler(
       distance
     };
 
-    /*
-      TJK'nin güncel option ID'lerini
-      sayfanın kendisinden çöz.
-    */
     const filters =
-      await resolveTjkFilters(
+      await resolveFilters(
         target
       );
-
-    /*
-      Çekirdek filtrelerden biri
-      bulunamadıysa sessizce filtresiz
-      taramıyoruz.
-    */
-    if (
-      !filters.ageGroup
-    ) {
-      throw new Error(
-        `TJK Grup filtresi bulunamadı: ${target.ageGroup}`
-      );
-    }
 
     if (
       !filters.raceClass
     ) {
       throw new Error(
-        `TJK Koşu Cinsi filtresi bulunamadı: ${target.class}`
+        `TJK Koşu Cinsi bulunamadı: ${raceClass}`
       );
     }
 
@@ -1473,7 +2321,7 @@ export default async function handler(
       !filters.track
     ) {
       throw new Error(
-        `TJK Pist filtresi bulunamadı: ${target.track}`
+        `TJK Pist filtresi bulunamadı: ${track}`
       );
     }
 
@@ -1506,7 +2354,7 @@ export default async function handler(
       }
     );
 
-    const matches =
+    const selected =
       scan.matches.slice(
         0,
         limit
@@ -1521,18 +2369,6 @@ export default async function handler(
         .filter(Boolean)
         .sort();
 
-    const oldestDate =
-      dates.length
-        ? dates[0]
-        : null;
-
-    const newestDate =
-      dates.length
-        ? dates[
-            dates.length - 1
-          ]
-        : null;
-
     res.setHeader(
       'Cache-Control',
       's-maxage=900, stale-while-revalidate=3600'
@@ -1545,88 +2381,78 @@ export default async function handler(
         ok: true,
 
         version:
-          'TJK-SIMILAR-V5',
+          'TJK-SIMILAR-V6',
 
         target,
 
-        /*
-          Hangi gerçek TJK ID'lerinin
-          kullanıldığını görebilelim.
-        */
         resolvedFilters: {
-
-          city:
-            filters.city
-              ? {
-                  text:
-                    filters.city.text,
-
-                  value:
-                    filters.city.value
-                }
-              : null,
-
-          ageGroup: {
-            text:
-              filters.ageGroup.text,
-
-            value:
-              filters.ageGroup.value
-          },
-
-          raceClass: {
-            text:
-              filters.raceClass.text,
-
-            value:
-              filters.raceClass.value
-          },
-
-          track: {
-            text:
-              filters.track.text,
-
-            value:
-              filters.track.value
-          },
-
-          distance:
-            filters.distance
-              ? {
-                  text:
-                    filters.distance.text,
-
-                  value:
-                    filters.distance.value
-                }
-              : null
-        },
-
-        filterPolicy: {
-          ageGroup:
-            'TJK_SERVER_FILTER',
-
           raceClass:
-            'TJK_SERVER_FILTER',
+            filters.raceClass,
 
           track:
-            'TJK_SERVER_FILTER',
-
-          distance:
-            'LOCAL_PLUS_MINUS_300',
-
-          city:
-            'LOCAL_BONUS_ONLY'
+            filters.track
         },
 
-        sort:
-          'Tarih desc, Sehir asc, KosuSirasi asc',
+        scoring: {
+          class:
+            30,
 
-        firstEndpoint:
-          '/Query/Data/KosuSorgulama',
+          ageGroup:
+            20,
 
-        pagingEndpoint:
-          '/Query/DataRows/KosuSorgulama',
+          track:
+            15,
+
+          distance:
+            15,
+
+          cityTier:
+            10,
+
+          weightStructure:
+            5,
+
+          specialConditions:
+            5,
+
+          total:
+            100
+        },
+
+        officialRulesUsed: {
+          handicapBands:
+            '2026 Genel Hükümler Madde/Tablo 28',
+
+          handicapPointToWeight:
+            '1 puan = 0.5 kg',
+
+          trackTiers:
+            '2026 Genel Hükümler sayfa 29',
+
+          tiers: {
+            1:
+              [
+                'İstanbul',
+                'Ankara'
+              ],
+
+            2:
+              [
+                'Adana',
+                'İzmir',
+                'Bursa',
+                'Antalya',
+                'Kocaeli'
+              ],
+
+            3:
+              [
+                'Şanlıurfa',
+                'Elazığ',
+                'Diyarbakır'
+              ]
+          }
+        },
 
         pagesRead:
           scan.diagnostics
@@ -1640,55 +2466,38 @@ export default async function handler(
         scanned:
           scan.rows.length,
 
-        oldestDate,
+        oldestDate:
+          dates.length
+            ? dates[0]
+            : null,
 
-        newestDate,
+        newestDate:
+          dates.length
+            ? dates[
+                dates.length - 1
+              ]
+            : null,
 
         matchCount:
           scan.matches.length,
 
         returned:
-          matches.length,
+          selected.length,
 
         diagnostics:
           scan.diagnostics,
 
-        similarityRule: {
-          class:
-            35,
-
-          ageGroup:
-            25,
-
-          track:
-            20,
-
-          distance:
-            15,
-
-          sameCity:
-            5,
-
-          core: [
-            'class',
-            'ageGroup',
-            'track'
-          ],
-
-          maxDistanceDifference:
-            300
-        },
-
-        matches,
+        matches:
+          selected,
 
         source:
-          'TJK_REAL_FILTERED_POST_PAGING'
+          'TJK_OFFICIAL_RULE_BASED_SIMILARITY_V6'
       });
 
   } catch (e) {
 
     console.error(
-      'tjk-similar:',
+      'tjk-similar V6:',
       e
     );
 
@@ -1699,11 +2508,11 @@ export default async function handler(
         ok: false,
 
         version:
-          'TJK-SIMILAR-V5',
+          'TJK-SIMILAR-V6',
 
         error:
           e?.message ||
-          'Tarihsel benzer yarışlar oluşturulamadı.'
+          'Tarihsel benzerlik hesaplanamadı.'
       });
   }
     }
