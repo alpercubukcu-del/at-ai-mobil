@@ -60,9 +60,17 @@ function isoToDisplay(iso = '') {
 function normalizeTrack(v = '') {
   const t = upper(v);
 
-  if (t.includes('ÇİM')) return 'Çim';
-  if (t.includes('KUM')) return 'Kum';
-  if (t.includes('SENTETİK')) return 'Sentetik';
+  if (t.includes('SENTETİK')) {
+    return 'Sentetik';
+  }
+
+  if (t.includes('ÇİM')) {
+    return 'Çim';
+  }
+
+  if (t.includes('KUM')) {
+    return 'Kum';
+  }
 
   return clean(v);
 }
@@ -181,6 +189,26 @@ function rowKey(r) {
   ].join('|');
 }
 
+async function fetchHtml(url) {
+  const response =
+    await fetch(
+      url,
+      {
+        method: 'GET',
+        headers: HEADERS,
+        redirect: 'follow'
+      }
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      `TJK GET HTTP ${response.status}`
+    );
+  }
+
+  return await response.text();
+}
+
 async function postForm(
   url,
   data
@@ -231,12 +259,279 @@ async function postForm(
 
   if (!response.ok) {
     throw new Error(
-      `TJK HTTP ${response.status}`
+      `TJK POST HTTP ${response.status}`
     );
   }
 
   return await response.text();
 }
+
+/* =========================================================
+   TJK SELECT OPTION ÇÖZÜMÜ
+========================================================= */
+
+function normalizeOptionText(v = '') {
+  return upper(v)
+    .replace(/İNGILIZ/g, 'İNGİLİZ')
+    .replace(/HANDIKAP/g, 'HANDİKAP')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getSelectOptions(
+  $,
+  selector
+) {
+  const list = [];
+
+  $(selector)
+    .find('option')
+    .each((_, option) => {
+      list.push({
+        value:
+          clean(
+            $(option).attr('value') || ''
+          ),
+
+        text:
+          clean(
+            $(option).text()
+          )
+      });
+    });
+
+  return list;
+}
+
+function findExactOption(
+  options,
+  wantedText
+) {
+  const wanted =
+    normalizeOptionText(
+      wantedText
+    );
+
+  return (
+    options.find(
+      x =>
+        normalizeOptionText(
+          x.text
+        ) === wanted
+    ) || null
+  );
+}
+
+function findClassOption(
+  options,
+  targetClass
+) {
+  const wanted =
+    baseClass(
+      targetClass
+    );
+
+  if (!wanted) {
+    return null;
+  }
+
+  /*
+    Örn:
+    Handikap 16 /H3
+    -> Handikap 16
+  */
+
+  const exact =
+    options.find(
+      x =>
+        baseClass(
+          x.text
+        ) === wanted
+    );
+
+  if (exact) {
+    return exact;
+  }
+
+  return null;
+}
+
+function findTrackOption(
+  options,
+  targetTrack
+) {
+  const wanted =
+    normalizeTrack(
+      targetTrack
+    );
+
+  return (
+    options.find(
+      x =>
+        normalizeTrack(
+          x.text
+        ) === wanted
+    ) || null
+  );
+}
+
+function findAgeGroupOption(
+  options,
+  targetAgeGroup
+) {
+  const wanted =
+    normalizeAgeGroup(
+      targetAgeGroup
+    );
+
+  return (
+    options.find(
+      x =>
+        normalizeAgeGroup(
+          x.text
+        ) === wanted
+    ) || null
+  );
+}
+
+function findCityOption(
+  options,
+  city
+) {
+  if (!clean(city)) {
+    return null;
+  }
+
+  const wanted =
+    upper(city);
+
+  return (
+    options.find(
+      x =>
+        upper(x.text) ===
+        wanted
+    ) || null
+  );
+}
+
+function findDistanceOption(
+  options,
+  distance
+) {
+  const wanted =
+    String(
+      Number(distance)
+    );
+
+  return (
+    options.find(
+      x =>
+        clean(x.text) ===
+        wanted
+    ) || null
+  );
+}
+
+async function resolveTjkFilters(
+  target
+) {
+  const html =
+    await fetchHtml(
+      PAGE_URL
+    );
+
+  const $ =
+    cheerio.load(html);
+
+  const cityOptions =
+    getSelectOptions(
+      $,
+      '#QueryParameter_SehirId'
+    );
+
+  const ageOptions =
+    getSelectOptions(
+      $,
+      '#QueryParameter_GrupId'
+    );
+
+  const classOptions =
+    getSelectOptions(
+      $,
+      '#QueryParameter_KosuCinsiId'
+    );
+
+  const trackOptions =
+    getSelectOptions(
+      $,
+      '#QueryParameter_PistId'
+    );
+
+  const distanceOptions =
+    getSelectOptions(
+      $,
+      '#QueryParameter_Mesafe'
+    );
+
+  const city =
+    findCityOption(
+      cityOptions,
+      target.city
+    );
+
+  const ageGroup =
+    findAgeGroupOption(
+      ageOptions,
+      target.ageGroup
+    );
+
+  const raceClass =
+    findClassOption(
+      classOptions,
+      target.class
+    );
+
+  const track =
+    findTrackOption(
+      trackOptions,
+      target.track
+    );
+
+  const distance =
+    findDistanceOption(
+      distanceOptions,
+      target.distance
+    );
+
+  return {
+    city,
+    ageGroup,
+    raceClass,
+    track,
+    distance,
+
+    counts: {
+      cityOptions:
+        cityOptions.length,
+
+      ageOptions:
+        ageOptions.length,
+
+      classOptions:
+        classOptions.length,
+
+      trackOptions:
+        trackOptions.length,
+
+      distanceOptions:
+        distanceOptions.length
+    }
+  };
+}
+
+/* =========================================================
+   TABLO PARSER
+========================================================= */
 
 function getHeaders($, table) {
   const headers = [];
@@ -245,7 +540,9 @@ function getHeaders($, table) {
     .find('thead th')
     .each((_, th) => {
       headers.push(
-        clean($(th).text())
+        clean(
+          $(th).text()
+        )
       );
     });
 
@@ -256,7 +553,9 @@ function getHeaders($, table) {
       .find('th,td')
       .each((_, el) => {
         headers.push(
-          clean($(el).text())
+          clean(
+            $(el).text()
+          )
         );
       });
   }
@@ -428,11 +727,20 @@ function parseQueryTable(html) {
 }
 
 function parseRowsFragment(html) {
-  /*
-    DataRows endpointi bazen sadece
-    <tr> parçaları döndürebilir.
+  let rows =
+    parseQueryTable(
+      html
+    );
 
-    Bu nedenle sanal tablo sarıyoruz.
+  if (
+    rows.length
+  ) {
+    return rows;
+  }
+
+  /*
+    DataRows sadece <tr> döndürürse,
+    doğru sütun yapısıyla sarıyoruz.
   */
 
   const wrapped =
@@ -453,29 +761,22 @@ function parseRowsFragment(html) {
       </tbody>
     </table>`;
 
-  let rows =
-    parseQueryTable(
-      html
-    );
-
-  if (
-    rows.length
-  ) {
-    return rows;
-  }
-
-  rows =
-    parseQueryTable(
-      wrapped
-    );
-
-  return rows;
+  return parseQueryTable(
+    wrapped
+  );
 }
+
+/* =========================================================
+   BENZERLİK
+========================================================= */
 
 function similarityScore(
   target,
   past
 ) {
+  /*
+    Look-ahead kesinlikle yok.
+  */
   if (
     !past.isoDate ||
     past.isoDate >=
@@ -546,8 +847,12 @@ function similarityScore(
 
   const diff =
     Math.abs(
-      Number(target.distance) -
-      Number(past.distance)
+      Number(
+        target.distance
+      ) -
+      Number(
+        past.distance
+      )
     );
 
   if (
@@ -594,19 +899,30 @@ function similarityScore(
 }
 
 /* =========================================================
-   GERÇEK TJK İLK SORGU
+   İLK FİLTRELİ TJK POST
 ========================================================= */
 
 async function fetchFirstPage(
-  targetDate
+  target,
+  filters
 ) {
+  /*
+    Şehir filtresini bilinçli olarak
+    UYGULAMIYORUZ.
+
+    Çünkü tarihsel benzer yarışın
+    başka hipodromda olması da değerlidir.
+
+    Aynı şehir yalnız bonus puan.
+  */
+
   const form = {
     QueryParameter_Tarih_Start:
       '',
 
     QueryParameter_Tarih_End:
       isoToDisplay(
-        targetDate
+        target.date
       ),
 
     QueryParameter_SehirId:
@@ -616,10 +932,10 @@ async function fetchFirstPage(
       '',
 
     QueryParameter_GrupId:
-      '',
+      filters.ageGroup?.value || '',
 
     QueryParameter_KosuCinsiId:
-      '',
+      filters.raceClass?.value || '',
 
     QueryParameter_Cinsiyet:
       '',
@@ -627,11 +943,19 @@ async function fetchFirstPage(
     QueryParameter_APRANTIKODU:
       '',
 
+    /*
+      Burada hedef mesafeyi doğrudan
+      filtrelemiyoruz.
+
+      Çünkü 1900 / 2000 / 2100 vb.
+      ±300 metre benzerliği kaçırmak
+      istemiyoruz.
+    */
     QueryParameter_Mesafe:
       '',
 
     QueryParameter_PistId:
-      '',
+      filters.track?.value || '',
 
     QueryParameter_BabaAdi:
       '',
@@ -658,14 +982,13 @@ async function fetchFirstPage(
     );
 
   return {
-    html,
     rows,
     form
   };
 }
 
 /* =========================================================
-   GERÇEK TJK DAHA FAZLA
+   DAHA FAZLA SONUÇ
 ========================================================= */
 
 async function fetchMorePage(
@@ -691,7 +1014,6 @@ async function fetchMorePage(
     );
 
   return {
-    html,
     rows,
     form
   };
@@ -703,6 +1025,7 @@ async function fetchMorePage(
 
 async function scanHistorical({
   target,
+  filters,
   limit,
   maxPages
 }) {
@@ -713,50 +1036,11 @@ async function scanHistorical({
   const matches = [];
   const diagnostics = [];
 
-  /*
-    Bugünün yarışını dışarıda bırakmak
-    için End = hedef tarih.
-
-    Son filtreyi ayrıca
-    isoDate < target.date ile yapıyoruz.
-  */
   const first =
     await fetchFirstPage(
-      target.date
+      target,
+      filters
     );
-
-  let firstRows =
-    first.rows;
-
-  diagnostics.push({
-    page:
-      1,
-
-    endpoint:
-      'Data/KosuSorgulama',
-
-    rows:
-      firstRows.length,
-
-    status:
-      firstRows.length
-        ? 'TAMAM'
-        : 'BOS'
-  });
-
-  if (
-    !firstRows.length
-  ) {
-    return {
-      rows:
-        [],
-
-      matches:
-        [],
-
-      diagnostics
-    };
-  }
 
   function addRows(rows) {
     let added = 0;
@@ -778,8 +1062,7 @@ async function scanHistorical({
       seen.add(key);
 
       /*
-        Hedef tarihin kendisi veya
-        gelecek kesinlikle alınmaz.
+        Hedef tarih dahil değil.
       */
       if (
         row.isoDate >=
@@ -845,30 +1128,58 @@ async function scanHistorical({
     };
   }
 
-  const firstAdd =
+  const firstResult =
     addRows(
-      firstRows
+      first.rows
     );
 
-  diagnostics[
-    diagnostics.length - 1
-  ].newRows =
-    firstAdd.added;
+  diagnostics.push({
+    page:
+      1,
 
-  diagnostics[
-    diagnostics.length - 1
-  ].newMatches =
-    firstAdd.found;
+    endpoint:
+      'Data/KosuSorgulama',
+
+    rows:
+      first.rows.length,
+
+    newRows:
+      firstResult.added,
+
+    newMatches:
+      firstResult.found,
+
+    totalMatches:
+      matches.length,
+
+    status:
+      first.rows.length
+        ? 'TAMAM'
+        : 'BOS'
+  });
+
+  if (
+    !first.rows.length
+  ) {
+    return {
+      rows:
+        allRows,
+
+      matches,
+
+      diagnostics
+    };
+  }
 
   /*
-    Kullanıcı sadece 10 benzer
-    istese de sıralama kalitesi için
-    biraz fazla topluyoruz.
+    Sadece limit kadar değil;
+    kıyaslama yapabilmek için daha
+    fazla aday topluyoruz.
   */
   const wantedMatches =
     Math.max(
       limit * 3,
-      15
+      20
     );
 
   if (
@@ -885,14 +1196,6 @@ async function scanHistorical({
     };
   }
 
-  /*
-    pagerForm HTML'de
-    PageNumber=1 geliyor.
-
-    "Daha Fazla Sonuç Göster"
-    sonrasında 2,3,4...
-    ilerliyoruz.
-  */
   for (
     let page = 2;
     page <= maxPages;
@@ -903,11 +1206,8 @@ async function scanHistorical({
         page
       );
 
-    const rows =
-      more.rows;
-
     if (
-      !rows.length
+      !more.rows.length
     ) {
       diagnostics.push({
         page,
@@ -930,7 +1230,7 @@ async function scanHistorical({
 
     const result =
       addRows(
-        rows
+        more.rows
       );
 
     diagnostics.push({
@@ -940,7 +1240,7 @@ async function scanHistorical({
         'DataRows/KosuSorgulama',
 
       rows:
-        rows.length,
+        more.rows.length,
 
       newRows:
         result.added,
@@ -960,10 +1260,6 @@ async function scanHistorical({
           : 'TEKRAR'
     });
 
-    /*
-      Aynı sayfa geri dönüyorsa
-      sonsuz döngüyü kes.
-    */
     if (
       allRows.length ===
       before
@@ -1047,6 +1343,14 @@ export default async function handler(
         30
       );
 
+    /*
+      Filtreli sorguda 25 sayfa
+      çoğu yarış için fazlasıyla yeterli
+      olmalı.
+
+      İstersek testte maxPages=50
+      verebiliriz.
+    */
     const maxPages =
       Math.min(
         Math.max(
@@ -1135,9 +1439,48 @@ export default async function handler(
       distance
     };
 
+    /*
+      TJK'nin güncel option ID'lerini
+      sayfanın kendisinden çöz.
+    */
+    const filters =
+      await resolveTjkFilters(
+        target
+      );
+
+    /*
+      Çekirdek filtrelerden biri
+      bulunamadıysa sessizce filtresiz
+      taramıyoruz.
+    */
+    if (
+      !filters.ageGroup
+    ) {
+      throw new Error(
+        `TJK Grup filtresi bulunamadı: ${target.ageGroup}`
+      );
+    }
+
+    if (
+      !filters.raceClass
+    ) {
+      throw new Error(
+        `TJK Koşu Cinsi filtresi bulunamadı: ${target.class}`
+      );
+    }
+
+    if (
+      !filters.track
+    ) {
+      throw new Error(
+        `TJK Pist filtresi bulunamadı: ${target.track}`
+      );
+    }
+
     const scan =
       await scanHistorical({
         target,
+        filters,
         limit,
         maxPages
       });
@@ -1202,9 +1545,79 @@ export default async function handler(
         ok: true,
 
         version:
-          'TJK-SIMILAR-V4',
+          'TJK-SIMILAR-V5',
 
         target,
+
+        /*
+          Hangi gerçek TJK ID'lerinin
+          kullanıldığını görebilelim.
+        */
+        resolvedFilters: {
+
+          city:
+            filters.city
+              ? {
+                  text:
+                    filters.city.text,
+
+                  value:
+                    filters.city.value
+                }
+              : null,
+
+          ageGroup: {
+            text:
+              filters.ageGroup.text,
+
+            value:
+              filters.ageGroup.value
+          },
+
+          raceClass: {
+            text:
+              filters.raceClass.text,
+
+            value:
+              filters.raceClass.value
+          },
+
+          track: {
+            text:
+              filters.track.text,
+
+            value:
+              filters.track.value
+          },
+
+          distance:
+            filters.distance
+              ? {
+                  text:
+                    filters.distance.text,
+
+                  value:
+                    filters.distance.value
+                }
+              : null
+        },
+
+        filterPolicy: {
+          ageGroup:
+            'TJK_SERVER_FILTER',
+
+          raceClass:
+            'TJK_SERVER_FILTER',
+
+          track:
+            'TJK_SERVER_FILTER',
+
+          distance:
+            'LOCAL_PLUS_MINUS_300',
+
+          city:
+            'LOCAL_BONUS_ONLY'
+        },
 
         sort:
           'Tarih desc, Sehir asc, KosuSirasi asc',
@@ -1269,7 +1682,7 @@ export default async function handler(
         matches,
 
         source:
-          'TJK_REAL_POST_PAGING'
+          'TJK_REAL_FILTERED_POST_PAGING'
       });
 
   } catch (e) {
@@ -1286,11 +1699,11 @@ export default async function handler(
         ok: false,
 
         version:
-          'TJK-SIMILAR-V4',
+          'TJK-SIMILAR-V5',
 
         error:
           e?.message ||
           'Tarihsel benzer yarışlar oluşturulamadı.'
       });
   }
-                  }
+    }
