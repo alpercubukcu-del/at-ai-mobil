@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#07111f" />
+  <title>AT AI Mobil</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">AT AI SYSTEM</div>
+        <h1>AT AI Mobil</h1>
+      </div>
+      <button id="menuBtn" class="icon-btn" aria-label="Menü">☰</button>
+    </header>
+
+    <main>
+      <section class="panel compact">
+        <div class="grid2">
+          <label>Tarih<input id="raceDate" type="date" /></label>
+          <label>Şehir<select id="citySelect"><option value="">Önce programı yükleyin</option></select></label>
+        </div>
+        <button id="loadProgramBtn" class="primary">TJK Programını Yükle</button>
+        <div id="status" class="status">Hazır</div>
+      </section>
+
+      <section class="panel">
+        <div class="section-title-row">
+          <div>
+            <div class="eyebrow">KUPON MERKEZİ</div>
+            <h2>Günün Bahisleri</h2>
+          </div>
+          <button id="clearBtn" class="danger-ghost">Analizleri Temizle</button>
+        </div>
+
+        <label>Kuponu hangi sinyale göre oluşturacağız?
+          <select id="signalSource">
+            <option value="combined">Birleşik Analiz</option>
+            <option value="historical">Tarihsel Benzerlik</option>
+            <option value="career">Kariyer Yol Haritası</option>
+            <option value="current">Güncel Analiz</option>
+            <option value="manual">Manuel Seçim</option>
+          </select>
+        </label>
+
+        <div id="betTypes" class="bet-grid"></div>
+        <div class="grid2">
+          <label>Bütçe (₺)<input id="budget" type="number" min="1" value="500" /></label>
+          <label>Tek sayısı<select id="singleCount"><option>0</option><option selected>1</option><option>2</option><option>3</option></select></label>
+        </div>
+        <button id="buildAllBtn" class="primary">Seçili Sinyallerle Tüm Kuponları Oluştur</button>
+      </section>
+
+      <section class="panel">
+        <div class="eyebrow">GÜNLÜK PROGRAM</div>
+        <h2>Koşular</h2>
+        <div id="raceTabs" class="race-tabs"></div>
+        <div id="raceList" class="race-list empty">Program henüz yüklenmedi.</div>
+      </section>
+
+      <section class="panel">
+        <div class="eyebrow">OLUŞTURULAN KUPONLAR</div>
+        <h2>Kuponlar</h2>
+        <div id="tickets" class="ticket-list empty">Henüz kupon oluşturulmadı.</div>
+      </section>
+    </main>
+  </div>
+
+  <aside id="drawer" class="drawer" aria-hidden="true">
+    <div class="drawer-head"><strong>Analiz Bölümleri</strong><button id="closeMenu" class="icon-btn">✕</button></div>
+    <button data-view="current">1. Güncel Analiz</button>
+    <button data-view="historical">2. Tarihsel Benzerlik</button>
+    <button data-view="scenario">3. Koşu Senaryosu</button>
+    <button data-view="career">4. Kariyer Yol Haritası</button>
+    <div class="drawer-note">Her bölümde tüm koşuları birlikte veya tek koşuyu ayrı inceleyebilirsiniz. Analizler siz temizleyene kadar bu cihazda saklanır.</div>
+  </aside>
+  <div id="overlay" class="overlay"></div>
+
+  <dialog id="analysisDialog">
+    <div class="dialog-head"><div><div class="eyebrow" id="dialogEyebrow">ANALİZ</div><h2 id="dialogTitle">Analiz</h2></div><button id="closeDialog" class="icon-btn">✕</button></div>
+    <div class="toolbar">
+      <select id="analysisRace"><option value="all">Tüm Koşular</option></select>
+      <button id="runAnalysis" class="primary small">Analizi Hesapla</button>
+      <button id="ticketFromAnalysis" class="secondary small">Bu Sinyallerle Kupon Oluştur</button>
+    </div>
+    <div id="analysisContent" class="analysis-content empty">Analiz seçilmedi.</div>
+  </dialog>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
