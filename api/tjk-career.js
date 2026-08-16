@@ -1200,4 +1200,4 @@ export default async function handler(
           'At kariyer bilgisi alınamadı.'
       });
   }
-    }
+}
