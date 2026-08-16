@@ -36,67 +36,168 @@ function absoluteUrl(href = '') {
   }
 }
 
+async function fetchHtml(url) {
+  const r = await fetch(url, {
+    headers: HEADERS,
+    redirect: 'follow'
+  });
+
+  if (!r.ok) {
+    throw new Error(`TJK HTTP ${r.status}`);
+  }
+
+  return await r.text();
+}
+
 function getAtId($, tr) {
   let id = '';
 
-  $(tr)
-    .find('a')
-    .each((_, a) => {
-      if (id) return;
+  $(tr).find('a').each((_, a) => {
+    if (id) return;
 
-      const href = $(a).attr('href') || '';
+    const href = $(a).attr('href') || '';
 
-      const m =
-        href.match(/QueryParameter_AtId=(\d+)/i) ||
-        href.match(/[?&]AtId=(\d+)/i) ||
-        href.match(/AtId[=/](\d+)/i);
+    const m =
+      href.match(/QueryParameter_AtId=(\d+)/i) ||
+      href.match(/[?&]AtId=(\d+)/i);
 
-      if (m) id = m[1];
-    });
+    if (m) id = m[1];
+  });
 
   return id;
 }
 
-function parseRaceCondition(text) {
+function tableHeaders($, table) {
+  let out = [];
+
+  $(table)
+    .find('thead th')
+    .each((_, th) => {
+      out.push(clean($(th).text()));
+    });
+
+  if (!out.length) {
+    $(table)
+      .find('tr')
+      .first()
+      .find('th,td')
+      .each((_, x) => {
+        out.push(clean($(x).text()));
+      });
+  }
+
+  return out;
+}
+
+function findHeader(headers, re) {
+  return headers.findIndex(x => re.test(x));
+}
+
+function isHorseTable($, table) {
+  const h = tableHeaders($, table);
+
+  return (
+    h.some(x => /^N$/i.test(x)) &&
+    h.some(x => /At İsmi|At Ismi/i.test(x)) &&
+    h.some(x => /Jokey/i.test(x))
+  );
+}
+
+function parseHorseTable($, table) {
+  const headers = tableHeaders($, table);
+
+  const ix = {
+    n: findHeader(headers, /^N$/i),
+    name: findHeader(headers, /At İsmi|At Ismi/i),
+    age: findHeader(headers, /Yaş|Yas/i),
+    weight: findHeader(headers, /Sıklet|Siklet/i),
+    jockey: findHeader(headers, /Jokey/i),
+    owner: findHeader(headers, /Sahip/i),
+    trainer: findHeader(headers, /Antrenör|Antrenor/i),
+    st: findHeader(headers, /^St$/i),
+    hp: findHeader(headers, /^HP$/i),
+    last6: findHeader(headers, /Son 6/i),
+    kgs: findHeader(headers, /^KGS$/i),
+    s20: findHeader(headers, /^s20$/i),
+    odds: findHeader(headers, /^Gny$/i),
+    agf: findHeader(headers, /^AGF$/i)
+  };
+
+  const horses = [];
+
+  $(table)
+    .find('tbody tr')
+    .each((_, tr) => {
+      const cells = $(tr)
+        .find('td')
+        .map((__, td) => clean($(td).text()))
+        .get();
+
+      if (!cells.length) return;
+
+      const val = key => {
+        const i = ix[key];
+        return i >= 0 ? clean(cells[i] || '') : '';
+      };
+
+      const no = Number(
+        String(val('n')).replace(/[^\d]/g, '')
+      );
+
+      const name = val('name');
+
+      if (!no || !name) return;
+
+      horses.push({
+        no,
+        id: getAtId($, tr),
+        name,
+        age: val('age'),
+        weight: val('weight'),
+        jockey: val('jockey'),
+        owner: val('owner'),
+        trainer: val('trainer'),
+        st: val('st'),
+        hp: val('hp'),
+        last6: val('last6'),
+        kgs: val('kgs'),
+        s20: val('s20'),
+        odds: val('odds'),
+        agf: val('agf')
+      });
+    });
+
+  return horses;
+}
+
+function parseCondition(text = '') {
   const t = clean(text);
 
   const distance =
-    (t.match(/\b(\d{3,4})\s*(?:m\s*)?(?=Çim|Kum|Sentetik)/i) || [])[1] ||
-    '';
+    (t.match(
+      /\b(\d{3,4})\s*(?:m\s*)?(Çim|Kum|Sentetik)\b/i
+    ) || []);
 
-  const track =
-    (t.match(/\b(Çim|Kum|Sentetik)\b/i) || [])[1] || '';
-
-  let raceClass = '';
-
-  const classPatterns = [
-    /(?:HANDİKAP|HANDIKAP)\s*\d+(?:\s*\/\s*[A-ZÇĞİÖŞÜ0-9-]+)*/i,
-    /ŞARTLI\s*\d+(?:\s*\/\s*[A-ZÇĞİÖŞÜ0-9-]+)*/i,
-    /MAIDEN(?:\s*\/\s*[A-ZÇĞİÖŞÜ0-9-]+)*/i,
-    /KV-\s*\d+(?:\s*\/\s*[A-ZÇĞİÖŞÜ0-9-]+)*/i,
-    /\bG[1-3]\b/i,
-    /\bA[1-3]\b/i
-  ];
-
-  for (const p of classPatterns) {
-    const m = t.match(p);
-    if (m) {
-      raceClass = clean(m[0]);
-      break;
-    }
-  }
+  const raceClass =
+    (
+      t.match(
+        /(Maiden(?:\/[A-ZÇĞİÖŞÜ0-9/-]+)?|Handikap\s*\d+(?:\/[A-ZÇĞİÖŞÜ0-9/-]+)?|Şartlı\s*\d+(?:\/[A-ZÇĞİÖŞÜ0-9/-]+)?|KV-\s*\d+(?:\/[A-ZÇĞİÖŞÜ0-9/-]+)?|\bG[1-3]\b|\bA[1-3]\b)/i
+      ) || []
+    )[0] || '';
 
   return {
-    class: raceClass,
-    distance: distance ? `${distance}m` : '',
-    track
+    class: clean(raceClass),
+    distance: distance[1]
+      ? `${distance[1]}m`
+      : '',
+    track: distance[2] || ''
   };
 }
 
-function parseBetStarts(text) {
+function parseBetStarts(text = '') {
   const t = clean(text).toLocaleUpperCase('tr-TR');
 
-  const patterns = [
+  const defs = [
     ['7li Ganyan', /7['’]?\s*Lİ\s+GANYAN/],
     ['7li Plase', /7['’]?\s*Lİ\s+PLASE/],
     ['1. 6lı Ganyan', /1\.\s*6['’]?\s*LI\s+GANYAN/],
@@ -105,266 +206,198 @@ function parseBetStarts(text) {
     ['2. 5li Ganyan', /2\.\s*5['’]?\s*Lİ\s+GANYAN/],
     ['1. 3lü Ganyan', /1\.\s*3['’]?\s*LÜ\s+GANYAN/],
     ['2. 3lü Ganyan', /2\.\s*3['’]?\s*LÜ\s+GANYAN/],
-    ['4lü Ganyan', /(?:^|\s)4['’]?\s*LÜ\s+GANYAN/]
+    ['4lü Ganyan', /4['’]?\s*LÜ\s+GANYAN/]
   ];
 
-  const out = [];
-
-  for (const [name, re] of patterns) {
-    if (re.test(t) && !out.includes(name)) {
-      out.push(name);
-    }
-  }
-
-  return out;
+  return defs
+    .filter(([, re]) => re.test(t))
+    .map(([name]) => name);
 }
 
-function tableHeaders($, table) {
-  let headers = [];
+function raceHeading(text = '') {
+  const t = clean(text);
 
-  $(table)
-    .find('thead th')
-    .each((_, th) => {
-      headers.push(clean($(th).text()));
-    });
+  const m = t.match(
+    /^(\d{1,2})\.\s*Koşu\s*:?\s*(\d{1,2}[.:]\d{2})(?:\s|$)/i
+  );
 
-  if (!headers.length) {
-    const first = $(table).find('tr').first();
+  if (!m) return null;
 
-    first.find('th,td').each((_, x) => {
-      headers.push(clean($(x).text()));
-    });
-  }
-
-  return headers;
-}
-
-function headerIndex(headers, re) {
-  return headers.findIndex(x => re.test(x));
-}
-
-function parseHorseTable($, table) {
-  const headers = tableHeaders($, table);
-
-  const idx = {
-    n: headerIndex(headers, /^N$/i),
-    name: headerIndex(headers, /At İsmi|At Ismi/i),
-    age: headerIndex(headers, /^Yaş$|^Yas$/i),
-    weight: headerIndex(headers, /Sıklet|Siklet/i),
-    jockey: headerIndex(headers, /Jokey/i),
-    owner: headerIndex(headers, /Sahip/i),
-    trainer: headerIndex(headers, /Antrenör|Antrenor/i),
-    st: headerIndex(headers, /^St$/i),
-    hp: headerIndex(headers, /^HP$/i),
-    last6: headerIndex(headers, /Son 6/i),
-    kgs: headerIndex(headers, /^KGS$/i),
-    s20: headerIndex(headers, /^s20$/i),
-    odds: headerIndex(headers, /^Gny$/i),
-    agf: headerIndex(headers, /^AGF$/i)
+  return {
+    no: Number(m[1]),
+    time: m[2].replace(':', '.')
   };
-
-  const horses = [];
-
-  $(table)
-    .find('tbody tr')
-    .each((_, tr) => {
-      const cells = [];
-
-      $(tr)
-        .find('td')
-        .each((__, td) => {
-          cells.push(clean($(td).text()));
-        });
-
-      if (!cells.length) return;
-
-      const get = key => {
-        const i = idx[key];
-        return i >= 0 ? clean(cells[i] || '') : '';
-      };
-
-      const noRaw = get('n');
-      const no = Number(String(noRaw).replace(/\D/g, ''));
-
-      const name = get('name');
-
-      if (!Number.isFinite(no) || no <= 0 || !name) return;
-
-      horses.push({
-        no,
-        id: getAtId($, tr),
-        name,
-        age: get('age'),
-        weight: get('weight'),
-        jockey: get('jockey'),
-        owner: get('owner'),
-        trainer: get('trainer'),
-        st: get('st'),
-        hp: get('hp'),
-        last6: get('last6'),
-        kgs: get('kgs'),
-        s20: get('s20'),
-        odds: get('odds'),
-        agf: get('agf')
-      });
-    });
-
-  return horses;
 }
 
-function findRaceSections($) {
-  const starts = [];
+function parseRaces($) {
+  /*
+    KRİTİK DÜZELTME:
+    TJK aynı koşu başlığını üst menüde ve gerçek yarış
+    bölümünde iki kez gösteriyor.
 
-  $('h1,h2,h3,h4,h5,h6,strong,b,div,span').each((_, el) => {
-    const txt = clean($(el).clone().children().remove().end().text());
+    Bu nedenle yarış başlıklarına güvenmek yerine
+    gerçek AT TABLOLARINI esas alıyoruz.
+  */
 
-    const m = txt.match(
-      /^(\d{1,2})\.\s*Koşu\s+(\d{1,2}[.:]\d{2})$/i
-    );
+  const horseTables = [];
 
-    if (!m) return;
+  $('table').each((_, table) => {
+    if (isHorseTable($, table)) {
+      horseTables.push(table);
+    }
+  });
 
-    const no = Number(m[1]);
+  if (!horseTables.length) {
+    return [];
+  }
 
-    if (!starts.some(x => x.no === no)) {
-      starts.push({
-        no,
-        time: m[2].replace(':', '.'),
+  /*
+    Gerçek yarış başlıklarını sayfa sırasıyla topluyoruz.
+    Aynı koşu numarasının SON görülen başlığı gerçek
+    yarış bölümüdür.
+  */
+
+  const lastHeadingByRace = new Map();
+
+  $('h1,h2,h3,h4,h5,h6').each((_, el) => {
+    const r = raceHeading($(el).text());
+
+    if (r) {
+      lastHeadingByRace.set(r.no, {
+        ...r,
         el
       });
     }
   });
 
-  starts.sort((a, b) => a.no - b.no);
+  const headings = [...lastHeadingByRace.values()]
+    .sort((a, b) => a.no - b.no);
 
-  return starts;
-}
-
-function parseRaces($) {
-  const starts = findRaceSections($);
   const races = [];
 
-  for (const start of starts) {
-    const $start = $(start.el);
+  /*
+    TJK'de program at tabloları yarış sırasındadır.
+    Dolayısıyla:
+      1. at tablosu = 1. koşu
+      2. at tablosu = 2. koşu
+      ...
+  */
 
-    let node = $start;
-    let conditionText = '';
-    let sectionText = '';
-    let horseTable = null;
+  horseTables.forEach((table, index) => {
+    const raceNo =
+      headings[index]?.no ||
+      index + 1;
 
-    for (let step = 0; step < 120; step++) {
-      node = node.next();
+    const time =
+      headings[index]?.time || '';
+
+    /*
+      Tabloya en yakın önceki başlık/metinlerden
+      yarış şartını toplamaya çalış.
+    */
+
+    let context = '';
+    let node = $(table);
+
+    for (let i = 0; i < 40; i++) {
+      node = node.prev();
 
       if (!node.length) break;
 
       const txt = clean(node.text());
 
-      const nextRace = txt.match(
-        /^(\d{1,2})\.\s*Koşu\s+\d{1,2}[.:]\d{2}$/i
-      );
+      if (!txt) continue;
 
-      if (
-        nextRace &&
-        Number(nextRace[1]) !== start.no
-      ) {
+      context =
+        txt + ' ' + context;
+
+      const h = raceHeading(txt);
+
+      if (h && h.no === raceNo) {
         break;
       }
 
-      if (txt) {
-        sectionText += ' ' + txt;
+      if (h && h.no !== raceNo) {
+        break;
       }
+    }
 
-      if (
-        !conditionText &&
-        /\b(Çim|Kum|Sentetik)\b/i.test(txt) &&
-        /\b\d{3,4}\b/.test(txt)
-      ) {
-        conditionText = txt;
-      }
+    /*
+      Tablo bir div içindeyse sibling araması yetmeyebilir.
+      Parent üzerinden de yukarı çık.
+    */
 
-      if (node.is('table')) {
-        const heads = tableHeaders($, node);
+    if (
+      !/\b(Çim|Kum|Sentetik)\b/i.test(context)
+    ) {
+      let parent = $(table).parent();
+
+      for (let level = 0; level < 6; level++) {
+        if (!parent.length) break;
+
+        const txt = clean(parent.text());
 
         if (
-          heads.some(x => /At İsmi|At Ismi/i.test(x)) &&
-          heads.some(x => /^N$/i.test(x))
+          txt &&
+          /\b(Çim|Kum|Sentetik)\b/i.test(txt)
         ) {
-          horseTable = node;
+          context = txt;
           break;
         }
+
+        parent = parent.parent();
       }
-
-      const nestedTables = node.find('table');
-
-      nestedTables.each((_, table) => {
-        if (horseTable) return;
-
-        const heads = tableHeaders($, table);
-
-        if (
-          heads.some(x => /At İsmi|At Ismi/i.test(x)) &&
-          heads.some(x => /^N$/i.test(x))
-        ) {
-          horseTable = $(table);
-        }
-      });
-
-      if (horseTable) break;
     }
 
-    // Bazı TJK sayfalarında başlık ve tablo farklı kapsayıcılarda.
-    // Bulunamazsa, sayfadaki at tablolarını sıra ile eşleştir.
-    if (!horseTable) {
-      const candidates = [];
+    /*
+      Hâlâ şart bulunamazsa, yarış başlığından tabloya
+      kadar olan HTML metnini document sıra numarasıyla
+      destekle.
+    */
 
-      $('table').each((_, table) => {
-        const heads = tableHeaders($, table);
+    if (
+      !/\b(Çim|Kum|Sentetik)\b/i.test(context)
+    ) {
+      const pageText = clean($.root().text());
 
-        if (
-          heads.some(x => /At İsmi|At Ismi/i.test(x)) &&
-          heads.some(x => /^N$/i.test(x))
-        ) {
-          candidates.push($(table));
-        }
-      });
+      const pattern = new RegExp(
+        `${raceNo}\\.\\s*Koşu\\s*:?\\s*${time.replace(
+          '.',
+          '[.:]'
+        )}([\\s\\S]{0,1000}?)(?=${
+          raceNo + 1
+        }\\.\\s*Koşu|Forma\\s+N\\s+At İsmi)`,
+        'i'
+      );
 
-      horseTable = candidates[start.no - 1] || null;
+      const m = pageText.match(pattern);
+
+      if (m) {
+        context = clean(m[1]);
+      }
     }
 
-    const cond = parseRaceCondition(
-      conditionText || sectionText
+    const condition = parseCondition(context);
+
+    const horses = parseHorseTable(
+      $,
+      table
     );
 
     races.push({
-      no: start.no,
-      time: start.time,
-      class: cond.class,
-      distance: cond.distance,
-      track: cond.track,
-      betStarts: parseBetStarts(sectionText),
-      horses: horseTable
-        ? parseHorseTable($, horseTable)
-        : []
+      no: raceNo,
+      time,
+      class: condition.class,
+      distance: condition.distance,
+      track: condition.track,
+      betStarts: parseBetStarts(context),
+      horses
     });
-  }
-
-  return races.filter(r => r.no > 0);
-}
-
-async function fetchHtml(url) {
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: HEADERS,
-    redirect: 'follow'
   });
 
-  if (!response.ok) {
-    throw new Error(
-      `TJK HTTP ${response.status}`
-    );
-  }
-
-  return await response.text();
+  return races
+    .filter(r => r.horses.length > 0)
+    .sort((a, b) => a.no - b.no);
 }
 
 export default async function handler(req, res) {
@@ -381,32 +414,46 @@ export default async function handler(req, res) {
       });
     }
 
-    // Önce günlük ana programdan şehirleri bul.
     const mainUrl =
       `${TJK}/TR/YarisSever/Info/Page/GunlukYarisProgrami` +
-      `?QueryParameter_Tarih=${encodeURIComponent(formatted)}`;
+      `?QueryParameter_Tarih=${encodeURIComponent(
+        formatted
+      )}`;
 
     const mainHtml = await fetchHtml(mainUrl);
+
     const $main = cheerio.load(mainHtml);
 
-    const citiesMap = new Map();
+    const cityMap = new Map();
 
-    $main('a[href*="GunlukYarisProgrami"]').each((_, a) => {
-      const href = $main(a).attr('href') || '';
+    $main(
+      'a[href*="GunlukYarisProgrami"]'
+    ).each((_, a) => {
+      const href =
+        $main(a).attr('href') || '';
 
-      const idMatch = href.match(/[?&]SehirId=(\d+)/i);
-      if (!idMatch) return;
+      const m = href.match(
+        /[?&]SehirId=(\d+)/i
+      );
 
-      const id = idMatch[1];
+      if (!m) return;
 
-      let name = clean($main(a).text());
+      const id = m[1];
+
+      let name =
+        clean($main(a).text());
 
       if (!name) {
         try {
-          const u = new URL(absoluteUrl(href));
+          const u = new URL(
+            absoluteUrl(href)
+          );
+
           name = clean(
             decodeURIComponent(
-              u.searchParams.get('SehirAdi') || ''
+              u.searchParams.get(
+                'SehirAdi'
+              ) || ''
             )
           );
         } catch {}
@@ -414,8 +461,8 @@ export default async function handler(req, res) {
 
       if (!name) return;
 
-      if (!citiesMap.has(id)) {
-        citiesMap.set(id, {
+      if (!cityMap.has(id)) {
+        cityMap.set(id, {
           id,
           name,
           href: absoluteUrl(href)
@@ -423,71 +470,115 @@ export default async function handler(req, res) {
       }
     });
 
-    const cities = [...citiesMap.values()];
+    const cities =
+      [...cityMap.values()];
 
     const racesByCity = {};
 
-    // Günlük ana programda bulunan bütün şehirleri işle.
     for (const city of cities) {
       try {
-        const cityUrl =
-          `${TJK}/TR/YarisSever/Info/Sehir/GunlukYarisProgrami` +
-          `?SehirId=${encodeURIComponent(city.id)}` +
-          `&QueryParameter_Tarih=${encodeURIComponent(formatted)}` +
-          `&SehirAdi=${encodeURIComponent(
-            city.name
-              .replace(/\s*\([^)]*\)\s*$/, '')
-              .trim()
-          )}` +
-          `&Era=today`;
+        /*
+          Burada şehir adını yeniden üretmek yerine
+          TJK'nin ana sayfadan verdiği GERÇEK href'i
+          kullanıyoruz.
+        */
 
-        const html = await fetchHtml(cityUrl);
-        const $ = cheerio.load(html);
+        let cityUrl =
+          city.href;
 
-        racesByCity[String(city.id)] = parseRaces($);
+        if (!cityUrl) {
+          racesByCity[city.id] = [];
+          continue;
+        }
+
+        /*
+          Tarih parametresi mevcut href'de zaten geliyor.
+          URL'yi olduğu haliyle kullanmak kritik.
+        */
+
+        const html =
+          await fetchHtml(cityUrl);
+
+        const $ =
+          cheerio.load(html);
+
+        const races =
+          parseRaces($);
+
+        racesByCity[
+          String(city.id)
+        ] = races;
       } catch (err) {
-        racesByCity[String(city.id)] = [];
+        console.error(
+          'CITY ERROR',
+          city.id,
+          city.name,
+          err.message
+        );
+
+        racesByCity[
+          String(city.id)
+        ] = [];
       }
     }
 
-    const raceCount = Object.values(racesByCity)
-      .reduce(
-        (sum, arr) =>
-          sum + (Array.isArray(arr) ? arr.length : 0),
-        0
-      );
+    const raceCount =
+      Object.values(racesByCity)
+        .reduce(
+          (sum, races) =>
+            sum +
+            (
+              Array.isArray(races)
+                ? races.length
+                : 0
+            ),
+          0
+        );
 
-    const horseCount = Object.values(racesByCity)
-      .flat()
-      .reduce(
-        (sum, race) =>
-          sum +
-          (Array.isArray(race.horses)
-            ? race.horses.length
-            : 0),
-        0
-      );
+    const horseCount =
+      Object.values(racesByCity)
+        .flat()
+        .reduce(
+          (sum, race) =>
+            sum +
+            (
+              Array.isArray(
+                race.horses
+              )
+                ? race.horses.length
+                : 0
+            ),
+          0
+        );
 
     res.setHeader(
       'Cache-Control',
-      's-maxage=120, stale-while-revalidate=300'
+      's-maxage=60, stale-while-revalidate=120'
     );
 
     return res.status(200).json({
       ok: true,
+      parserVersion:
+        'TJK-PARSER-V3',
       date,
-      cityCount: cities.length,
+      cityCount:
+        cities.length,
       raceCount,
       horseCount,
       cities,
       racesByCity
     });
   } catch (err) {
-    console.error('tjk-program:', err);
+    console.error(
+      'tjk-program:',
+      err
+    );
 
     return res.status(500).json({
       ok: false,
-      error: err?.message || 'TJK programı alınamadı.'
+      error:
+        err?.message ||
+        'TJK programı alınamadı.'
     });
   }
-}
+      }
