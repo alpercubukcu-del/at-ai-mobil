@@ -1,8 +1,9 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'CAREER-ROADMAP-V7.1';
+const VERSION = 'CAREER-ROADMAP-V7.2';
 
-const TJK = 'https://www.tjk.org';
+const TJK =
+  'https://www.tjk.org';
 
 const CAREER_URL =
   `${TJK}/TR/YarisSever/Query/ConnectedPage/AtKosuBilgileri`;
@@ -34,7 +35,9 @@ function clean(v = '') {
 
 function upper(v = '') {
   return clean(v)
-    .toLocaleUpperCase('tr-TR');
+    .toLocaleUpperCase(
+      'tr-TR'
+    );
 }
 
 function numberValue(
@@ -65,11 +68,7 @@ function numberValue(
 /* =========================================================
    TARİH
 
-   TJK:
-   22.07.2026
-
-   ISO:
-   2026-07-22
+   22.07.2026 -> 2026-07-22
 ========================================================= */
 
 function dateToIso(
@@ -93,7 +92,7 @@ function dateToIso(
         .padStart(2, '0');
 
     const yyyy =
-      m[3];
+      String(m[3]);
 
     return (
       `${yyyy}-${mm}-${dd}`
@@ -173,15 +172,6 @@ function parseTrackCondition(
 
 /* =========================================================
    YAŞ GRUBU
-
-   TJK Grup:
-   2İ
-   3İ
-   3+İ
-   4+İ
-   3A
-   4A
-   4+A
 ========================================================= */
 
 function normalizeAgeGroup(
@@ -264,42 +254,6 @@ function normalizeClass(
 }
 
 /* =========================================================
-   HEADER
-========================================================= */
-
-function normalizeHeader(
-  value = ''
-) {
-  return clean(value)
-    .toLocaleLowerCase('tr-TR')
-    .replace(/\./g, '')
-    .replace(/ı/g, 'i')
-    .replace(/ş/g, 's')
-    .replace(/ç/g, 'c')
-    .replace(/ğ/g, 'g')
-    .replace(/ü/g, 'u')
-    .replace(/ö/g, 'o')
-    .replace(/\s+/g, '');
-}
-
-function findIndex(
-  headers,
-  candidates
-) {
-  const wanted =
-    candidates.map(
-      normalizeHeader
-    );
-
-  return headers.findIndex(
-    h =>
-      wanted.includes(
-        normalizeHeader(h)
-      )
-  );
-}
-
-/* =========================================================
    TJK HTML
 ========================================================= */
 
@@ -316,6 +270,9 @@ async function fetchCareerHtml(
     await fetch(
       url,
       {
+        method:
+          'GET',
+
         headers:
           HEADERS,
 
@@ -330,182 +287,322 @@ async function fetchCareerHtml(
     );
   }
 
+  const html =
+    await response.text();
+
+  if (
+    !html ||
+    html.length < 100
+  ) {
+    throw new Error(
+      'TJK kariyer cevabı boş.'
+    );
+  }
+
   return {
     url,
-    html:
-      await response.text()
+    html
   };
 }
 
 /* =========================================================
-   TABLOYU ESNEK BUL
+   V7.2 SATIR PARSER
 
-   V7'deki hata:
-   yalnız thead/th aranıyordu.
+   ARTIK HEADER ARAMIYORUZ.
 
-   V7.1:
-   - thead th
-   - ilk tr içindeki th
-   - ilk tr içindeki td
+   TJK gerçek satır sırası:
 
-   hepsi deneniyor.
+   0  Tarih
+   1  Şehir
+   2  Msf
+   3  Pist
+   4  S
+   5  Derece
+   6  Sıklet
+   7  Takı
+   8  Jokey
+   9  St
+   10 Gny
+   11 Grup
+   12 K.No-K.Adı
+   13 Kcins
+   14 Ant.
+   15 Sahip
+   16 HP
+   17 İkramiye
+   18 S20
+
 ========================================================= */
 
-function extractHeaders(
-  $,
-  table
+function parseRowFromCells(
+  cells
 ) {
-  let headers = [];
-
-  /*
-    1. Normal thead
-  */
-
-  $(table)
-    .find('thead tr')
-    .first()
-    .find('th,td')
-    .each(
-      (_, cell) => {
-        headers.push(
-          clean(
-            $(cell).text()
-          )
-        );
-      }
-    );
-
   if (
-    headers.length >= 5
+    !Array.isArray(cells) ||
+    cells.length < 14
   ) {
-    return headers;
+    return null;
   }
 
-  headers = [];
+  const rawDate =
+    clean(
+      cells[0]
+    );
+
+  const isoDate =
+    dateToIso(
+      rawDate
+    );
 
   /*
-    2. İlk satır
+    Bir yarış satırı mutlaka
+    gerçek tarih ile başlamalı.
   */
 
-  $(table)
-    .find('tr')
-    .first()
-    .find('th,td')
-    .each(
-      (_, cell) => {
-        headers.push(
-          clean(
-            $(cell).text()
-          )
-        );
-      }
+  if (!isoDate) {
+    return null;
+  }
+
+  const city =
+    clean(
+      cells[1]
     );
 
-  return headers;
-}
-
-function looksLikeCareerHeaders(
-  headers
-) {
-  const n =
-    headers.map(
-      normalizeHeader
+  const distance =
+    numberValue(
+      cells[2],
+      0
     );
 
-  const hasDate =
-    n.includes('tarih');
+  const rawTrack =
+    clean(
+      cells[3]
+    );
 
-  const hasCity =
-    n.includes('sehir');
+  const finish =
+    numberValue(
+      cells[4],
+      0
+    );
 
-  const hasDistance =
-    n.includes('msf') ||
-    n.includes('mesafe');
+  const rawGroup =
+    clean(
+      cells[11]
+    );
 
-  const hasTrack =
-    n.includes('pist');
+  const rawClass =
+    clean(
+      cells[13]
+    );
 
-  const hasFinish =
-    n.includes('s');
+  /*
+    Yanlış tablo/satır koruması.
+  */
 
-  const hasGroup =
-    n.includes('grup');
+  if (!city) {
+    return null;
+  }
 
-  const hasClass =
-    n.includes('kcins');
+  if (
+    distance < 600 ||
+    distance > 5000
+  ) {
+    return null;
+  }
 
-  return (
-    hasDate &&
-    hasCity &&
-    hasDistance &&
-    hasTrack &&
-    hasFinish &&
-    hasGroup &&
-    hasClass
-  );
-}
+  if (
+    finish < 1 ||
+    finish > 99
+  ) {
+    return null;
+  }
 
-function findCareerTable(
-  $
-) {
-  let best = null;
+  if (
+    !rawTrack
+  ) {
+    return null;
+  }
 
-  $('table').each(
-    (_, table) => {
+  /*
+    HP bazı eski yarışlarda
+    boş olabilir.
+  */
 
-      const headers =
-        extractHeaders(
-          $,
-          table
-        );
-
-      if (
-        !headers.length
-      ) {
-        return;
-      }
-
-      if (
-        looksLikeCareerHeaders(
-          headers
+  const hp =
+    cells.length > 16
+      ? numberValue(
+          cells[16],
+          0
         )
-      ) {
-        best = {
-          table,
-          headers
-        };
+      : 0;
 
-        return false;
-      }
-    }
-  );
+  return {
+    isoDate,
 
-  return best;
+    date:
+      rawDate,
+
+    city,
+
+    /*
+      V7.2:
+      GERÇEK Msf.
+    */
+
+    distance,
+
+    msf:
+      distance,
+
+    mesafe:
+      distance,
+
+    track:
+      parseTrack(
+        rawTrack
+      ),
+
+    pist:
+      parseTrack(
+        rawTrack
+      ),
+
+    trackCondition:
+      parseTrackCondition(
+        rawTrack
+      ),
+
+    finish,
+
+    rank:
+      finish,
+
+    sira:
+      finish,
+
+    degree:
+      cells.length > 5
+        ? clean(
+            cells[5]
+          )
+        : '',
+
+    weight:
+      cells.length > 6
+        ? numberValue(
+            cells[6],
+            0
+          )
+        : 0,
+
+    equipment:
+      cells.length > 7
+        ? clean(
+            cells[7]
+          )
+        : '',
+
+    jockey:
+      cells.length > 8
+        ? clean(
+            cells[8]
+          )
+        : '',
+
+    startNo:
+      cells.length > 9
+        ? numberValue(
+            cells[9],
+            0
+          )
+        : 0,
+
+    odds:
+      cells.length > 10
+        ? clean(
+            cells[10]
+          )
+        : '',
+
+    ageGroup:
+      normalizeAgeGroup(
+        rawGroup
+      ),
+
+    group:
+      normalizeAgeGroup(
+        rawGroup
+      ),
+
+    groupRaw:
+      rawGroup,
+
+    grup:
+      rawGroup,
+
+    raceNoName:
+      cells.length > 12
+        ? clean(
+            cells[12]
+          )
+        : '',
+
+    class:
+      normalizeClass(
+        rawClass
+      ),
+
+    raceClass:
+      normalizeClass(
+        rawClass
+      ),
+
+    kcins:
+      normalizeClass(
+        rawClass
+      ),
+
+    classRaw:
+      rawClass,
+
+    trainer:
+      cells.length > 14
+        ? clean(
+            cells[14]
+          )
+        : '',
+
+    owner:
+      cells.length > 15
+        ? clean(
+            cells[15]
+          )
+        : '',
+
+    hp,
+
+    prize:
+      cells.length > 17
+        ? clean(
+            cells[17]
+          )
+        : '',
+
+    s20:
+      cells.length > 18
+        ? numberValue(
+            cells[18],
+            0
+          )
+        : 0
+  };
 }
 
 /* =========================================================
-   SATIR PARSE
+   TÜM HTML'DEN YARIŞ SATIRLARINI BUL
 
-   TJK gerçek kolonları:
-   Tarih
-   Şehir
-   Msf
-   Pist
-   S
-   Derece
-   Sıklet
-   Takı
-   Jokey
-   St
-   Gny
-   Grup
-   K. No-K. Adı
-   Kcins
-   Ant.
-   Sahip
-   HP
-   Ikramiye
-   S20
+   Burada tablo adına/header'a
+   bağımlılık YOK.
 ========================================================= */
 
 function parseCareerRows(
@@ -514,365 +611,132 @@ function parseCareerRows(
   const $ =
     cheerio.load(html);
 
-  const found =
-    findCareerTable($);
-
-  if (!found) {
-    throw new Error(
-      'TJK kariyer tablosu bulunamadı.'
-    );
-  }
-
-  const {
-    table,
-    headers
-  } = found;
-
-  const dateIx =
-    findIndex(
-      headers,
-      ['Tarih']
-    );
-
-  const cityIx =
-    findIndex(
-      headers,
-      [
-        'Şehir',
-        'Sehir'
-      ]
-    );
-
-  const distanceIx =
-    findIndex(
-      headers,
-      [
-        'Msf',
-        'Mesafe'
-      ]
-    );
-
-  const trackIx =
-    findIndex(
-      headers,
-      ['Pist']
-    );
-
-  const finishIx =
-    findIndex(
-      headers,
-      ['S']
-    );
-
-  const degreeIx =
-    findIndex(
-      headers,
-      ['Derece']
-    );
-
-  const weightIx =
-    findIndex(
-      headers,
-      [
-        'Sıklet',
-        'Siklet'
-      ]
-    );
-
-  const jockeyIx =
-    findIndex(
-      headers,
-      ['Jokey']
-    );
-
-  const groupIx =
-    findIndex(
-      headers,
-      ['Grup']
-    );
-
-  const classIx =
-    findIndex(
-      headers,
-      ['Kcins']
-    );
-
-  const hpIx =
-    findIndex(
-      headers,
-      ['HP']
-    );
-
   const rows = [];
 
+  let inspectedRows = 0;
+  let acceptedRows = 0;
+
+  $('tr').each(
+    (_, tr) => {
+
+      const cells =
+        $(tr)
+          .find('td')
+          .map(
+            (__, td) =>
+              clean(
+                $(td).text()
+              )
+          )
+          .get();
+
+      if (
+        !cells.length
+      ) {
+        return;
+      }
+
+      inspectedRows++;
+
+      const parsed =
+        parseRowFromCells(
+          cells
+        );
+
+      if (!parsed) {
+        return;
+      }
+
+      rows.push(
+        parsed
+      );
+
+      acceptedRows++;
+    }
+  );
+
   /*
-    Tüm tr'leri oku.
-    Header satırı tarih olmadığı
-    için otomatik elenir.
+    Aynı satır HTML içinde
+    iki kez bulunursa temizle.
   */
 
-  $(table)
-    .find('tr')
-    .each(
-      (_, tr) => {
+  const uniqueMap =
+    new Map();
 
-        const cells =
-          $(tr)
-            .find('td')
-            .map(
-              (__, td) =>
-                clean(
-                  $(td).text()
-                )
-            )
-            .get();
+  for (
+    const row of rows
+  ) {
+    const key =
+      [
+        row.isoDate,
+        row.city,
+        row.distance,
+        row.finish,
+        row.class,
+        row.degree
+      ].join('|');
 
-        if (
-          cells.length <
-          Math.max(
-            dateIx,
-            cityIx,
-            distanceIx,
-            trackIx,
-            finishIx,
-            groupIx,
-            classIx
-          ) + 1
-        ) {
-          return;
-        }
+    if (
+      !uniqueMap.has(key)
+    ) {
+      uniqueMap.set(
+        key,
+        row
+      );
+    }
+  }
 
-        const rawDate =
-          clean(
-            cells[
-              dateIx
-            ]
-          );
-
-        const isoDate =
-          dateToIso(
-            rawDate
-          );
-
-        /*
-          Header veya anlamsız satır.
-        */
-
-        if (!isoDate) {
-          return;
-        }
-
-        const finish =
-          numberValue(
-            cells[
-              finishIx
-            ],
-            0
-          );
-
-        /*
-          Koşmadı vb.
-        */
-
-        if (
-          finish <= 0
-        ) {
-          return;
-        }
-
-        const rawTrack =
-          clean(
-            cells[
-              trackIx
-            ]
-          );
-
-        const rawGroup =
-          clean(
-            cells[
-              groupIx
-            ]
-          );
-
-        const rawClass =
-          clean(
-            cells[
-              classIx
-            ]
-          );
-
-        /*
-          V7.1 KRİTİK:
-          Msf doğrudan alınıyor.
-        */
-
-        const distance =
-          numberValue(
-            cells[
-              distanceIx
-            ],
-            0
-          );
-
-        rows.push({
-          isoDate,
-
-          /*
-            Ekranda kullanılacak.
-          */
-          date:
-            rawDate,
-
-          city:
-            clean(
-              cells[
-                cityIx
-              ]
-            ),
-
-          distance,
-
-          /*
-            V2 normalizeCareer ile
-            uyumluluk için ekstra alias.
-          */
-          mesafe:
-            distance,
-
-          msf:
-            distance,
-
-          track:
-            parseTrack(
-              rawTrack
-            ),
-
-          pist:
-            parseTrack(
-              rawTrack
-            ),
-
-          trackCondition:
-            parseTrackCondition(
-              rawTrack
-            ),
-
-          finish,
-
-          /*
-            Eski kodlarla uyumluluk.
-          */
-          rank:
-            finish,
-
-          sira:
-            finish,
-
-          degree:
-            degreeIx >= 0
-              ? clean(
-                  cells[
-                    degreeIx
-                  ]
-                )
-              : '',
-
-          weight:
-            weightIx >= 0
-              ? numberValue(
-                  cells[
-                    weightIx
-                  ],
-                  0
-                )
-              : 0,
-
-          jockey:
-            jockeyIx >= 0
-              ? clean(
-                  cells[
-                    jockeyIx
-                  ]
-                )
-              : '',
-
-          ageGroup:
-            normalizeAgeGroup(
-              rawGroup
-            ),
-
-          group:
-            normalizeAgeGroup(
-              rawGroup
-            ),
-
-          grup:
-            rawGroup,
-
-          groupRaw:
-            rawGroup,
-
-          class:
-            normalizeClass(
-              rawClass
-            ),
-
-          raceClass:
-            normalizeClass(
-              rawClass
-            ),
-
-          kcins:
-            normalizeClass(
-              rawClass
-            ),
-
-          classRaw:
-            rawClass,
-
-          hp:
-            hpIx >= 0
-              ? numberValue(
-                  cells[
-                    hpIx
-                  ],
-                  0
-                )
-              : 0
-        });
-      }
+  const uniqueRows =
+    Array.from(
+      uniqueMap.values()
     );
 
   /*
-    Eski -> yeni
+    Eski -> yeni.
   */
 
-  rows.sort(
+  uniqueRows.sort(
     (a, b) =>
       a.isoDate.localeCompare(
         b.isoDate
       )
   );
 
+  if (
+    !uniqueRows.length
+  ) {
+    throw new Error(
+      `TJK kariyer yarış satırı bulunamadı. İncelenen satır: ${inspectedRows}`
+    );
+  }
+
   return {
-    headers,
-    rows
+    rows:
+      uniqueRows,
+
+    inspectedRows,
+
+    acceptedRows,
+
+    uniqueRows:
+      uniqueRows.length
   };
 }
 
 /* =========================================================
-   BEFORE
+   BEFORE FİLTRESİ
 
    ÖRNEK:
 
-   before = 2026-08-10
+   historical race:
+   2026-08-10
 
-   2026-08-09 kullanılabilir.
-   2026-08-10 KULLANILAMAZ.
-   2026-08-11 KULLANILAMAZ.
+   2026-08-09 -> kullan
+   2026-08-10 -> kullanma
+   2026-08-11 -> kullanma
 ========================================================= */
 
-function filterBefore(
+function applyBefore(
   rows,
   before
 ) {
@@ -899,10 +763,10 @@ function filterBefore(
 }
 
 /* =========================================================
-   TOP 5
+   İLK 5 FİLTRESİ
 ========================================================= */
 
-function filterTop5(
+function onlyTop5(
   rows
 ) {
   return rows.filter(
@@ -916,7 +780,7 @@ function filterTop5(
    ÖZET
 ========================================================= */
 
-function summary(
+function buildSummary(
   rows
 ) {
   return {
@@ -952,6 +816,83 @@ function summary(
         x =>
           x.finish === 5
       ).length
+  };
+}
+
+/* =========================================================
+   DOĞRULAMA
+========================================================= */
+
+function buildValidation(
+  allCareer,
+  beforeCareer,
+  roadmap,
+  beforeIso
+) {
+  const badFutureRows =
+    beforeIso
+      ? beforeCareer.filter(
+          row =>
+            row.isoDate >=
+            beforeIso
+        )
+      : [];
+
+  const badFinishRows =
+    roadmap.filter(
+      row =>
+        row.finish < 1 ||
+        row.finish > 5
+    );
+
+  const distanceMissing =
+    roadmap.filter(
+      row =>
+        !row.distance ||
+        row.distance <= 0
+    );
+
+  const ageGroupMissing =
+    roadmap.filter(
+      row =>
+        !row.ageGroup
+    );
+
+  const classMissing =
+    roadmap.filter(
+      row =>
+        !row.class
+    );
+
+  return {
+    allCareerCount:
+      allCareer.length,
+
+    beforeCareerCount:
+      beforeCareer.length,
+
+    roadmapCount:
+      roadmap.length,
+
+    futureLeakCount:
+      badFutureRows.length,
+
+    invalidFinishCount:
+      badFinishRows.length,
+
+    distanceMissingCount:
+      distanceMissing.length,
+
+    ageGroupMissingCount:
+      ageGroupMissing.length,
+
+    classMissingCount:
+      classMissing.length,
+
+    valid:
+      badFutureRows.length === 0 &&
+      badFinishRows.length === 0 &&
+      distanceMissing.length === 0
   };
 }
 
@@ -1015,56 +956,64 @@ export default async function handler(
       }
     }
 
+    /* =====================================================
+       1. TJK KARİYER HTML
+    ===================================================== */
+
     const fetched =
       await fetchCareerHtml(
         horseId
       );
+
+    /* =====================================================
+       2. TÜM GERÇEK YARIŞLARI PARSE ET
+    ===================================================== */
 
     const parsed =
       parseCareerRows(
         fetched.html
       );
 
-    /*
-      1. Atın tüm gerçek yarışları
-    */
-
     const allCareer =
       parsed.rows;
 
-    /*
-      2. Tarihsel yarış tarihinden
-         önceye dondur.
-    */
+    /* =====================================================
+       3. TARİHE DONDUR
+
+       KRİTİK:
+       race.isoDate < before
+    ===================================================== */
 
     const beforeCareer =
-      filterBefore(
+      applyBefore(
         allCareer,
         beforeIso
       );
 
-    /*
-      3. Yalnız ilk 5.
-    */
+    /* =====================================================
+       4. YALNIZ İLK 5
+    ===================================================== */
 
     const roadmap =
-      filterTop5(
+      onlyTop5(
         beforeCareer
       );
 
-    const distanceFilled =
-      roadmap.filter(
-        x =>
-          x.distance > 0
-      ).length;
+    /* =====================================================
+       5. DOĞRULAMA
+    ===================================================== */
 
-    const distanceMissing =
-      roadmap.length -
-      distanceFilled;
+    const validation =
+      buildValidation(
+        allCareer,
+        beforeCareer,
+        roadmap,
+        beforeIso
+      );
 
     res.setHeader(
       'Cache-Control',
-      's-maxage=900, stale-while-revalidate=3600'
+      's-maxage=300, stale-while-revalidate=900'
     );
 
     return res
@@ -1086,18 +1035,21 @@ export default async function handler(
           null,
 
         rules: {
-          before:
-            beforeIso
-              ? 'isoDate < before'
-              : 'NO_BEFORE',
+          source:
+            'TJK AtKosuBilgileri',
 
-          top5:
-            '1 <= finish <= 5',
+          historicalFreeze:
+            beforeIso
+              ? 'race.isoDate < before'
+              : 'NO_BEFORE_FILTER',
 
           sameDayExcluded:
             Boolean(
               beforeIso
             ),
+
+          finishFilter:
+            '1 <= finish <= 5',
 
           leakageProtection:
             Boolean(
@@ -1115,25 +1067,36 @@ export default async function handler(
           top5:
             roadmap.length,
 
-          distanceFilled,
+          distanceFilled:
+            roadmap.filter(
+              x =>
+                x.distance > 0
+            ).length,
 
-          distanceMissing
+          distanceMissing:
+            roadmap.filter(
+              x =>
+                !x.distance ||
+                x.distance <= 0
+            ).length
         },
 
         summary:
-          summary(
+          buildSummary(
             roadmap
           ),
 
+        validation,
+
         /*
-          ROADMAP V2'nin kullandığı
-          ana alan.
+          ANA ALAN
         */
 
         roadmap,
 
         /*
-          Eski app.js uyumluluğu.
+          ROADMAP V2 +
+          ESKİ FRONTEND UYUMLULUĞU
         */
 
         top5:
@@ -1149,40 +1112,49 @@ export default async function handler(
           url:
             fetched.url,
 
-          columns: {
-            date:
+          positionalColumns: {
+            0:
               'Tarih',
 
-            city:
+            1:
               'Şehir',
 
-            distance:
+            2:
               'Msf',
 
-            track:
+            3:
               'Pist',
 
-            finish:
+            4:
               'S',
 
-            ageGroup:
+            11:
               'Grup',
 
-            class:
-              'Kcins'
+            13:
+              'Kcins',
+
+            16:
+              'HP'
           }
         },
 
         debug: {
-          headers:
-            parsed.headers
+          inspectedRows:
+            parsed.inspectedRows,
+
+          acceptedRows:
+            parsed.acceptedRows,
+
+          uniqueRows:
+            parsed.uniqueRows
         }
       });
 
   } catch (e) {
 
     console.error(
-      'tjk-career V7.1:',
+      'tjk-career V7.2:',
       e
     );
 
@@ -1200,4 +1172,4 @@ export default async function handler(
           'At kariyer bilgisi alınamadı.'
       });
   }
-}
+    }
