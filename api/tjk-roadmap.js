@@ -1,4 +1,8 @@
-const VERSION = 'TJK-ROADMAP-V1';
+const VERSION = 'TJK-ROADMAP-V2';
+
+/* =========================================================
+   TEMEL
+========================================================= */
 
 function clean(v = '') {
   return String(v)
@@ -9,9 +13,14 @@ function clean(v = '') {
 
 function numberValue(v, fallback = 0) {
   const n = Number(v);
+
   return Number.isFinite(n)
     ? n
     : fallback;
+}
+
+function nowMs() {
+  return Date.now();
 }
 
 function getOrigin(req) {
@@ -37,9 +46,18 @@ function getOrigin(req) {
   return `${proto}://${host}`;
 }
 
+/* =========================================================
+   KISA SÜRELİ JSON FETCH
+
+   Her aşama ayrı zamanlanır.
+========================================================= */
+
 async function fetchJson(
   url,
-  timeoutMs = 20000
+  {
+    timeoutMs = 8000,
+    stage = 'UNKNOWN'
+  } = {}
 ) {
   const controller =
     new AbortController();
@@ -50,14 +68,22 @@ async function fetchJson(
       timeoutMs
     );
 
+  const started =
+    nowMs();
+
   try {
     const response =
       await fetch(
         url,
         {
+          method: 'GET',
+
           headers: {
             accept:
-              'application/json'
+              'application/json',
+
+            'cache-control':
+              'no-cache'
           },
 
           signal:
@@ -68,21 +94,23 @@ async function fetchJson(
     const text =
       await response.text();
 
-    let data;
+    let data = null;
 
     try {
       data =
         JSON.parse(text);
     } catch {
       throw new Error(
-        `JSON alınamadı: ${url}`
+        `${stage}: JSON alınamadı.`
       );
     }
 
     if (!response.ok) {
       throw new Error(
-        data?.error ||
-        `HTTP ${response.status}`
+        `${stage}: ${
+          data?.error ||
+          `HTTP ${response.status}`
+        }`
       );
     }
 
@@ -90,12 +118,48 @@ async function fetchJson(
       data?.ok === false
     ) {
       throw new Error(
-        data?.error ||
-        'Alt API hata verdi.'
+        `${stage}: ${
+          data?.error ||
+          'Alt API hata verdi.'
+        }`
       );
     }
 
-    return data;
+    return {
+      ok: true,
+
+      stage,
+
+      durationMs:
+        nowMs() - started,
+
+      data
+    };
+
+  } catch (e) {
+
+    const timeout =
+      e?.name ===
+      'AbortError';
+
+    return {
+      ok: false,
+
+      stage,
+
+      durationMs:
+        nowMs() - started,
+
+      timeout,
+
+      error:
+        timeout
+          ? `${stage}: zaman aşımı`
+          : (
+              e?.message ||
+              `${stage}: başarısız`
+            )
+    };
 
   } finally {
     clearTimeout(timer);
@@ -103,78 +167,121 @@ async function fetchJson(
 }
 
 /* =========================================================
-   BASİT CONCURRENCY SINIRI
+   CAREER NORMALIZE
 
-   TJK'ye aynı anda çok sayıda
-   istek göndermemek için.
+   Yalnız TOP-5 kariyer yolunu kullan.
 ========================================================= */
 
-async function mapLimit(
-  items,
-  limit,
-  worker
+function normalizeCareer(
+  career
 ) {
-  const results =
-    new Array(
-      items.length
-    );
+  let rows = [];
 
-  let index = 0;
+  if (
+    Array.isArray(
+      career?.roadmap
+    )
+  ) {
+    rows =
+      career.roadmap;
 
-  async function runner() {
-    while (true) {
-      const current =
-        index++;
+  } else if (
+    Array.isArray(
+      career?.top5
+    )
+  ) {
+    rows =
+      career.top5;
 
-      if (
-        current >=
-        items.length
-      ) {
-        return;
-      }
-
-      try {
-        results[current] =
-          await worker(
-            items[current],
-            current
-          );
-      } catch (e) {
-        results[current] = {
-          ok: false,
-
-          error:
-            e?.message ||
-            'İşlem başarısız.'
-        };
-      }
-    }
+  } else if (
+    Array.isArray(
+      career?.races
+    )
+  ) {
+    rows =
+      career.races;
   }
 
-  const workers =
-    Array.from(
-      {
-        length:
-          Math.min(
-            limit,
-            items.length
-          )
-      },
-      () => runner()
+  return rows
+    .map(
+      row => {
+
+        const finish =
+          numberValue(
+            row.finish ??
+            row.rank ??
+            row.position ??
+            row.sira,
+            0
+          );
+
+        return {
+          date:
+            row.date ||
+            row.isoDate ||
+            '',
+
+          city:
+            row.city ||
+            row.sehir ||
+            '',
+
+          finish,
+
+          class:
+            row.class ||
+            row.raceClass ||
+            row.kcins ||
+            '',
+
+          ageGroup:
+            row.ageGroup ||
+            row.group ||
+            row.grup ||
+            '',
+
+          track:
+            row.track ||
+            row.pist ||
+            '',
+
+          distance:
+            numberValue(
+              row.distance ??
+              row.mesafe,
+              0
+            )
+        };
+      }
+    )
+
+    /*
+      Güvenlik:
+      career API zaten <=5 filtreliyor.
+      Burada tekrar doğruluyoruz.
+    */
+    .filter(
+      row =>
+        row.finish >= 1 &&
+        row.finish <= 5
     );
-
-  await Promise.all(
-    workers
-  );
-
-  return results;
 }
 
 /* =========================================================
-   BENZER YARIŞ
+   1. BENZER YARIŞLAR
+
+   KRİTİK V2 FARKI:
+   maxPages=1
+
+   Çünkü Roadmap endpointinin işi
+   yıllarca geçmişi taramak değil.
+
+   Benzerlik motoru ilk sayfada
+   en güncel ve en yüksek değerli
+   adayları zaten döndürüyor.
 ========================================================= */
 
-async function getSimilarRaces({
+async function getSimilar({
   origin,
   date,
   city,
@@ -188,6 +295,7 @@ async function getSimilarRaces({
     new URLSearchParams({
       date,
       city,
+
       class:
         raceClass,
 
@@ -199,17 +307,27 @@ async function getSimilarRaces({
         String(distance),
 
       limit:
-        String(limit)
+        String(limit),
+
+      /*
+        Roadmap için yalnız
+        ilk filtrelenmiş 50 yarış.
+      */
+      maxPages:
+        '1'
     });
 
   return await fetchJson(
     `${origin}/api/tjk-similar?${q.toString()}`,
-    30000
+    {
+      timeoutMs: 7000,
+      stage: 'SIMILAR'
+    }
   );
 }
 
 /* =========================================================
-   TARİHSEL YARIŞIN GERÇEK İLK 3'Ü
+   2. GERÇEK YARIŞ SONUCU
 ========================================================= */
 
 async function getHistory({
@@ -229,25 +347,28 @@ async function getHistory({
 
   return await fetchJson(
     `${origin}/api/tjk-history?${q.toString()}`,
-    20000
+    {
+      timeoutMs: 6000,
+      stage:
+        `HISTORY_${date}_${city}_${raceNo}`
+    }
   );
 }
 
 /* =========================================================
-   ATIN DONMUŞ KARİYERİ
+   3. DONMUŞ KARİYER
 
-   before parametresi KRİTİK.
+   KRİTİK:
+   before = tarihsel yarış tarihi
 
-   tjk-career:
-   career_race_date < before
-   finish <= 5
-
-   kullanıyor.
+   Böylece:
+   career_date < historical_date
 ========================================================= */
 
-async function getFrozenCareer({
+async function getCareer({
   origin,
   horseId,
+  horseName,
   before
 }) {
   const q =
@@ -261,98 +382,20 @@ async function getFrozenCareer({
 
   return await fetchJson(
     `${origin}/api/tjk-career?${q.toString()}`,
-    20000
-  );
-}
+    {
+      timeoutMs: 6000,
 
-function normalizeCareer(
-  career
-) {
-  /*
-    V6 career API'de roadmap/top5
-    alanlarından hangisi varsa
-    tek bir diziye indiriyoruz.
-  */
-
-  let rows = [];
-
-  if (
-    Array.isArray(
-      career?.roadmap
-    )
-  ) {
-    rows =
-      career.roadmap;
-  } else if (
-    Array.isArray(
-      career?.top5
-    )
-  ) {
-    rows =
-      career.top5;
-  } else if (
-    Array.isArray(
-      career?.races
-    )
-  ) {
-    rows =
-      career.races;
-  }
-
-  return rows.map(
-    row => ({
-      date:
-        row.date ||
-        row.isoDate ||
-        '',
-
-      city:
-        row.city ||
-        row.sehir ||
-        '',
-
-      finish:
-        numberValue(
-          row.finish ??
-          row.rank ??
-          row.position ??
-          row.sira,
-          0
-        ),
-
-      class:
-        row.class ||
-        row.raceClass ||
-        row.kcins ||
-        '',
-
-      ageGroup:
-        row.ageGroup ||
-        row.group ||
-        row.grup ||
-        '',
-
-      track:
-        row.track ||
-        row.pist ||
-        '',
-
-      distance:
-        numberValue(
-          row.distance ??
-          row.mesafe,
-          0
-        )
-    })
+      stage:
+        `CAREER_${horseName || horseId}`
+    }
   );
 }
 
 /* =========================================================
-   TARİHSEL İLK 3 AT İÇİN
-   DONMUŞ KARİYER
+   TEK TARİHSEL AT
 ========================================================= */
 
-async function buildHistoricalHorse({
+async function buildHorse({
   origin,
   horse,
   historicalDate
@@ -377,20 +420,93 @@ async function buildHistoricalHorse({
     };
   }
 
-  const career =
-    await getFrozenCareer({
+  const response =
+    await getCareer({
       origin,
 
       horseId:
         horse.horseId,
 
+      horseName:
+        horse.horseName,
+
       before:
         historicalDate
     });
 
+  if (!response.ok) {
+    return {
+      ok: false,
+
+      finish:
+        horse.finish,
+
+      horseId:
+        String(
+          horse.horseId
+        ),
+
+      horseName:
+        horse.horseName,
+
+      programNo:
+        horse.programNo ??
+        null,
+
+      frozenBefore:
+        historicalDate,
+
+      timeout:
+        response.timeout,
+
+      durationMs:
+        response.durationMs,
+
+      error:
+        response.error
+    };
+  }
+
   const roadmap =
     normalizeCareer(
-      career
+      response.data
+    );
+
+  /*
+    Son güvenlik kontrolü.
+
+    ISO tarih geldiyse
+    historicalDate >= olan
+    satırları at.
+  */
+
+  const safeRoadmap =
+    roadmap.filter(
+      row => {
+        if (
+          !row.date ||
+          !historicalDate
+        ) {
+          return true;
+        }
+
+        /*
+          YYYY-MM-DD ise
+          doğrudan karşılaştır.
+        */
+        if (
+          /^\d{4}-\d{2}-\d{2}$/.test(
+            row.date
+          )
+        ) {
+          return (
+            row.date <
+            historicalDate
+          );
+        }
+
+        return true;
+      }
     );
 
   return {
@@ -408,33 +524,39 @@ async function buildHistoricalHorse({
       horse.horseName,
 
     programNo:
-      horse.programNo ?? null,
+      horse.programNo ??
+      null,
 
     frozenBefore:
       historicalDate,
 
-    /*
-      Bu sayı yalnız tarihsel
-      koşudan ÖNCEKİ ilk 5
-      sonuçlarının sayısıdır.
-    */
-    top5BeforeCount:
-      roadmap.length,
+    careerVersion:
+      response.data?.version ||
+      null,
 
-    roadmap
+    durationMs:
+      response.durationMs,
+
+    top5BeforeCount:
+      safeRoadmap.length,
+
+    roadmap:
+      safeRoadmap
   };
 }
 
 /* =========================================================
-   TEK BİR BENZER YARIŞIN
-   TAM TARİHSEL PAKETİ
+   TEK TARİHSEL YARIŞ
 ========================================================= */
 
-async function buildHistoricalRace({
+async function buildRace({
   origin,
   similar
 }) {
-  const history =
+  const raceStarted =
+    nowMs();
+
+  const historyResponse =
     await getHistory({
       origin,
 
@@ -448,6 +570,41 @@ async function buildHistoricalRace({
         similar.raceNo
     });
 
+  if (
+    !historyResponse.ok
+  ) {
+    return {
+      ok: false,
+
+      date:
+        similar.date,
+
+      city:
+        similar.city,
+
+      raceNo:
+        similar.raceNo,
+
+      similarity:
+        similar.similarity,
+
+      stage:
+        historyResponse.stage,
+
+      timeout:
+        historyResponse.timeout,
+
+      durationMs:
+        historyResponse.durationMs,
+
+      error:
+        historyResponse.error
+    };
+  }
+
+  const history =
+    historyResponse.data;
+
   const top3 =
     Array.isArray(
       history?.top3
@@ -455,25 +612,48 @@ async function buildHistoricalRace({
       ? history.top3
       : [];
 
+  if (
+    !top3.length
+  ) {
+    return {
+      ok: false,
+
+      date:
+        similar.date,
+
+      city:
+        similar.city,
+
+      raceNo:
+        similar.raceNo,
+
+      similarity:
+        similar.similarity,
+
+      error:
+        'Tarihsel yarışın ilk 3 atı bulunamadı.'
+    };
+  }
+
   /*
-    İlk 3 atın kariyerleri
-    aynı anda fakat sınırlı
-    concurrency ile çekilir.
+    3 kariyer isteği aynı anda.
+
+    Yalnızca üç adet olduğu için
+    V2'de Promise.all kullanıyoruz.
   */
 
   const horses =
-    await mapLimit(
-      top3,
-      3,
+    await Promise.all(
+      top3.map(
+        horse =>
+          buildHorse({
+            origin,
+            horse,
 
-      horse =>
-        buildHistoricalHorse({
-          origin,
-          horse,
-
-          historicalDate:
-            similar.date
-        })
+            historicalDate:
+              similar.date
+          })
+      )
     );
 
   return {
@@ -488,7 +668,12 @@ async function buildHistoricalRace({
     raceNo:
       similar.raceNo,
 
-    similarity:
+    /*
+      V6 yarış benzerliği.
+      Bu kariyer benzerliği değildir.
+    */
+
+    raceSimilarity:
       similar.similarity,
 
     similarityDetail:
@@ -504,8 +689,8 @@ async function buildHistoricalRace({
       null,
 
     /*
-      Sonuç sayfasındaki gerçek
-      yarış şartlarını esas al.
+      Yarış sonucu sayfasındaki
+      gerçek şartlar.
     */
 
     class:
@@ -528,12 +713,23 @@ async function buildHistoricalRace({
       history.conditionRaw ||
       '',
 
-    top3Count:
-      top3.length,
+    historyVersion:
+      history.version ||
+      null,
 
     horseIdsComplete:
       history.horseIdsComplete ??
       false,
+
+    top3Count:
+      top3.length,
+
+    historyDurationMs:
+      historyResponse.durationMs,
+
+    totalDurationMs:
+      nowMs() -
+      raceStarted,
 
     horses
   };
@@ -547,7 +743,13 @@ export default async function handler(
   req,
   res
 ) {
+  const started =
+    nowMs();
+
+  const diagnostics = [];
+
   try {
+
     const date =
       clean(
         req.query.date
@@ -580,11 +782,11 @@ export default async function handler(
       );
 
     /*
-      İlk testte 3 tarihsel
-      yarış yeterli.
+      V2 varsayılan:
+      YALNIZ 1 tarihsel yarış.
 
-      Daha sonra 5-10'a
-      çıkarabiliriz.
+      İlk stabil testten sonra
+      3'e çıkarabiliriz.
     */
 
     const similarLimit =
@@ -592,11 +794,11 @@ export default async function handler(
         Math.max(
           numberValue(
             req.query.similarLimit,
-            3
+            1
           ),
           1
         ),
-        5
+        3
       );
 
     if (
@@ -608,7 +810,6 @@ export default async function handler(
         .status(400)
         .json({
           ok: false,
-
           version:
             VERSION,
 
@@ -622,7 +823,6 @@ export default async function handler(
         .status(400)
         .json({
           ok: false,
-
           version:
             VERSION,
 
@@ -636,7 +836,6 @@ export default async function handler(
         .status(400)
         .json({
           ok: false,
-
           version:
             VERSION,
 
@@ -650,7 +849,6 @@ export default async function handler(
         .status(400)
         .json({
           ok: false,
-
           version:
             VERSION,
 
@@ -664,7 +862,6 @@ export default async function handler(
         .status(400)
         .json({
           ok: false,
-
           version:
             VERSION,
 
@@ -680,7 +877,6 @@ export default async function handler(
         .status(400)
         .json({
           ok: false,
-
           version:
             VERSION,
 
@@ -693,11 +889,11 @@ export default async function handler(
       getOrigin(req);
 
     /* =====================================================
-       1. V6 BENZER YARIŞLARI BUL
+       AŞAMA 1 — BENZER YARIŞ
     ===================================================== */
 
     const similarResponse =
-      await getSimilarRaces({
+      await getSimilar({
         origin,
         date,
         city,
@@ -707,27 +903,74 @@ export default async function handler(
         distance,
 
         /*
-          Birkaç ekstra aday isteyelim.
-          History endpointinde sorunlu
-          yarış çıkarsa elimizde seçenek
-          olsun.
+          Birkaç aday alıyoruz,
+          ama sadece en iyi
+          similarLimit kadarını
+          işleyeceğiz.
         */
         limit:
-          Math.min(
-            similarLimit + 2,
-            10
+          Math.max(
+            similarLimit,
+            3
           )
       });
 
-    const similarMatches =
+    diagnostics.push({
+      stage:
+        'SIMILAR',
+
+      ok:
+        similarResponse.ok,
+
+      durationMs:
+        similarResponse.durationMs,
+
+      timeout:
+        similarResponse.timeout ||
+        false,
+
+      error:
+        similarResponse.error ||
+        null
+    });
+
+    if (
+      !similarResponse.ok
+    ) {
+      return res
+        .status(500)
+        .json({
+          ok: false,
+
+          version:
+            VERSION,
+
+          failedStage:
+            'SIMILAR',
+
+          error:
+            similarResponse.error,
+
+          durationMs:
+            nowMs() -
+            started,
+
+          diagnostics
+        });
+    }
+
+    const similarData =
+      similarResponse.data;
+
+    const matches =
       Array.isArray(
-        similarResponse?.matches
+        similarData?.matches
       )
-        ? similarResponse.matches
+        ? similarData.matches
         : [];
 
     if (
-      !similarMatches.length
+      !matches.length
     ) {
       return res
         .status(200)
@@ -740,6 +983,7 @@ export default async function handler(
           target: {
             date,
             city,
+
             class:
               raceClass,
 
@@ -749,66 +993,102 @@ export default async function handler(
           },
 
           similarVersion:
-            similarResponse?.version ||
+            similarData?.version ||
             null,
 
-          similarFound:
-            0,
+          similarFound: 0,
 
-          historicalRaceCount:
-            0,
+          historicalRaceCount: 0,
 
           historicalRaces:
             [],
 
+          durationMs:
+            nowMs() -
+            started,
+
+          diagnostics,
+
           message:
-            'Tarihsel benzer yarış bulunamadı.'
+            'Benzer tarihsel yarış bulunamadı.'
         });
     }
 
     /* =====================================================
-       2. EN İYİ BENZERLERİN
-          GERÇEK SONUÇLARINI VE
-          DONMUŞ KARİYERLERİNİ GETİR
+       AŞAMA 2 — TARİHSEL YARIŞLAR
+
+       V2'de yarışları sırayla
+       işliyoruz.
+
+       Bu, aynı anda çok fazla
+       TJK isteği açılmasını
+       engeller.
     ===================================================== */
 
-    const candidates =
-      similarMatches.slice(
+    const selected =
+      matches.slice(
         0,
         similarLimit
       );
 
-    const built =
-      await mapLimit(
-        candidates,
-        2,
+    const historicalRaces = [];
+    const failures = [];
 
-        similar =>
-          buildHistoricalRace({
-            origin,
-            similar
-          })
-      );
+    for (
+      const similar of
+      selected
+    ) {
+      const result =
+        await buildRace({
+          origin,
+          similar
+        });
 
-    const historicalRaces =
-      built.filter(
-        x =>
-          x &&
-          x.ok !== false
-      );
+      diagnostics.push({
+        stage:
+          `RACE_${similar.date}_${similar.city}_${similar.raceNo}`,
 
-    const failed =
-      built.filter(
-        x =>
-          x &&
-          x.ok === false
-      );
+        ok:
+          result.ok,
+
+        durationMs:
+          result.totalDurationMs ??
+          result.durationMs ??
+          null,
+
+        timeout:
+          result.timeout ||
+          false,
+
+        error:
+          result.error ||
+          null
+      });
+
+      if (
+        result.ok
+      ) {
+        historicalRaces.push(
+          result
+        );
+      } else {
+        failures.push(
+          result
+        );
+      }
+    }
 
     /* =====================================================
-       3. ÖZET
+       ÖZET
     ===================================================== */
 
     let historicalHorseCount =
+      0;
+
+    let successfulCareerCount =
+      0;
+
+    let failedCareerCount =
       0;
 
     let frozenCareerRowCount =
@@ -822,10 +1102,12 @@ export default async function handler(
         const horse of
         race.horses || []
       ) {
+        historicalHorseCount++;
+
         if (
-          horse?.ok
+          horse.ok
         ) {
-          historicalHorseCount++;
+          successfulCareerCount++;
 
           frozenCareerRowCount +=
             Array.isArray(
@@ -833,13 +1115,16 @@ export default async function handler(
             )
               ? horse.roadmap.length
               : 0;
+
+        } else {
+          failedCareerCount++;
         }
       }
     }
 
     res.setHeader(
       'Cache-Control',
-      's-maxage=900, stale-while-revalidate=3600'
+      's-maxage=600, stale-while-revalidate=1800'
     );
 
     return res
@@ -863,59 +1148,88 @@ export default async function handler(
           distance
         },
 
+        /*
+          Kritik veri kaçağı
+          koruması.
+        */
+
         rules: {
-          historicalRaceDate:
-            'historical_date < target_date',
+          historicalRace:
+            'historical_race_date < target_date',
 
           historicalCareer:
             'career_race_date < historical_race_date',
 
-          finishFilter:
-            'finish <= 5',
+          careerFinish:
+            '1 <= finish <= 5',
+
+          useHistoricalTop3:
+            true,
 
           leakageProtection:
             true
         },
 
+        /*
+          Buradaki raceSimilarity,
+          yalnız yarış şartı
+          benzerliğidir.
+
+          Henüz atın kariyer
+          benzerlik yüzdesi değildir.
+        */
+
         similarVersion:
-          similarResponse?.version ||
+          similarData?.version ||
+          null,
+
+        similarPagesRead:
+          similarData?.pagesRead ??
+          null,
+
+        similarScanned:
+          similarData?.scanned ??
           null,
 
         similarFound:
-          similarResponse?.matchCount ??
-          similarMatches.length,
+          similarData?.matchCount ??
+          matches.length,
 
         similarUsed:
-          candidates.length,
+          selected.length,
 
         historicalRaceCount:
           historicalRaces.length,
 
         historicalHorseCount,
 
+        successfulCareerCount,
+
+        failedCareerCount,
+
         frozenCareerRowCount,
 
-        failedCount:
-          failed.length,
+        failedRaceCount:
+          failures.length,
+
+        durationMs:
+          nowMs() -
+          started,
+
+        diagnostics,
 
         historicalRaces,
 
-        failures:
-          failed,
+        failures,
 
         sourceChain: [
-          'tjk-similar V6',
+          'tjk-similar V6 maxPages=1',
           'tjk-history V1',
-          'tjk-career V6'
+          'tjk-career V6 before=historicalDate'
         ]
       });
 
   } catch (e) {
-
-    console.error(
-      'tjk-roadmap:',
-      e
-    );
 
     return res
       .status(500)
@@ -927,13 +1241,14 @@ export default async function handler(
           VERSION,
 
         error:
-          e?.name ===
-          'AbortError'
-            ? 'TJK isteği zaman aşımına uğradı.'
-            : (
-                e?.message ||
-                'Tarihsel kariyer yol haritası oluşturulamadı.'
-              )
+          e?.message ||
+          'Roadmap V2 çalıştırılamadı.',
+
+        durationMs:
+          nowMs() -
+          started,
+
+        diagnostics
       });
   }
-      }
+    }
