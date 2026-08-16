@@ -1,3 +1,40 @@
+import * as cheerio from 'cheerio';
+
+const TJK = 'https://www.tjk.org';
+
+const HEADERS = {
+  'user-agent':
+    'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/138 Safari/537.36',
+  accept:
+    'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'accept-language': 'tr-TR,tr;q=0.9,en;q=0.7',
+  referer: 'https://www.tjk.org/'
+};
+
+function clean(v = '') {
+  return String(v)
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function parseDate(value = '') {
+  const m = clean(value).match(
+    /^(\d{2})[./](\d{2})[./](\d{4})$/
+  );
+
+  if (!m) return null;
+
+  return new Date(
+    Number(m[3]),
+    Number(m[2]) - 1,
+    Number(m[1]),
+    12,
+    0,
+    0
+  );
+}
+
 function isoDate(value = '') {
   const d = parseDate(value);
 
@@ -57,8 +94,12 @@ function raceClassFromCells(cells) {
   ];
 
   for (const cell of cells) {
+    const t = clean(cell);
+
+    if (!t) continue;
+
     for (const p of patterns) {
-      const m = clean(cell).match(p);
+      const m = t.match(p);
 
       if (m) {
         return clean(m[0]);
@@ -73,14 +114,35 @@ function ageGroupFromCells(cells) {
   for (const cell of cells) {
     const t = clean(cell);
 
-    if (
-      /^(\d+\+?[A-Zİ]?|\d+\s*ve\s*Yukarı)/i.test(t)
-    ) {
+    if (!t) continue;
+
+    // Tarih, mesafe, derece gibi değerleri kesinlikle alma
+    if (/^\d{2}[./]\d{2}[./]\d{4}$/.test(t)) continue;
+    if (/^\d{3,4}$/.test(t)) continue;
+    if (/^\d+[,.]\d+$/.test(t)) continue;
+
+    // "2 Yaşlı İngilizler"
+    // "3 Yaşlı Araplar"
+    // "4 ve Yukarı İngilizler"
+    // "3 ve Yukarı Araplar"
+    // gibi ifadeler
+    const m = t.match(
+      /\b(\d+)\s*(?:Yaşlı|Yaşında|ve\s+Yukarı)(?:\s+[A-ZÇĞİÖŞÜa-zçğıöşü]+)?/i
+    );
+
+    if (m) {
       return t;
     }
 
+    // Alternatif yaygın biçimler
     if (
-      /\b(2|3|4|5)\s*Yaşlı/i.test(t)
+      /\b2\s*Yaşlı\b/i.test(t) ||
+      /\b3\s*Yaşlı\b/i.test(t) ||
+      /\b4\s*Yaşlı\b/i.test(t) ||
+      /\b5\s*Yaşlı\b/i.test(t) ||
+      /\b2\s*ve\s*Yukarı\b/i.test(t) ||
+      /\b3\s*ve\s*Yukarı\b/i.test(t) ||
+      /\b4\s*ve\s*Yukarı\b/i.test(t)
     ) {
       return t;
     }
@@ -125,10 +187,6 @@ function parseRows($) {
     const cityIx = findHeader(headers, /Şehir|Sehir/i);
     const distanceIx = findHeader(headers, /Msf|Mesafe/i);
     const trackIx = findHeader(headers, /^Pist$/i);
-
-    /*
-      TJK koşu geçmişinde bitiriş sırası "S" başlığıyla gelir.
-    */
     const finishIx = findHeader(headers, /^S$/i);
 
     if (dateIx < 0 || finishIx < 0) {
@@ -209,16 +267,6 @@ export default async function handler(req, res) {
       req.query.horseId || ''
     ).replace(/\D/g, '');
 
-    /*
-      before:
-      Bugünkü at için = bugünkü yarış tarihi
-
-      Geçmiş benzer yarıştaki at için =
-      o tarihsel yarışın tarihi
-
-      Örnek:
-      ?horseId=76539&before=2026-08-16
-    */
     const before = String(
       req.query.before || ''
     ).trim();
@@ -265,26 +313,15 @@ export default async function handler(req, res) {
 
     const allRows = parseRows($);
 
-    /*
-      ASIL KURAL 1:
-      SADECE İLK 5 BİTİRİŞLER.
-    */
+    // SADECE İLK 5 BİTİRİŞLER
     let top5 = allRows.filter(
       r =>
         r.finish >= 1 &&
         r.finish <= 5
     );
 
-    /*
-      ASIL KURAL 2:
-      Tarihsel karşılaştırmada geleceği görme yok.
-
-      before=2023-09-15 ise
-      15.09.2023 ve sonrası kullanılmaz.
-
-      Yalnızca:
-      kariyer_yarışı < tarihsel_yarış_tarihi
-    */
+    // Tarihsel yarışta "gelecek bilgisi" kullanılmayacak.
+    // before=2023-09-15 ise sadece 2023-09-15'ten ÖNCEKİ yarışlar.
     if (before) {
       top5 = top5.filter(
         r =>
@@ -293,11 +330,7 @@ export default async function handler(req, res) {
       );
     }
 
-    /*
-      En eskiden yeniye sıralıyoruz.
-      Çünkü bu bölüm bir "yol haritası":
-      at kariyerinde nasıl ilerlemiş görmek istiyoruz.
-    */
+    // Yol haritası: eskiden yeniye
     top5.sort((a, b) =>
       a.isoDate.localeCompare(b.isoDate)
     );
@@ -319,15 +352,10 @@ export default async function handler(req, res) {
       ok: true,
 
       version:
-        'CAREER-ROADMAP-V2',
+        'CAREER-ROADMAP-V3',
 
       horseId,
 
-      /*
-        cutoffExclusive=true:
-        before tarihindeki yarış bile
-        geçmiş kariyere dahil değildir.
-      */
       before:
         before || null,
 
@@ -352,9 +380,7 @@ export default async function handler(req, res) {
 
       roadmap: top5,
 
-      /*
-        Eski app.js ile geçici uyumluluk.
-      */
+      // Eski app.js uyumluluğu
       top5
     });
   } catch (e) {
@@ -370,4 +396,4 @@ export default async function handler(req, res) {
         'Kariyer yol haritası oluşturulamadı.'
     });
   }
-      }
+}
