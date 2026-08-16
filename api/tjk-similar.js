@@ -2,6 +2,15 @@ import * as cheerio from 'cheerio';
 
 const TJK = 'https://www.tjk.org';
 
+const PAGE_URL =
+  `${TJK}/TR/YarisSever/Query/Page/KosuSorgulama`;
+
+const DATA_URL =
+  `${TJK}/TR/YarisSever/Query/Data/KosuSorgulama`;
+
+const ROWS_URL =
+  `${TJK}/TR/YarisSever/Query/DataRows/KosuSorgulama`;
+
 const HEADERS = {
   'user-agent':
     'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/138 Safari/537.36',
@@ -10,7 +19,7 @@ const HEADERS = {
   'accept-language':
     'tr-TR,tr;q=0.9,en;q=0.7',
   referer:
-    'https://www.tjk.org/TR/YarisSever/Query/Page/KosuSorgulama'
+    PAGE_URL
 };
 
 function clean(v = '') {
@@ -25,11 +34,7 @@ function upper(v = '') {
     .toLocaleUpperCase('tr-TR');
 }
 
-function pad2(n) {
-  return String(n).padStart(2, '0');
-}
-
-function parseDisplayDate(value = '') {
+function parseDate(value = '') {
   const m = clean(value).match(
     /^(\d{2})[./](\d{2})[./](\d{4})$/
   );
@@ -52,46 +57,12 @@ function isoToDisplay(iso = '') {
   return `${m[3]}.${m[2]}.${m[1]}`;
 }
 
-function addDays(iso, amount) {
-  const m = String(iso).match(
-    /^(\d{4})-(\d{2})-(\d{2})$/
-  );
-
-  if (!m) return '';
-
-  const d = new Date(
-    Date.UTC(
-      Number(m[1]),
-      Number(m[2]) - 1,
-      Number(m[3])
-    )
-  );
-
-  d.setUTCDate(
-    d.getUTCDate() + amount
-  );
-
-  return [
-    d.getUTCFullYear(),
-    pad2(d.getUTCMonth() + 1),
-    pad2(d.getUTCDate())
-  ].join('-');
-}
-
 function normalizeTrack(v = '') {
   const t = upper(v);
 
-  if (t.includes('ÇİM')) {
-    return 'Çim';
-  }
-
-  if (t.includes('KUM')) {
-    return 'Kum';
-  }
-
-  if (t.includes('SENTETİK')) {
-    return 'Sentetik';
-  }
+  if (t.includes('ÇİM')) return 'Çim';
+  if (t.includes('KUM')) return 'Kum';
+  if (t.includes('SENTETİK')) return 'Sentetik';
 
   return clean(v);
 }
@@ -168,10 +139,6 @@ function baseClass(v = '') {
   if (
     t.includes('MAIDEN')
   ) {
-    /*
-      Maiden/Satış ile Maiden
-      şimdilik aynı temel sınıf.
-    */
     return 'MAIDEN';
   }
 
@@ -202,12 +169,65 @@ function normalizeAgeGroup(v = '') {
     .trim();
 }
 
-async function fetchHtml(url) {
+function rowKey(r) {
+  return [
+    r.isoDate,
+    upper(r.city),
+    r.raceNo,
+    upper(r.class),
+    upper(r.ageGroup),
+    r.distance,
+    upper(r.track)
+  ].join('|');
+}
+
+async function postForm(
+  url,
+  data
+) {
+  const body =
+    new URLSearchParams();
+
+  for (
+    const [key, value] of
+    Object.entries(data)
+  ) {
+    if (
+      value === undefined ||
+      value === null
+    ) {
+      continue;
+    }
+
+    body.set(
+      key,
+      String(value)
+    );
+  }
+
   const response =
-    await fetch(url, {
-      headers: HEADERS,
-      redirect: 'follow'
-    });
+    await fetch(
+      url,
+      {
+        method: 'POST',
+
+        headers: {
+          ...HEADERS,
+
+          'content-type':
+            'application/x-www-form-urlencoded; charset=UTF-8',
+
+          'x-requested-with':
+            'XMLHttpRequest'
+        },
+
+        body:
+          body.toString(),
+
+        redirect:
+          'follow'
+      }
+    );
 
   if (!response.ok) {
     throw new Error(
@@ -255,10 +275,6 @@ function findHeader(
       )
   );
 }
-
-/* =========================================================
-   TJK TABLOSU
-========================================================= */
 
 function parseQueryTable(html) {
   const $ =
@@ -350,7 +366,7 @@ function parseQueryTable(html) {
             }
 
             const pd =
-              parseDisplayDate(
+              parseDate(
                 cells[dateIx]
               );
 
@@ -408,70 +424,58 @@ function parseQueryTable(html) {
     }
   );
 
-  /*
-    Kullanıcının TJK'de yaptığı
-    "Tarih" sıralamasını bizim tarafta
-    kesin olarak uyguluyoruz.
-
-    YENİ -> ESKİ
-  */
-  rows.sort(
-    (a, b) => {
-      if (
-        a.isoDate !==
-        b.isoDate
-      ) {
-        return (
-          b.isoDate.localeCompare(
-            a.isoDate
-          )
-        );
-      }
-
-      if (
-        upper(a.city) !==
-        upper(b.city)
-      ) {
-        return upper(a.city)
-          .localeCompare(
-            upper(b.city),
-            'tr'
-          );
-      }
-
-      return (
-        a.raceNo -
-        b.raceNo
-      );
-    }
-  );
-
   return rows;
 }
 
-function rowKey(r) {
-  return [
-    r.isoDate,
-    upper(r.city),
-    r.raceNo,
-    upper(r.class),
-    upper(r.ageGroup),
-    r.distance,
-    upper(r.track)
-  ].join('|');
-}
+function parseRowsFragment(html) {
+  /*
+    DataRows endpointi bazen sadece
+    <tr> parçaları döndürebilir.
 
-/* =========================================================
-   BENZERLİK
-========================================================= */
+    Bu nedenle sanal tablo sarıyoruz.
+  */
+
+  const wrapped =
+    `<table>
+      <thead>
+        <tr>
+          <th>Tarih</th>
+          <th>Şehir</th>
+          <th>Koşu</th>
+          <th>Grup</th>
+          <th>Koşu Cinsi</th>
+          <th>Mesafe</th>
+          <th>Pist</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${html}
+      </tbody>
+    </table>`;
+
+  let rows =
+    parseQueryTable(
+      html
+    );
+
+  if (
+    rows.length
+  ) {
+    return rows;
+  }
+
+  rows =
+    parseQueryTable(
+      wrapped
+    );
+
+  return rows;
+}
 
 function similarityScore(
   target,
   past
 ) {
-  /*
-    Gelecek bilgisi yok.
-  */
   if (
     !past.isoDate ||
     past.isoDate >=
@@ -479,6 +483,8 @@ function similarityScore(
   ) {
     return null;
   }
+
+  let score = 0;
 
   const detail = {
     class: 0,
@@ -488,11 +494,6 @@ function similarityScore(
     city: 0
   };
 
-  let score = 0;
-
-  /*
-    1. SINIF
-  */
   const targetClass =
     baseClass(
       target.class
@@ -515,9 +516,6 @@ function similarityScore(
   detail.class = 35;
   score += 35;
 
-  /*
-    2. YAŞ GRUBU
-  */
   if (
     normalizeAgeGroup(
       target.ageGroup
@@ -532,9 +530,6 @@ function similarityScore(
   detail.ageGroup = 25;
   score += 25;
 
-  /*
-    3. PİST
-  */
   if (
     normalizeTrack(
       target.track
@@ -549,20 +544,15 @@ function similarityScore(
   detail.track = 20;
   score += 20;
 
-  /*
-    4. MESAFE
-  */
   const diff =
     Math.abs(
-      Number(
-        target.distance
-      ) -
-      Number(
-        past.distance
-      )
+      Number(target.distance) -
+      Number(past.distance)
     );
 
-  if (diff === 0) {
+  if (
+    diff === 0
+  ) {
     detail.distance = 15;
   } else if (
     diff <= 100
@@ -583,9 +573,6 @@ function similarityScore(
   score +=
     detail.distance;
 
-  /*
-    5. AYNI HİPODROM
-  */
   if (
     upper(
       target.city
@@ -607,44 +594,62 @@ function similarityScore(
 }
 
 /* =========================================================
-   TJK 50'LİK BLOK
-
-   ÖNEMLİ:
-   Sayfa numarası tahmin etmiyoruz.
-
-   Her seferinde:
-   - bitiş tarihini belirliyoruz
-   - TJK'nin ilk 50 sonucunu alıyoruz
-   - en eski tarihin 1 gün öncesine
-     geçiyoruz
-
-   Böylece "Daha Fazla Sonuç Göster"
-   davranışını tarih imleciyle taklit
-   ediyoruz.
+   GERÇEK TJK İLK SORGU
 ========================================================= */
 
-async function fetchBlock(
-  endDateIso
+async function fetchFirstPage(
+  targetDate
 ) {
-  const displayEnd =
-    isoToDisplay(
-      endDateIso
-    );
+  const form = {
+    QueryParameter_Tarih_Start:
+      '',
 
-  /*
-    Page yerine doğrudan Data
-    endpointini kullanıyoruz.
-  */
-  const url =
-    `${TJK}/TR/YarisSever/Query/Data/KosuSorgulama` +
-    `?1=1` +
-    `&QueryParameter_TarihBitis=${encodeURIComponent(
-      displayEnd
-    )}`;
+    QueryParameter_Tarih_End:
+      isoToDisplay(
+        targetDate
+      ),
+
+    QueryParameter_SehirId:
+      '',
+
+    QueryParameter_IrkId:
+      '',
+
+    QueryParameter_GrupId:
+      '',
+
+    QueryParameter_KosuCinsiId:
+      '',
+
+    QueryParameter_Cinsiyet:
+      '',
+
+    QueryParameter_APRANTIKODU:
+      '',
+
+    QueryParameter_Mesafe:
+      '',
+
+    QueryParameter_PistId:
+      '',
+
+    QueryParameter_BabaAdi:
+      '',
+
+    QueryParameter_AnneAdi:
+      '',
+
+    Era:
+      'past',
+
+    Sort:
+      'Tarih desc, Sehir asc, KosuSirasi asc'
+  };
 
   const html =
-    await fetchHtml(
-      url
+    await postForm(
+      DATA_URL,
+      form
     );
 
   const rows =
@@ -653,130 +658,109 @@ async function fetchBlock(
     );
 
   return {
-    url,
-    rows
+    html,
+    rows,
+    form
   };
 }
 
 /* =========================================================
-   GERİYE DOĞRU TARAMA
+   GERÇEK TJK DAHA FAZLA
+========================================================= */
+
+async function fetchMorePage(
+  pageNumber
+) {
+  const form = {
+    PageNumber:
+      pageNumber,
+
+    Sort:
+      'Tarih desc, Sehir asc, KosuSirasi asc'
+  };
+
+  const html =
+    await postForm(
+      ROWS_URL,
+      form
+    );
+
+  const rows =
+    parseRowsFragment(
+      html
+    );
+
+  return {
+    html,
+    rows,
+    form
+  };
+}
+
+/* =========================================================
+   TARAMA
 ========================================================= */
 
 async function scanHistorical({
-  targetDate,
-  maxBlocks,
-  wantedMatches,
-  target
+  target,
+  limit,
+  maxPages
 }) {
-  const allRows = [];
-  const matches = [];
-
-  const seenRows =
+  const seen =
     new Set();
 
-  const diagnostics =
-    [];
+  const allRows = [];
+  const matches = [];
+  const diagnostics = [];
 
   /*
-    Bugünkü yarış kesinlikle
-    tarihsele girmeyecek.
+    Bugünün yarışını dışarıda bırakmak
+    için End = hedef tarih.
 
-    İlk blok:
-    hedef tarihin 1 gün öncesi.
+    Son filtreyi ayrıca
+    isoDate < target.date ile yapıyoruz.
   */
-  let cursor =
-    addDays(
-      targetDate,
-      -1
+  const first =
+    await fetchFirstPage(
+      target.date
     );
 
-  let previousOldest = '';
+  let firstRows =
+    first.rows;
 
-  for (
-    let blockNo = 1;
-    blockNo <= maxBlocks;
-    blockNo++
+  diagnostics.push({
+    page:
+      1,
+
+    endpoint:
+      'Data/KosuSorgulama',
+
+    rows:
+      firstRows.length,
+
+    status:
+      firstRows.length
+        ? 'TAMAM'
+        : 'BOS'
+  });
+
+  if (
+    !firstRows.length
   ) {
-    const block =
-      await fetchBlock(
-        cursor
-      );
+    return {
+      rows:
+        [],
 
-    const rows =
-      block.rows;
+      matches:
+        [],
 
-    if (!rows.length) {
-      diagnostics.push({
-        block:
-          blockNo,
-        requestedEnd:
-          cursor,
-        rows:
-          0,
-        status:
-          'BOS'
-      });
+      diagnostics
+    };
+  }
 
-      break;
-    }
-
-    /*
-      TJK tarih filtresinin gerçekten
-      uygulandığını kontrol ediyoruz.
-
-      Eğer dönen en yeni tarih bizim
-      istediğimiz bitiş tarihinden sonra
-      ise QueryParameter_TarihBitis
-      dikkate alınmıyor demektir.
-
-      Yanlış veriyle devam ETMİYORUZ.
-    */
-    const newest =
-      rows[0]?.isoDate || '';
-
-    const oldest =
-      rows[
-        rows.length - 1
-      ]?.isoDate || '';
-
-    if (
-      newest &&
-      newest > cursor
-    ) {
-      throw new Error(
-        `TJK tarih filtresi uygulanmadı. ` +
-        `İstenen bitiş=${cursor}, ` +
-        `dönen en yeni=${newest}.`
-      );
-    }
-
-    /*
-      Aynı tarih bloğu tekrar geldiyse
-      sonsuz döngüyü kes.
-    */
-    if (
-      previousOldest &&
-      oldest ===
-        previousOldest
-    ) {
-      diagnostics.push({
-        block:
-          blockNo,
-        requestedEnd:
-          cursor,
-        newest,
-        oldest,
-        rows:
-          rows.length,
-        status:
-          'TEKRAR'
-      });
-
-      break;
-    }
-
-    let newRows = 0;
-    let newMatches = 0;
+  function addRows(rows) {
+    let added = 0;
+    let found = 0;
 
     for (
       const row of
@@ -786,14 +770,26 @@ async function scanHistorical({
         rowKey(row);
 
       if (
-        seenRows.has(key)
+        seen.has(key)
       ) {
         continue;
       }
 
-      seenRows.add(key);
+      seen.add(key);
+
+      /*
+        Hedef tarihin kendisi veya
+        gelecek kesinlikle alınmaz.
+      */
+      if (
+        row.isoDate >=
+        target.date
+      ) {
+        continue;
+      }
+
       allRows.push(row);
-      newRows++;
+      added++;
 
       const sim =
         similarityScore(
@@ -840,72 +836,147 @@ async function scanHistorical({
           sim.detail
       });
 
-      newMatches++;
+      found++;
     }
 
+    return {
+      added,
+      found
+    };
+  }
+
+  const firstAdd =
+    addRows(
+      firstRows
+    );
+
+  diagnostics[
+    diagnostics.length - 1
+  ].newRows =
+    firstAdd.added;
+
+  diagnostics[
+    diagnostics.length - 1
+  ].newMatches =
+    firstAdd.found;
+
+  /*
+    Kullanıcı sadece 10 benzer
+    istese de sıralama kalitesi için
+    biraz fazla topluyoruz.
+  */
+  const wantedMatches =
+    Math.max(
+      limit * 3,
+      15
+    );
+
+  if (
+    matches.length >=
+    wantedMatches
+  ) {
+    return {
+      rows:
+        allRows,
+
+      matches,
+
+      diagnostics
+    };
+  }
+
+  /*
+    pagerForm HTML'de
+    PageNumber=1 geliyor.
+
+    "Daha Fazla Sonuç Göster"
+    sonrasında 2,3,4...
+    ilerliyoruz.
+  */
+  for (
+    let page = 2;
+    page <= maxPages;
+    page++
+  ) {
+    const more =
+      await fetchMorePage(
+        page
+      );
+
+    const rows =
+      more.rows;
+
+    if (
+      !rows.length
+    ) {
+      diagnostics.push({
+        page,
+
+        endpoint:
+          'DataRows/KosuSorgulama',
+
+        rows:
+          0,
+
+        status:
+          'BOS'
+      });
+
+      break;
+    }
+
+    const before =
+      allRows.length;
+
+    const result =
+      addRows(
+        rows
+      );
+
     diagnostics.push({
-      block:
-        blockNo,
+      page,
 
-      requestedEnd:
-        cursor,
-
-      newest,
-
-      oldest,
+      endpoint:
+        'DataRows/KosuSorgulama',
 
       rows:
         rows.length,
 
-      newRows,
+      newRows:
+        result.added,
 
-      newMatches,
+      newMatches:
+        result.found,
+
+      totalRows:
+        allRows.length,
 
       totalMatches:
         matches.length,
 
       status:
-        'TAMAM'
+        result.added > 0
+          ? 'TAMAM'
+          : 'TEKRAR'
     });
 
-    previousOldest =
-      oldest;
-
     /*
-      Yeterli sayıda tarihsel
-      benzer bulduysak gereksiz yere
-      TJK'yi taramıyoruz.
+      Aynı sayfa geri dönüyorsa
+      sonsuz döngüyü kes.
     */
+    if (
+      allRows.length ===
+      before
+    ) {
+      break;
+    }
+
     if (
       matches.length >=
       wantedMatches
     ) {
       break;
     }
-
-    /*
-      Son 50'lik bloğun en eski
-      tarihinin bir gün öncesine geç.
-    */
-    if (!oldest) {
-      break;
-    }
-
-    const nextCursor =
-      addDays(
-        oldest,
-        -1
-      );
-
-    if (
-      !nextCursor ||
-      nextCursor >= cursor
-    ) {
-      break;
-    }
-
-    cursor =
-      nextCursor;
   }
 
   return {
@@ -973,40 +1044,19 @@ export default async function handler(
           ),
           1
         ),
-        20
+        30
       );
 
-    /*
-      En fazla kaç adet 50'lik blok
-      taranacak?
-
-      20 blok = en fazla yaklaşık
-      1000 geçmiş yarış satırı.
-    */
-    const maxBlocks =
+    const maxPages =
       Math.min(
         Math.max(
           Number(
-            req.query.maxBlocks ||
-            20
+            req.query.maxPages ||
+            25
           ),
           1
         ),
-        40
-      );
-
-    /*
-      Sıralama yapabilmek için
-      limitten biraz fazla benzer
-      toplamaya çalışıyoruz.
-    */
-    const wantedMatches =
-      Math.min(
-        Math.max(
-          limit * 3,
-          10
-        ),
-        50
+        80
       );
 
     if (
@@ -1071,6 +1121,7 @@ export default async function handler(
     const target = {
       date,
       city,
+
       class:
         raceClass,
 
@@ -1086,22 +1137,11 @@ export default async function handler(
 
     const scan =
       await scanHistorical({
-        targetDate:
-          date,
-
-        maxBlocks,
-
-        wantedMatches,
-
-        target
+        target,
+        limit,
+        maxPages
       });
 
-    /*
-      En yüksek benzerlik önce.
-
-      Aynı puanda:
-      bugüne en yakın geçmiş tarih önce.
-    */
     scan.matches.sort(
       (a, b) => {
 
@@ -1162,21 +1202,20 @@ export default async function handler(
         ok: true,
 
         version:
-          'TJK-SIMILAR-V3',
+          'TJK-SIMILAR-V4',
 
         target,
 
-        /*
-          TANI BİLGİLERİ
-        */
+        sort:
+          'Tarih desc, Sehir asc, KosuSirasi asc',
 
-        sortDirection:
-          'DATE_DESC',
+        firstEndpoint:
+          '/Query/Data/KosuSorgulama',
 
-        blockSize:
-          50,
+        pagingEndpoint:
+          '/Query/DataRows/KosuSorgulama',
 
-        blocksRead:
+        pagesRead:
           scan.diagnostics
             .filter(
               x =>
@@ -1230,10 +1269,7 @@ export default async function handler(
         matches,
 
         source:
-          'TJK_QUERY_DATA_KOSUSORGULAMA',
-
-        pagingStrategy:
-          'DATE_CURSOR_50'
+          'TJK_REAL_POST_PAGING'
       });
 
   } catch (e) {
@@ -1250,11 +1286,11 @@ export default async function handler(
         ok: false,
 
         version:
-          'TJK-SIMILAR-V3',
+          'TJK-SIMILAR-V4',
 
         error:
           e?.message ||
           'Tarihsel benzer yarışlar oluşturulamadı.'
       });
   }
-}
+                  }
