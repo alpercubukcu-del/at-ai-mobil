@@ -1,6 +1,7 @@
 const $ = id => document.getElementById(id);
 
 const STORAGE_KEY = 'at_ai_mobil_state_v2';
+const CAREER_UI_VERSION = 'CAREER-UI-V2';
 
 const BET_TYPES = [
   '7li Ganyan',
@@ -32,40 +33,97 @@ const defaultState = {
 
 let state = loadState();
 
+/* =========================================================
+   STATE
+========================================================= */
+
 function loadState() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw =
+      localStorage.getItem(
+        STORAGE_KEY
+      );
 
     if (!raw) {
-      return structuredClone(defaultState);
+      return structuredClone(
+        defaultState
+      );
     }
 
-    const parsed = JSON.parse(raw);
+    const parsed =
+      JSON.parse(raw);
 
-    return {
-      ...structuredClone(defaultState),
+    const result = {
+      ...structuredClone(
+        defaultState
+      ),
+
       ...parsed,
+
       analyses: {
-        ...structuredClone(defaultState.analyses),
+        ...structuredClone(
+          defaultState.analyses
+        ),
+
         ...(parsed.analyses || {})
       }
     };
-  } catch {
-    return structuredClone(defaultState);
+
+    /*
+      Eski kariyer UI cache'ini
+      V2 ile karıştırma.
+    */
+
+    if (
+      result.analyses?.career &&
+      result.analyses.career.version !==
+        CAREER_UI_VERSION
+    ) {
+      result.analyses.career = {};
+    }
+
+    return result;
+
+  } catch (e) {
+    console.warn(
+      'State okunamadı:',
+      e
+    );
+
+    return structuredClone(
+      defaultState
+    );
   }
 }
 
 function save() {
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(state)
-  );
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(state)
+    );
+
+    return true;
+
+  } catch (e) {
+    console.warn(
+      'State kaydedilemedi:',
+      e
+    );
+
+    return false;
+  }
 }
+
+/* =========================================================
+   GENEL
+========================================================= */
 
 function todayLocal() {
   const d = new Date();
 
-  const y = d.getFullYear();
+  const y =
+    d.getFullYear();
 
   const m =
     String(
@@ -97,11 +155,28 @@ function escapeHtml(value = '') {
     .replaceAll("'", '&#039;');
 }
 
+function numberValue(
+  value,
+  fallback = 0
+) {
+  const n =
+    Number(value);
+
+  return Number.isFinite(n)
+    ? n
+    : fallback;
+}
+
+/* =========================================================
+   PROGRAM NORMALIZE
+========================================================= */
+
 function normalizeRace(race) {
   return {
-    no: Number(
-      race?.no || 0
-    ),
+    no:
+      Number(
+        race?.no || 0
+      ),
 
     time:
       race?.time || '',
@@ -149,7 +224,9 @@ function getCurrentRaceList(
     [];
 
   return Array.isArray(direct)
-    ? direct.map(normalizeRace)
+    ? direct.map(
+        normalizeRace
+      )
     : [];
 }
 
@@ -226,7 +303,7 @@ function renderCities() {
 }
 
 /* =========================================================
-   BAHİS TÜRLERİ
+   BAHİSLER
 ========================================================= */
 
 function renderBetTypes() {
@@ -361,152 +438,150 @@ function renderProgram() {
         );
 
   raceList.innerHTML =
-    shown
-      .map(
-        race => `
-          <article class="race-card">
+    shown.map(
+      race => `
+        <article class="race-card">
 
-            <div class="race-head">
-              <div>
-                <strong>
-                  ${race.no}. Koşu
-                </strong>
+          <div class="race-head">
+            <div>
+              <strong>
+                ${race.no}. Koşu
+              </strong>
 
-                ${
-                  race.time
-                    ? `<span>${escapeHtml(
-                        race.time
-                      )}</span>`
-                    : ''
-                }
-              </div>
+              ${
+                race.time
+                  ? `<span>${escapeHtml(
+                      race.time
+                    )}</span>`
+                  : ''
+              }
             </div>
+          </div>
 
-            <div class="race-meta">
-
-              ${
-                race.class
-                  ? `<span>${escapeHtml(
-                      race.class
-                    )}</span>`
-                  : ''
-              }
-
-              ${
-                race.distance
-                  ? `<span>${escapeHtml(
-                      race.distance
-                    )}</span>`
-                  : ''
-              }
-
-              ${
-                race.track
-                  ? `<span>${escapeHtml(
-                      race.track
-                    )}</span>`
-                  : ''
-              }
-
-            </div>
+          <div class="race-meta">
 
             ${
-              race.betStarts?.length
-                ? `
-                  <div class="bet-starts">
-                    Başlayan bahisler:
-                    ${race.betStarts
-                      .map(
-                        x =>
-                          `<b>${escapeHtml(
-                            x
-                          )}</b>`
-                      )
-                      .join(' · ')}
-                  </div>
-                `
+              race.class
+                ? `<span>${escapeHtml(
+                    race.class
+                  )}</span>`
                 : ''
             }
 
-            <div class="horse-list">
+            ${
+              race.distance
+                ? `<span>${escapeHtml(
+                    race.distance
+                  )}</span>`
+                : ''
+            }
 
-              ${
-                race.horses.length
-                  ? race.horses
-                      .map(
-                        h => `
-                          <div class="horse-row">
+            ${
+              race.track
+                ? `<span>${escapeHtml(
+                    race.track
+                  )}</span>`
+                : ''
+            }
 
-                            <div>
-                              <b>
-                                ${escapeHtml(
-                                  h.no
-                                )}.
-                                ${escapeHtml(
-                                  h.name
-                                )}
-                              </b>
+          </div>
 
-                              ${
-                                h.jockey
-                                  ? `
-                                    <small>
-                                      ${escapeHtml(
-                                        h.jockey
-                                      )}
-                                    </small>
-                                  `
-                                  : ''
-                              }
-                            </div>
+          ${
+            race.betStarts?.length
+              ? `
+                <div class="bet-starts">
+                  Başlayan bahisler:
+                  ${race.betStarts
+                    .map(
+                      x =>
+                        `<b>${escapeHtml(
+                          x
+                        )}</b>`
+                    )
+                    .join(' · ')}
+                </div>
+              `
+              : ''
+          }
 
-                            <div class="horse-stats">
+          <div class="horse-list">
 
-                              ${
-                                h.hp !== ''
-                                  ? `
-                                    <span>
-                                      HP
-                                      ${escapeHtml(
-                                        h.hp
-                                      )}
-                                    </span>
-                                  `
-                                  : ''
-                              }
+            ${
+              race.horses.length
+                ? race.horses
+                    .map(
+                      h => `
+                        <div class="horse-row">
 
-                              ${
-                                h.odds
-                                  ? `
-                                    <span>
-                                      Gny
-                                      ${escapeHtml(
-                                        h.odds
-                                      )}
-                                    </span>
-                                  `
-                                  : ''
-                              }
+                          <div>
+                            <b>
+                              ${escapeHtml(
+                                h.no
+                              )}.
+                              ${escapeHtml(
+                                h.name
+                              )}
+                            </b>
 
-                            </div>
+                            ${
+                              h.jockey
+                                ? `
+                                  <small>
+                                    ${escapeHtml(
+                                      h.jockey
+                                    )}
+                                  </small>
+                                `
+                                : ''
+                            }
+                          </div>
+
+                          <div class="horse-stats">
+
+                            ${
+                              h.hp !== ''
+                                ? `
+                                  <span>
+                                    HP
+                                    ${escapeHtml(
+                                      h.hp
+                                    )}
+                                  </span>
+                                `
+                                : ''
+                            }
+
+                            ${
+                              h.odds
+                                ? `
+                                  <span>
+                                    Gny
+                                    ${escapeHtml(
+                                      h.odds
+                                    )}
+                                  </span>
+                                `
+                                : ''
+                            }
 
                           </div>
-                        `
-                      )
-                      .join('')
-                  : `
-                    <div class="empty">
-                      At listesi alınamadı.
-                    </div>
-                  `
-              }
 
-            </div>
+                        </div>
+                      `
+                    )
+                    .join('')
+                : `
+                  <div class="empty">
+                    At listesi alınamadı.
+                  </div>
+                `
+            }
 
-          </article>
-        `
-      )
-      .join('');
+          </div>
+
+        </article>
+      `
+    ).join('');
 
   if (analysisRace) {
     analysisRace.innerHTML =
@@ -523,7 +598,7 @@ function renderProgram() {
 }
 
 /* =========================================================
-   TJK PROGRAM YÜKLE
+   PROGRAM YÜKLE
 ========================================================= */
 
 async function loadProgram() {
@@ -548,6 +623,7 @@ async function loadProgram() {
         {
           method: 'GET',
           cache: 'no-store',
+
           headers: {
             accept:
               'application/json'
@@ -580,6 +656,7 @@ async function loadProgram() {
       state.races = [];
 
       save();
+
       renderCities();
       renderProgram();
 
@@ -619,11 +696,14 @@ async function loadProgram() {
         state.city
       );
 
-    /*
-      Program değiştiğinde eski
-      programın kuponunu taşımıyoruz.
-    */
     state.tickets = [];
+
+    /*
+      Program yeniden yüklendiğinde
+      eski Career görünümünü kullanma.
+    */
+
+    state.analyses.career = {};
 
     save();
 
@@ -672,6 +752,13 @@ async function changeCity(
     'all';
 
   state.tickets = [];
+
+  /*
+    Başka şehir için eski kariyer
+    analizini göstermeyelim.
+  */
+
+  state.analyses.career = {};
 
   save();
 
@@ -745,7 +832,7 @@ async function changeCity(
 }
 
 /* =========================================================
-   KUPONLAR
+   KUPON
 ========================================================= */
 
 function renderTickets() {
@@ -836,10 +923,13 @@ function buildTickets() {
       type => ({
         type,
         source,
+
         date:
           state.date,
+
         city:
           state.city,
+
         createdAt:
           now
       })
@@ -876,14 +966,14 @@ function clearAnalyses() {
 
   renderTickets();
 
-  const analysisContent =
+  const content =
     $('analysisContent');
 
-  if (analysisContent) {
-    analysisContent.innerHTML =
+  if (content) {
+    content.innerHTML =
       'Analiz seçilmedi.';
 
-    analysisContent
+    content
       .classList
       .add('empty');
   }
@@ -894,7 +984,7 @@ function clearAnalyses() {
 }
 
 /* =========================================================
-   MENÜ
+   DRAWER
 ========================================================= */
 
 function openDrawer() {
@@ -930,7 +1020,171 @@ function closeDrawer() {
 }
 
 /* =========================================================
-   KARİYER API
+   CAREER V8 NORMALIZE
+========================================================= */
+
+function normalizeCareerSummary(
+  data,
+  roadmap
+) {
+  const apiSummary =
+    data?.summary &&
+    typeof data.summary ===
+      'object'
+      ? data.summary
+      : {};
+
+  /*
+    Önce V8 summary.
+    Eğer yoksa roadmap'ten
+    kendimiz sayıyoruz.
+  */
+
+  const computed = {
+    totalTop5:
+      roadmap.length,
+
+    first:
+      roadmap.filter(
+        x =>
+          Number(
+            x.finish
+          ) === 1
+      ).length,
+
+    second:
+      roadmap.filter(
+        x =>
+          Number(
+            x.finish
+          ) === 2
+      ).length,
+
+    third:
+      roadmap.filter(
+        x =>
+          Number(
+            x.finish
+          ) === 3
+      ).length,
+
+    fourth:
+      roadmap.filter(
+        x =>
+          Number(
+            x.finish
+          ) === 4
+      ).length,
+
+    fifth:
+      roadmap.filter(
+        x =>
+          Number(
+            x.finish
+          ) === 5
+      ).length
+  };
+
+  return {
+    totalTop5:
+      numberValue(
+        apiSummary.totalTop5,
+        computed.totalTop5
+      ),
+
+    first:
+      numberValue(
+        apiSummary.first,
+        computed.first
+      ),
+
+    second:
+      numberValue(
+        apiSummary.second,
+        computed.second
+      ),
+
+    third:
+      numberValue(
+        apiSummary.third,
+        computed.third
+      ),
+
+    fourth:
+      numberValue(
+        apiSummary.fourth,
+        computed.fourth
+      ),
+
+    fifth:
+      numberValue(
+        apiSummary.fifth,
+        computed.fifth
+      )
+  };
+}
+
+function normalizeCareerResponse(
+  data
+) {
+  const roadmap =
+    Array.isArray(
+      data?.roadmap
+    )
+      ? data.roadmap
+      : Array.isArray(
+          data?.top5
+        )
+        ? data.top5
+        : Array.isArray(
+            data?.races
+          )
+          ? data.races
+          : [];
+
+  const summary =
+    normalizeCareerSummary(
+      data,
+      roadmap
+    );
+
+  return {
+    ...data,
+
+    roadmap,
+
+    summary,
+
+    /*
+      Eski frontend kodlarının
+      yanlışlıkla sıfır göstermemesi
+      için uyumluluk aliasları.
+    */
+
+    top5Count:
+      summary.totalTop5,
+
+    finishCounts: {
+      first:
+        summary.first,
+
+      second:
+        summary.second,
+
+      third:
+        summary.third,
+
+      fourth:
+        summary.fourth,
+
+      fifth:
+        summary.fifth
+    }
+  };
+}
+
+/* =========================================================
+   CAREER API
 ========================================================= */
 
 async function fetchCareer(
@@ -940,9 +1194,20 @@ async function fetchCareer(
   if (!horseId) {
     return {
       ok: false,
+
       error:
         'At ID bulunamadı.',
-      roadmap: []
+
+      roadmap: [],
+
+      summary: {
+        totalTop5: 0,
+        first: 0,
+        second: 0,
+        third: 0,
+        fourth: 0,
+        fifth: 0
+      }
     };
   }
 
@@ -966,49 +1231,62 @@ async function fetchCareer(
         }
       );
 
-    if (!res.ok) {
-      return {
-        ok: false,
-        error:
-          `API ${res.status}`,
-        roadmap: []
-      };
-    }
-
     const data =
       await res.json();
 
-    return {
-      ...data,
+    if (
+      !res.ok ||
+      !data?.ok
+    ) {
+      return {
+        ok: false,
 
-      roadmap:
-        Array.isArray(
-          data.roadmap
-        )
-          ? data.roadmap
-          : Array.isArray(
-              data.top5
-            )
-            ? data.top5
-            : []
-    };
+        error:
+          data?.error ||
+          `API ${res.status}`,
+
+        roadmap: [],
+
+        summary: {
+          totalTop5: 0,
+          first: 0,
+          second: 0,
+          third: 0,
+          fourth: 0,
+          fifth: 0
+        }
+      };
+    }
+
+    return normalizeCareerResponse(
+      data
+    );
 
   } catch (e) {
     return {
       ok: false,
+
       error:
         e?.message ||
         'Kariyer alınamadı.',
-      roadmap: []
+
+      roadmap: [],
+
+      summary: {
+        totalTop5: 0,
+        first: 0,
+        second: 0,
+        third: 0,
+        fourth: 0,
+        fifth: 0
+      }
     };
   }
 }
 
-/*
-  Aynı anda çok fazla TJK
-  isteği göndermemek için
-  küçük kuyruk.
-*/
+/* =========================================================
+   CONCURRENCY
+========================================================= */
 
 async function mapLimit(
   items,
@@ -1036,6 +1314,7 @@ async function mapLimit(
             items[index],
             index
           );
+
       } catch (e) {
         results[index] = {
           error:
@@ -1048,13 +1327,23 @@ async function mapLimit(
 
   const count =
     Math.min(
-      limit,
+      Math.max(
+        1,
+        limit
+      ),
       items.length
     );
 
+  if (!count) {
+    return [];
+  }
+
   await Promise.all(
     Array.from(
-      { length: count },
+      {
+        length:
+          count
+      },
       () => run()
     )
   );
@@ -1063,15 +1352,24 @@ async function mapLimit(
 }
 
 /* =========================================================
-   KARİYER HTML
+   CAREER SUMMARY HTML
 ========================================================= */
 
 function careerSummaryHtml(
   career
 ) {
-  const fc =
-    career?.finishCounts ||
-    {};
+  const roadmap =
+    Array.isArray(
+      career?.roadmap
+    )
+      ? career.roadmap
+      : [];
+
+  const summary =
+    normalizeCareerSummary(
+      career,
+      roadmap
+    );
 
   return `
     <div style="
@@ -1087,7 +1385,7 @@ function careerSummaryHtml(
         border-radius:8px;
       ">
         İlk 5:
-        <b>${career?.top5Count ?? 0}</b>
+        <b>${summary.totalTop5}</b>
       </span>
 
       <span style="
@@ -1096,7 +1394,7 @@ function careerSummaryHtml(
         border-radius:8px;
       ">
         1:
-        <b>${fc.first ?? 0}</b>
+        <b>${summary.first}</b>
       </span>
 
       <span style="
@@ -1105,7 +1403,7 @@ function careerSummaryHtml(
         border-radius:8px;
       ">
         2:
-        <b>${fc.second ?? 0}</b>
+        <b>${summary.second}</b>
       </span>
 
       <span style="
@@ -1114,7 +1412,7 @@ function careerSummaryHtml(
         border-radius:8px;
       ">
         3:
-        <b>${fc.third ?? 0}</b>
+        <b>${summary.third}</b>
       </span>
 
       <span style="
@@ -1123,7 +1421,7 @@ function careerSummaryHtml(
         border-radius:8px;
       ">
         4:
-        <b>${fc.fourth ?? 0}</b>
+        <b>${summary.fourth}</b>
       </span>
 
       <span style="
@@ -1132,22 +1430,28 @@ function careerSummaryHtml(
         border-radius:8px;
       ">
         5:
-        <b>${fc.fifth ?? 0}</b>
+        <b>${summary.fifth}</b>
       </span>
 
     </div>
   `;
 }
 
+/* =========================================================
+   ROADMAP TABLE
+========================================================= */
+
 function roadmapTableHtml(
   roadmap
 ) {
-  if (
-    !Array.isArray(
+  const rows =
+    Array.isArray(
       roadmap
-    ) ||
-    roadmap.length === 0
-  ) {
+    )
+      ? roadmap
+      : [];
+
+  if (!rows.length) {
     return `
       <div style="
         padding:10px;
@@ -1235,88 +1539,93 @@ function roadmapTableHtml(
 
         <tbody>
 
-          ${roadmap
-            .map(
-              row => `
-                <tr>
+          ${rows.map(
+            row => `
+              <tr>
 
-                  <td style="
-                    padding:7px;
-                    border-bottom:1px solid rgba(255,255,255,.08);
-                    white-space:nowrap;
-                  ">
-                    ${escapeHtml(
-                      row.date ||
-                      ''
-                    )}
-                  </td>
+                <td style="
+                  padding:7px;
+                  border-bottom:1px solid rgba(255,255,255,.08);
+                  white-space:nowrap;
+                ">
+                  ${escapeHtml(
+                    row.date ||
+                    row.isoDate ||
+                    ''
+                  )}
+                </td>
 
-                  <td style="
-                    padding:7px;
-                    border-bottom:1px solid rgba(255,255,255,.08);
-                  ">
-                    ${escapeHtml(
-                      row.city ||
-                      ''
-                    )}
-                  </td>
+                <td style="
+                  padding:7px;
+                  border-bottom:1px solid rgba(255,255,255,.08);
+                ">
+                  ${escapeHtml(
+                    row.city || ''
+                  )}
+                </td>
 
-                  <td style="
-                    padding:7px;
-                    text-align:center;
-                    font-weight:700;
-                    border-bottom:1px solid rgba(255,255,255,.08);
-                  ">
-                    ${escapeHtml(
-                      row.finish ||
-                      ''
-                    )}
-                  </td>
+                <td style="
+                  padding:7px;
+                  text-align:center;
+                  font-weight:700;
+                  border-bottom:1px solid rgba(255,255,255,.08);
+                ">
+                  ${escapeHtml(
+                    row.finish ??
+                    row.rank ??
+                    row.sira ??
+                    ''
+                  )}
+                </td>
 
-                  <td style="
-                    padding:7px;
-                    border-bottom:1px solid rgba(255,255,255,.08);
-                  ">
-                    ${escapeHtml(
-                      row.class ||
-                      '-'
-                    )}
-                  </td>
+                <td style="
+                  padding:7px;
+                  border-bottom:1px solid rgba(255,255,255,.08);
+                ">
+                  ${escapeHtml(
+                    row.class ||
+                    row.raceClass ||
+                    '-'
+                  )}
+                </td>
 
-                  <td style="
-                    padding:7px;
-                    border-bottom:1px solid rgba(255,255,255,.08);
-                  ">
-                    ${escapeHtml(
-                      row.ageGroup ||
-                      '-'
-                    )}
-                  </td>
+                <td style="
+                  padding:7px;
+                  border-bottom:1px solid rgba(255,255,255,.08);
+                ">
+                  ${escapeHtml(
+                    row.ageGroup ||
+                    row.group ||
+                    '-'
+                  )}
+                </td>
 
-                  <td style="
-                    padding:7px;
-                    border-bottom:1px solid rgba(255,255,255,.08);
-                  ">
-                    ${escapeHtml(
-                      row.track ||
-                      '-'
-                    )}
-                  </td>
+                <td style="
+                  padding:7px;
+                  border-bottom:1px solid rgba(255,255,255,.08);
+                ">
+                  ${escapeHtml(
+                    row.track ||
+                    row.pist ||
+                    '-'
+                  )}
+                </td>
 
-                  <td style="
-                    padding:7px;
-                    border-bottom:1px solid rgba(255,255,255,.08);
-                  ">
-                    ${escapeHtml(
-                      row.distance ||
-                      '-'
-                    )}
-                  </td>
+                <td style="
+                  padding:7px;
+                  border-bottom:1px solid rgba(255,255,255,.08);
+                ">
+                  ${escapeHtml(
+                    row.distance ||
+                    row.mesafe ||
+                    row.msf ||
+                    '-'
+                  )}
+                </td>
 
-                </tr>
-              `
-            )
-            .join('')}
+              </tr>
+            `
+          ).join('')}
 
         </tbody>
 
@@ -1326,22 +1635,24 @@ function roadmapTableHtml(
   `;
 }
 
+/* =========================================================
+   HORSE CAREER HTML
+========================================================= */
+
 function careerHorseHtml(
   item
 ) {
   const horse =
-    item.horse;
+    item?.horse;
 
   const career =
-    item.career;
+    item?.career;
 
   if (!horse) {
     return '';
   }
 
-  if (
-    !horse.id
-  ) {
+  if (!horse.id) {
     return `
       <section style="
         margin:12px 0;
@@ -1370,9 +1681,7 @@ function careerHorseHtml(
     `;
   }
 
-  if (
-    !career?.ok
-  ) {
+  if (!career?.ok) {
     return `
       <section style="
         margin:12px 0;
@@ -1477,6 +1786,34 @@ function careerHorseHtml(
   `;
 }
 
+/* =========================================================
+   RENDER CAREER
+========================================================= */
+
+function isValidCareerCache(
+  cached
+) {
+  if (
+    !cached ||
+    cached.version !==
+      CAREER_UI_VERSION ||
+    !Array.isArray(
+      cached.races
+    ) ||
+    !cached.races.length
+  ) {
+    return false;
+  }
+
+  return cached.races.every(
+    race =>
+      race &&
+      Array.isArray(
+        race.horses
+      )
+  );
+}
+
 function renderCareerAnalysis(
   result
 ) {
@@ -1512,16 +1849,14 @@ function renderCareerAnalysis(
 
       <b>
         ${escapeHtml(
-          result.cityName ||
-          ''
+          result.cityName || ''
         )}
       </b>
 
       ·
 
       ${escapeHtml(
-        result.date ||
-        ''
+        result.date || ''
       )}
 
       <br>
@@ -1536,9 +1871,16 @@ function renderCareerAnalysis(
 
     </div>
 
-    ${races
-      .map(
-        race => `
+    ${races.map(
+      race => {
+        const horses =
+          Array.isArray(
+            race?.horses
+          )
+            ? race.horses
+            : [];
+
+        return `
 
           <section style="
             margin:18px 0 24px 0;
@@ -1558,7 +1900,9 @@ function renderCareerAnalysis(
                 font-size:17px;
                 font-weight:800;
               ">
-                ${race.no}. KOŞU
+                ${escapeHtml(
+                  race.no
+                )}. KOŞU
               </div>
 
               <div style="
@@ -1568,45 +1912,52 @@ function renderCareerAnalysis(
               ">
 
                 ${escapeHtml(
-                  race.class ||
-                  '-'
+                  race.class || '-'
                 )}
 
                 ·
 
                 ${escapeHtml(
-                  race.distance ||
-                  '-'
+                  race.distance || '-'
                 )}
 
                 ·
 
                 ${escapeHtml(
-                  race.track ||
-                  '-'
+                  race.track || '-'
                 )}
 
               </div>
 
             </div>
 
-            ${race.horses
-              .map(
-                careerHorseHtml
-              )
-              .join('')}
+            ${
+              horses.length
+                ? horses
+                    .map(
+                      careerHorseHtml
+                    )
+                    .join('')
+                : `
+                  <div style="
+                    padding:12px;
+                    opacity:.7;
+                  ">
+                    Bu koşunun kariyer verisi yeniden hesaplanmalıdır.
+                  </div>
+                `
+            }
 
           </section>
-
-        `
-      )
-      .join('')}
+        `;
+      }
+    ).join('')}
 
   `;
 }
 
 /* =========================================================
-   KARİYER ANALİZİNİ HESAPLA
+   RUN CAREER
 ========================================================= */
 
 async function runCareerAnalysis(
@@ -1624,9 +1975,15 @@ async function runCareerAnalysis(
     const race of
     selectedRaces
   ) {
+    const horses =
+      Array.isArray(
+        race.horses
+      )
+        ? race.horses
+        : [];
+
     for (
-      const horse of
-      race.horses
+      const horse of horses
     ) {
       horsesToLoad.push({
         raceNo:
@@ -1715,6 +2072,7 @@ async function runCareerAnalysis(
           loaded
             .filter(
               x =>
+                x &&
                 Number(
                   x.raceNo
                 ) ===
@@ -1728,7 +2086,9 @@ async function runCareerAnalysis(
                   x.horse,
 
                 career:
-                  x.career
+                  normalizeCareerResponse(
+                    x.career || {}
+                  )
               })
             )
       })
@@ -1739,7 +2099,10 @@ async function runCareerAnalysis(
       'career',
 
     version:
-      'CAREER-UI-V1',
+      CAREER_UI_VERSION,
+
+    careerApiVersion:
+      'CAREER-ROADMAP-V8',
 
     date:
       state.date,
@@ -1831,15 +2194,31 @@ function openAnalysis(
 
     if (
       view === 'career' &&
-      cached &&
-      Array.isArray(
-        cached.races
-      ) &&
-      cached.races.length
+      isValidCareerCache(
+        cached
+      )
     ) {
       renderCareerAnalysis(
         cached
       );
+
+    } else if (
+      view === 'career'
+    ) {
+      /*
+        Eski veya bozuk cache'i
+        burada temizliyoruz.
+      */
+
+      state.analyses.career = {};
+      save();
+
+      content
+        .classList
+        .add('empty');
+
+      content.innerHTML =
+        'Kariyer Yol Haritasını yeniden hesaplayın.';
 
     } else if (
       cached &&
@@ -1878,7 +2257,7 @@ function openAnalysis(
 }
 
 /* =========================================================
-   ANALİZ ÇALIŞTIR
+   ANALİZ
 ========================================================= */
 
 async function runAnalysis() {
@@ -1923,11 +2302,6 @@ async function runAnalysis() {
             String(raceValue)
         );
 
-  /*
-    KARİYER YOL HARİTASI
-    artık gerçek TJK kariyer
-    verisini kullanıyor.
-  */
   if (
     view === 'career'
   ) {
@@ -1939,10 +2313,6 @@ async function runAnalysis() {
     return;
   }
 
-  /*
-    Diğer analizler şimdilik
-    mevcut yapıyı koruyor.
-  */
   const result = {
     type:
       view,
@@ -1972,7 +2342,11 @@ async function runAnalysis() {
             r.track,
 
           horseCount:
-            r.horses.length
+            Array.isArray(
+              r.horses
+            )
+              ? r.horses.length
+              : 0
         })
       ),
 
@@ -2000,13 +2374,27 @@ async function runAnalysis() {
 }
 
 /* =========================================================
-   BAŞLAT
+   INIT
 ========================================================= */
 
 function initialize() {
   if (!state.date) {
     state.date =
       todayLocal();
+  }
+
+  /*
+    Eski Career UI önbelleğini
+    otomatik temizle.
+  */
+
+  if (
+    state.analyses?.career &&
+    state.analyses.career.version !==
+      CAREER_UI_VERSION
+  ) {
+    state.analyses.career = {};
+    save();
   }
 
   if (
@@ -2064,20 +2452,21 @@ function initialize() {
           e.target.value;
 
         state.city = '';
-
         state.cities = [];
-
         state.races = [];
 
         state.selectedRace =
           'all';
 
-        /*
-          Yeni güne geçerken
-          eski kuponu otomatik
-          taşımıyoruz.
-        */
         state.tickets = [];
+
+        /*
+          Tarih değişti.
+          Eski kariyer sonucu artık
+          geçerli değildir.
+        */
+
+        state.analyses.career = {};
 
         save();
 
@@ -2172,8 +2561,7 @@ function initialize() {
           $('signalSource')
         ) {
           $('signalSource').value =
-            view ===
-            'scenario'
+            view === 'scenario'
               ? 'combined'
               : view;
         }
@@ -2184,7 +2572,6 @@ function initialize() {
             : view;
 
         save();
-
         buildTickets();
       };
   }
