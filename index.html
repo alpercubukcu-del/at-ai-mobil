@@ -89,6 +89,9 @@
     <div id="analysisContent" class="analysis-content empty">Analiz seçilmedi.</div>
   </dialog>
 
-  <script type="module" src="/app.js"></script>
+  <!-- app.js import/export kullanmıyor. Classic yükleme, yalnız V9 düzeltme katmanının
+       mevcut fonksiyonları güvenli biçimde güncelleyebilmesi için kullanılır. -->
+  <script src="/app.js"></script>
+  <script src="/exact-history-v9.js"></script>
 </body>
 </html>
