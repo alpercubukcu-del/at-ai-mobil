@@ -12,13 +12,9 @@
 <body>
   <div class="app-shell">
     <header class="topbar">
-      <div>
-        <div class="eyebrow">AT AI SYSTEM</div>
-        <h1>AT AI Mobil</h1>
-      </div>
+      <div><div class="eyebrow">AT AI SYSTEM</div><h1>AT AI Mobil</h1></div>
       <button id="menuBtn" class="icon-btn" aria-label="Menü">☰</button>
     </header>
-
     <main>
       <section class="panel compact">
         <div class="grid2">
@@ -28,23 +24,17 @@
         <button id="loadProgramBtn" class="primary">TJK Programını Yükle</button>
         <div id="status" class="status">Hazır</div>
       </section>
-
       <section class="panel">
         <div class="section-title-row">
-          <div>
-            <div class="eyebrow">KUPON MERKEZİ</div>
-            <h2>Günün Bahisleri</h2>
-          </div>
+          <div><div class="eyebrow">KUPON MERKEZİ</div><h2>Günün Bahisleri</h2></div>
           <button id="clearBtn" class="danger-ghost">Analizleri Temizle</button>
         </div>
-
         <div class="five-model-note-v11">
           <b>5 MODEL AYNI ANDA</b>
           <span>Tam Eşleşme · Koşul İkizi · Yarış Ailesi · Kariyer/Hazırlık · Bileşik</span>
           <small>Bileşik: %40 Tam + %25 İkiz + %20 Aile + %15 Kariyer. Eksik kanal sıfır sayılmaz; mevcut kanallar yeniden normalize edilir.</small>
         </div>
         <select id="signalSource" aria-label="V11 model kaynağı" style="display:none"><option value="combined">5 Model</option></select>
-
         <div id="betTypes" class="bet-grid"></div>
         <div class="ticket-settings-grid-v11">
           <label>Bütçe (₺)<input id="budget" type="number" min="1" value="500" /></label>
@@ -54,22 +44,17 @@
         <div class="ticket-rule-v11">Tek = 0 ise her ayakta en az 2 at zorunludur. Model verisi olmayan ayakta rastgele/fallback seçim yapılmaz.</div>
         <button id="buildAllBtn" class="primary">5 Model Kuponlarını Oluştur</button>
       </section>
-
       <section class="panel">
-        <div class="eyebrow">GÜNLÜK PROGRAM</div>
-        <h2>Koşular</h2>
+        <div class="eyebrow">GÜNLÜK PROGRAM</div><h2>Koşular</h2>
         <div id="raceTabs" class="race-tabs"></div>
         <div id="raceList" class="race-list empty">Program henüz yüklenmedi.</div>
       </section>
-
       <section class="panel">
-        <div class="eyebrow">OLUŞTURULAN KUPONLAR</div>
-        <h2>5 Model Karşılaştırması</h2>
+        <div class="eyebrow">OLUŞTURULAN KUPONLAR</div><h2>5 Model Karşılaştırması</h2>
         <div id="tickets" class="ticket-list empty">Henüz kupon oluşturulmadı.</div>
       </section>
     </main>
   </div>
-
   <aside id="drawer" class="drawer" aria-hidden="true">
     <div class="drawer-head"><strong>Analiz Bölümleri</strong><button id="closeMenu" class="icon-btn">✕</button></div>
     <button data-view="current">1. Güncel Analiz</button>
@@ -79,7 +64,6 @@
     <div class="drawer-note">Her bölümde tüm koşuları birlikte veya tek koşuyu ayrı inceleyebilirsiniz. Analizler siz temizleyene kadar bu cihazda saklanır.</div>
   </aside>
   <div id="overlay" class="overlay"></div>
-
   <dialog id="analysisDialog">
     <div class="dialog-head"><div><div class="eyebrow" id="dialogEyebrow">ANALİZ</div><h2 id="dialogTitle">Analiz</h2></div><button id="closeDialog" class="icon-btn">✕</button></div>
     <div class="toolbar">
@@ -89,14 +73,12 @@
     </div>
     <div id="analysisContent" class="analysis-content empty">Analiz seçilmedi.</div>
   </dialog>
-
-  <!-- app.js import/export kullanmıyor. Classic yükleme, düzeltme katmanlarının
-       mevcut fonksiyonları kontrollü biçimde güncelleyebilmesi için kullanılır. -->
   <script src="/app.js"></script>
   <script src="/exact-history-v9.js"></script>
   <script src="/adaptive-history-v10.js"></script>
   <script src="/adaptive-history-v101.js"></script>
   <script src="/adaptive-history-v102.js"></script>
   <script src="/ticket-models-v11.js"></script>
+  <script src="/ticket-models-v11-mode-aware.js"></script>
 </body>
 </html>
