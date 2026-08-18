@@ -1,6 +1,7 @@
-const VERSION = 'TJK-ROADMAP-EXACT-V4.1';
+const VERSION = 'TJK-ROADMAP-EXACT-V4.2';
 const INTERNAL_RETRIES = 3;
 const CAREER_CONCURRENCY = 2;
+const RACE_CONCURRENCY = 2;
 
 function cleanText(value) {
   if (value === undefined || value === null) return '';
@@ -83,11 +84,7 @@ async function fetchJson(url, timeoutMs = 25000, attempts = INTERNAL_RETRIES) {
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetch(url, {
-        headers:{
-          Accept:'application/json, text/plain, */*',
-          'Cache-Control':'no-cache',
-          Pragma:'no-cache'
-        },
+        headers:{ Accept:'application/json, text/plain, */*' },
         signal:controller.signal
       });
       const text = await response.text();
@@ -271,7 +268,6 @@ async function buildHistoricalHorseCareer({ baseUrl, horse, historicalDateIso })
     const url = new URL('/api/tjk-career', baseUrl);
     setParam(url, 'horseId', horse.horseId);
     setParam(url, 'before', historicalDateIso);
-    url.searchParams.set('_roadmapRetry', String(Date.now()));
 
     const startedAt = Date.now();
     const career = await fetchJson(url.toString(), 45000, INTERNAL_RETRIES);
@@ -330,7 +326,6 @@ async function buildHistoricalRace({ baseUrl, candidate }) {
     setParam(historyUrl, 'date', candidate.date);
     setParam(historyUrl, 'city', candidate.city);
     setParam(historyUrl, 'raceNo', candidate.raceNo);
-    historyUrl.searchParams.set('_roadmapRetry', String(Date.now()));
 
     const startedAt = Date.now();
     const history = await fetchJson(historyUrl.toString(), 35000, INTERNAL_RETRIES);
@@ -381,6 +376,7 @@ function getRules(minYear) {
     leakageProtection:true,
     internalRetries:INTERNAL_RETRIES,
     careerConcurrency:CAREER_CONCURRENCY,
+    raceConcurrency:RACE_CONCURRENCY,
     minYear
   };
 }
@@ -409,7 +405,6 @@ export default async function handler(req, res) {
     setParam(similarUrl, 'distance', distance);
     setParam(similarUrl, 'minYear', minYear);
     setParam(similarUrl, 'maxPages', req.query?.maxPages || 40);
-    similarUrl.searchParams.set('_roadmapRetry', String(Date.now()));
 
     const similarStartedAt = Date.now();
     const similar = await fetchJson(similarUrl.toString(), 35000, INTERNAL_RETRIES);
@@ -437,11 +432,11 @@ export default async function handler(req, res) {
       });
     }
 
-    const historicalRaces = [];
-    for (const candidate of selectedCandidates) {
-      historicalRaces.push(await buildHistoricalRace({ baseUrl, candidate }));
-      await sleep(100);
-    }
+    const historicalRaces = await mapLimit(
+      selectedCandidates,
+      RACE_CONCURRENCY,
+      candidate => buildHistoricalRace({ baseUrl, candidate })
+    );
 
     let historicalHorseCount = 0;
     let successfulCareerCount = 0;
@@ -496,7 +491,8 @@ export default async function handler(req, res) {
         failedCareerCount,
         frozenWinRowCount,
         internalRetries:INTERNAL_RETRIES,
-        careerConcurrency:CAREER_CONCURRENCY
+        careerConcurrency:CAREER_CONCURRENCY,
+        raceConcurrency:RACE_CONCURRENCY
       },
       yearResults:Array.isArray(similar.yearResults) ? similar.yearResults : [],
       byYear,
