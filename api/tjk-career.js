@@ -1,9 +1,10 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'CAREER-WINS-V9.2';
+const VERSION = 'CAREER-WINS-V9.3';
 const BASE_URL = 'https://www.tjk.org/TR/YarisSever/Query/ConnectedPage/AtKosuBilgileri';
 const PAGE_SIZE = 50;
 const TIMEOUT_MS = 20000;
+const MIN_SCAN_YEAR = 1950;
 
 function clean(v = '') {
   return String(v ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
@@ -153,7 +154,7 @@ function extractMetadata(html) {
   const $ = cheerio.load(html);
   let careerTotal = null;
   const yearTotals = {};
-  const years = new Set();
+  const listedYears = new Set();
 
   $('table').each((_, table) => {
     const tableText = upper($(table).text());
@@ -166,7 +167,7 @@ function extractMetadata(html) {
       if (first === 'TOPLAM' && count !== null) careerTotal = count;
       const ym = first.match(/^((?:19|20)\d{2})(?: YILI)?$/);
       if (ym) {
-        years.add(Number(ym[1]));
+        listedYears.add(Number(ym[1]));
         if (count !== null) yearTotals[ym[1]] = count;
       }
     });
@@ -176,10 +177,14 @@ function extractMetadata(html) {
     const value = clean($(option).attr('value'));
     const text = clean($(option).text());
     const candidate = /^(?:19|20)\d{2}$/.test(value) ? value : (text.match(/(?:19|20)\d{2}/)?.[0] || '');
-    if (candidate) years.add(Number(candidate));
+    if (candidate) listedYears.add(Number(candidate));
   });
 
-  return { careerTotal, yearTotals, years:[...years].filter(Number.isFinite).sort((a, b) => b - a) };
+  return {
+    careerTotal,
+    yearTotals,
+    listedYears:[...listedYears].filter(Number.isFinite).sort((a,b) => b-a)
+  };
 }
 
 function parseHistory(html, horseId, sourceUrl, fallbackHeaders = []) {
@@ -207,16 +212,40 @@ function parseHistory(html, horseId, sourceUrl, fallbackHeaders = []) {
     const trk = splitTrack(record.pist_raw);
     const uniqueKey = [String(horseId), isoDate, upper(record.sehir), distance, finish, clean(record.derece)].join('|');
     rows.push({
-      uniqueKey, horseId:String(horseId), horseName:horseName || '', isoDate, date:displayDate(isoDate),
-      city:clean(record.sehir), distance, msf:distance, mesafe:distance,
-      track:trk.surface, pist:trk.surface, trackRaw:clean(record.pist_raw), trackCondition:trk.condition,
-      finish, rank:finish, sira:finish, degree:clean(record.derece) || null, weight:parseNumber(record.siklet),
-      equipment:clean(record.taki) || null, jockey:clean(record.jokey) || null, startNo:parseIntValue(record.st),
-      odds:parseNumber(record.ganyan), groupRaw:clean(record.grup) || null, ageGroup:normalizeAgeGroup(record.grup),
-      raceNoName:clean(record.kosu_no_adi) || null, classRaw:clean(record.kcins) || null,
-      class:normalizeClass(record.kcins), raceClass:normalizeClass(record.kcins), trainer:clean(record.antrenor) || null,
-      owner:clean(record.sahip) || null, hp:parseNumber(record.hp), prize:parseNumber(record.ikramiye),
-      s20:parseNumber(record.s20), sourceUrl
+      uniqueKey,
+      horseId:String(horseId),
+      horseName:horseName || '',
+      isoDate,
+      date:displayDate(isoDate),
+      city:clean(record.sehir),
+      distance,
+      msf:distance,
+      mesafe:distance,
+      track:trk.surface,
+      pist:trk.surface,
+      trackRaw:clean(record.pist_raw),
+      trackCondition:trk.condition,
+      finish,
+      rank:finish,
+      sira:finish,
+      degree:clean(record.derece) || null,
+      weight:parseNumber(record.siklet),
+      equipment:clean(record.taki) || null,
+      jockey:clean(record.jokey) || null,
+      startNo:parseIntValue(record.st),
+      odds:parseNumber(record.ganyan),
+      groupRaw:clean(record.grup) || null,
+      ageGroup:normalizeAgeGroup(record.grup),
+      raceNoName:clean(record.kosu_no_adi) || null,
+      classRaw:clean(record.kcins) || null,
+      class:normalizeClass(record.kcins),
+      raceClass:normalizeClass(record.kcins),
+      trainer:clean(record.antrenor) || null,
+      owner:clean(record.sahip) || null,
+      hp:parseNumber(record.hp),
+      prize:parseNumber(record.ikramiye),
+      s20:parseNumber(record.s20),
+      sourceUrl
     });
   }
   return { horseName, headers, rows };
@@ -234,7 +263,9 @@ async function collectCompleteHistory(horseId) {
   const parsedFirst = parseHistory(first.html, horseId, first.url);
   const metadata = extractMetadata(first.html);
 
-  if (metadata.careerTotal === null) throw new Error('TJK TAM GEÇMİŞ KONTROLÜ: kariyer toplamı okunamadı.');
+  if (metadata.careerTotal === null) {
+    throw new Error('TJK TAM GEÇMİŞ KONTROLÜ: kariyer toplamı okunamadı.');
+  }
 
   const firstRows = uniqueHistory(parsedFirst.rows);
   const expectedFirst = Math.min(PAGE_SIZE, metadata.careerTotal);
@@ -243,34 +274,83 @@ async function collectCompleteHistory(horseId) {
   }
 
   if (firstRows.length === metadata.careerTotal) {
-    return { horseName:parsedFirst.horseName, history:firstRows,
-      audit:{ ...metadata, firstPageCount:firstRows.length, collectedTotal:firstRows.length, missingCount:0, strategy:'FIRST_PAGE', coverageStatus:'TAM', yearCounts:{} } };
+    return {
+      horseName:parsedFirst.horseName,
+      history:firstRows,
+      audit:{
+        ...metadata,
+        firstPageCount:firstRows.length,
+        collectedTotal:firstRows.length,
+        missingCount:0,
+        strategy:'FIRST_PAGE',
+        coverageStatus:'TAM',
+        yearCounts:{},
+        scannedYears:[]
+      }
+    };
   }
 
-  if (!metadata.years.length) throw new Error('TJK TAM GEÇMİŞ KONTROLÜ: 50+ kariyer için yıl seçenekleri okunamadı.');
+  const newestYear = Number(firstRows[0]?.isoDate?.slice(0,4));
+  if (!Number.isFinite(newestYear)) {
+    throw new Error('TJK TAM GEÇMİŞ KONTROLÜ: en yeni kariyer yılı belirlenemedi.');
+  }
 
-  const all = [];
+  const union = new Map();
   const yearCounts = {};
-  for (const year of metadata.years) {
+  const rawYearCounts = {};
+  const scannedYears = [];
+
+  // TJK'nin yıl seçim kutusu ve özet tablosu eksik olabiliyor.
+  // Bu nedenle yılları doğrudan, en yeni yıldan geriye doğru sorguluyoruz.
+  // Toplanan benzersiz satır sayısı TJK kariyer toplamına ulaştığında duruyoruz.
+  for (let year = newestYear; year >= MIN_SCAN_YEAR; year--) {
     const page = await downloadHorsePage(session, horseId, year);
     const parsed = parseHistory(page.html, horseId, page.url, parsedFirst.headers);
-    const rows = uniqueHistory(parsed.rows).filter(row => row.isoDate.startsWith(`${year}-`));
-    const expected = metadata.yearTotals[String(year)];
-    if (Number.isFinite(expected) && rows.length !== expected) {
-      throw new Error(`TJK TAM GEÇMİŞ KONTROLÜ: ${year} yılı doğrulanamadı; beklenen ${expected}, gelen ${rows.length}.`);
+    const allPageRows = uniqueHistory(parsed.rows);
+    const sameYearRows = allPageRows.filter(row => row.isoDate.startsWith(`${year}-`));
+
+    scannedYears.push(year);
+    rawYearCounts[year] = allPageRows.length;
+    yearCounts[year] = sameYearRows.length;
+
+    const summaryExpected = metadata.yearTotals[String(year)];
+    if (Number.isFinite(summaryExpected) && sameYearRows.length !== summaryExpected) {
+      throw new Error(`TJK TAM GEÇMİŞ KONTROLÜ: ${year} yılı doğrulanamadı; beklenen ${summaryExpected}, gelen ${sameYearRows.length}.`);
     }
-    yearCounts[year] = rows.length;
-    all.push(...rows);
-    await new Promise(r => setTimeout(r, 70));
+
+    for (const row of sameYearRows) union.set(row.uniqueKey, row);
+
+    if (union.size === metadata.careerTotal) break;
+    if (union.size > metadata.careerTotal) {
+      throw new Error(`TJK TAM GEÇMİŞ KONTROLÜ: toplanan satır ${union.size}, TJK kariyer toplamı ${metadata.careerTotal}; fazla kayıt oluştu.`);
+    }
+
+    await new Promise(r => setTimeout(r, 60));
   }
 
-  const collected = uniqueHistory(all);
+  const collected = uniqueHistory([...union.values()]);
   if (collected.length !== metadata.careerTotal) {
-    throw new Error(`TJK TAM GEÇMİŞ KONTROLÜ: yıllık toplama eksik; kariyer ${metadata.careerTotal}, toplanan ${collected.length}; yıllar ${JSON.stringify(yearCounts)}.`);
+    throw new Error(
+      `TJK TAM GEÇMİŞ KONTROLÜ: yıllık doğrudan tarama eksik; kariyer ${metadata.careerTotal}, ` +
+      `toplanan ${collected.length}; yıllar ${JSON.stringify(yearCounts)}.`
+    );
   }
 
-  return { horseName:parsedFirst.horseName, history:collected,
-    audit:{ ...metadata, firstPageCount:firstRows.length, collectedTotal:collected.length, missingCount:0, strategy:'YEAR_FILTER', coverageStatus:'TAM', yearCounts } };
+  return {
+    horseName:parsedFirst.horseName,
+    history:collected,
+    audit:{
+      ...metadata,
+      firstPageCount:firstRows.length,
+      collectedTotal:collected.length,
+      missingCount:0,
+      strategy:'DIRECT_DESCENDING_YEAR_SCAN',
+      coverageStatus:'TAM',
+      yearCounts,
+      rawYearCounts,
+      scannedYears
+    }
+  };
 }
 
 function applyBefore(rows, beforeIso) {
@@ -282,7 +362,15 @@ function onlyWins(rows) {
 }
 
 function buildSummary(wins) {
-  return { totalWins:wins.length, totalTop5:wins.length, first:wins.length, second:0, third:0, fourth:0, fifth:0 };
+  return {
+    totalWins:wins.length,
+    totalTop5:wins.length,
+    first:wins.length,
+    second:0,
+    third:0,
+    fourth:0,
+    fifth:0
+  };
 }
 
 export default async function handler(req, res) {
@@ -293,7 +381,9 @@ export default async function handler(req, res) {
     if (!horseId) return res.status(400).json({ ok:false, version:VERSION, error:'horseId gerekli.' });
 
     const beforeIso = beforeRaw ? parseDate(beforeRaw) : '';
-    if (beforeRaw && !beforeIso) return res.status(400).json({ ok:false, version:VERSION, error:'before YYYY-MM-DD veya DD.MM.YYYY biçiminde olmalı.' });
+    if (beforeRaw && !beforeIso) {
+      return res.status(400).json({ ok:false, version:VERSION, error:'before YYYY-MM-DD veya DD.MM.YYYY biçiminde olmalı.' });
+    }
 
     const complete = await collectCompleteHistory(horseId);
     const frozenHistory = applyBefore(complete.history, beforeIso);
@@ -303,27 +393,58 @@ export default async function handler(req, res) {
 
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=900');
     return res.status(200).json({
-      ok:true, version:VERSION, horseId:String(horseId), horseName:complete.horseName || null, before:beforeIso || null,
-      rules:{ source:'TJK AtKosuBilgileri', completeCareerRequired:true,
+      ok:true,
+      version:VERSION,
+      horseId:String(horseId),
+      horseName:complete.horseName || null,
+      before:beforeIso || null,
+      rules:{
+        source:'TJK AtKosuBilgileri',
+        completeCareerRequired:true,
         historicalFreeze:beforeIso ? 'career_race_date < before' : 'NO_BEFORE_FILTER',
-        historicalRaceDayExcluded:Boolean(beforeIso), finishFilter:'finish === 1', leakageProtection:Boolean(beforeIso) },
-      counts:{ tjkCareerTotal:complete.audit.careerTotal, collectedTotal:complete.audit.collectedTotal,
-        frozenCareerTotal:frozenHistory.length, wins:wins.length, top5:wins.length,
-        distanceFilled:wins.filter(x => x.distance > 0).length, distanceMissing:wins.filter(x => !x.distance).length },
-      summary:buildSummary(wins), audit:complete.audit,
-      validation:{ futureLeakCount, invalidFinishCount:wins.filter(x => x.finish !== 1).length,
+        historicalRaceDayExcluded:Boolean(beforeIso),
+        finishFilter:'finish === 1',
+        leakageProtection:Boolean(beforeIso),
+        paginationReplacement:'direct descending year scan until collectedTotal === TJK careerTotal'
+      },
+      counts:{
+        tjkCareerTotal:complete.audit.careerTotal,
+        collectedTotal:complete.audit.collectedTotal,
+        frozenCareerTotal:frozenHistory.length,
+        wins:wins.length,
+        top5:wins.length,
+        distanceFilled:wins.filter(x => x.distance > 0).length,
+        distanceMissing:wins.filter(x => !x.distance).length
+      },
+      summary:buildSummary(wins),
+      audit:complete.audit,
+      validation:{
+        futureLeakCount,
+        invalidFinishCount:wins.filter(x => x.finish !== 1).length,
         distanceMissingCount:wins.filter(x => !x.distance).length,
         ageGroupMissingCount:wins.filter(x => !clean(x.ageGroup)).length,
         classMissingCount:wins.filter(x => !clean(x.class)).length,
-        valid:futureLeakCount === 0 && wins.every(x => x.finish === 1) },
-      roadmap:wins, wins, top5:wins, races:wins,
-      source:{ type:'TJK_AT_KOSU_BILGILERI', endpoint:BASE_URL,
+        valid:futureLeakCount === 0 && wins.every(x => x.finish === 1) && complete.audit.collectedTotal === complete.audit.careerTotal
+      },
+      roadmap:wins,
+      wins,
+      top5:wins,
+      races:wins,
+      source:{
+        type:'TJK_AT_KOSU_BILGILERI',
+        endpoint:BASE_URL,
         columns:{ date:'Tarih', city:'Şehir', distance:'Msf', track:'Pist', finish:'S', ageGroup:'Grup', class:'Kcins' },
-        collection:{ pageSize:PAGE_SIZE, strategy:complete.audit.strategy, yearFallback:true } },
+        collection:{ pageSize:PAGE_SIZE, strategy:complete.audit.strategy, directYearScan:true }
+      },
       durationMs:Date.now() - startedAt
     });
   } catch (e) {
-    console.error('tjk-career V9.2:', e);
-    return res.status(500).json({ ok:false, version:VERSION, error:e?.message || 'At kariyer geçmişi alınamadı.', durationMs:Date.now() - startedAt });
+    console.error('tjk-career V9.3:', e);
+    return res.status(500).json({
+      ok:false,
+      version:VERSION,
+      error:e?.message || 'At kariyer geçmişi alınamadı.',
+      durationMs:Date.now() - startedAt
+    });
   }
 }
