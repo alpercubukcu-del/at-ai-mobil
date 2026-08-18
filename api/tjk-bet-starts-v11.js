@@ -123,33 +123,46 @@ function parseFallbackBlocks(html, existing) {
   return starts;
 }
 
+function nearestAgfLegForTable($, table) {
+  const all = $('body *').toArray();
+  const tableIndex = all.indexOf(table);
+  for (let i = tableIndex - 1; i >= 0; i -= 1) {
+    const el = all[i];
+    const text = clean($(el).clone().children().remove().end().text() || $(el).text());
+    const m = text.match(/^(\d{1,2})\s*\.\s*AYAK\b/i);
+    if (m) return Number(m[1]);
+  }
+  return null;
+}
+
 function parseAgfHtml(html) {
   const $ = cheerio.load(html);
   $('script,style,noscript').remove();
-  const text = $('body').text().replace(/\u00a0/g, ' ');
-  const headers = [];
-  const reHead = /(\d{1,2})\s*\.\s*AYAK\b/gi;
-  let hm;
-  while ((hm = reHead.exec(text))) {
-    headers.push({ leg:Number(hm[1]), start:hm.index, end:reHead.lastIndex });
-  }
-
   const legs = {};
-  for (let i = 0; i < headers.length; i += 1) {
-    const h = headers[i];
-    const next = headers[i + 1]?.start ?? text.length;
-    const segment = text.slice(h.end, next);
-    const horses = {};
-    const reHorse = /(\d{1,2})\s*\(\s*%\s*(\d+(?:[.,]\d+)?)\s*\)/g;
-    let m;
-    while ((m = reHorse.exec(segment))) {
-      const no = Number(m[1]);
-      const agf = Number(String(m[2]).replace(',', '.'));
-      if (!Number.isFinite(no) || !Number.isFinite(agf)) continue;
-      horses[String(no)] = agf;
-    }
-    if (Object.keys(horses).length) legs[String(h.leg)] = horses;
-  }
+
+  $('table').each((_, table) => {
+    const leg = nearestAgfLegForTable($, table);
+    if (!leg) return;
+    const horses = legs[String(leg)] || {};
+
+    $(table).find('tr').each((__, tr) => {
+      $(tr).find('td,th').each((___, cell) => {
+        const text = clean($(cell).text());
+        if (!text || !text.includes('%') || !text.includes('(')) return;
+        const re = /(?:^|[^0-9])(\d{1,2})\s*\(\s*%\s*(\d+(?:[.,]\d+)?)\s*\)/g;
+        let m;
+        while ((m = re.exec(text))) {
+          const no = Number(m[1]);
+          const agf = Number(String(m[2]).replace(',', '.'));
+          if (!Number.isFinite(no) || !Number.isFinite(agf) || no < 1 || no > 99) continue;
+          horses[String(no)] = agf;
+        }
+      });
+    });
+
+    if (Object.keys(horses).length) legs[String(leg)] = horses;
+  });
+
   return legs;
 }
 
