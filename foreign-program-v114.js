@@ -1,6 +1,7 @@
 /* AT AI Mobil — V11.4 AtId bağımsız program fallback
    Yabancı merkezlerde TJK AtId linki olmayabilir.
-   Yarış/at listesini resmi tablo başlıklarından alır; kariyer AtId yoksa ayrıca devre dışı kalır.
+   Her şehir yüklemesinde resmi tabloyu bir kez doğrular;
+   fallback daha fazla at getirirse onu kullanır, aksi halde çalışan ana parser korunur.
 */
 
 const FOREIGN_PROGRAM_VERSION_V114 = 'FOREIGN-PROGRAM-V11.4';
@@ -26,6 +27,8 @@ function mergeFallbackRacesV114(baseRaces, fallbackRaces) {
     const extra = fb.get(no) || {};
     const baseHorses = Array.isArray(base.horses) ? base.horses : [];
     const extraHorses = Array.isArray(extra.horses) ? extra.horses : [];
+    const useExtraHorses = extraHorses.length > baseHorses.length;
+
     merged.push({
       ...base,
       ...extra,
@@ -36,8 +39,8 @@ function mergeFallbackRacesV114(baseRaces, fallbackRaces) {
       distance:base.distance || extra.distance || '',
       track:base.track || extra.track || '',
       betStarts:Array.isArray(base.betStarts) ? base.betStarts : (extra.betStarts || []),
-      horses:extraHorses.length > baseHorses.length ? extraHorses : baseHorses,
-      foreignFallbackUsed:extraHorses.length > baseHorses.length
+      horses:useExtraHorses ? extraHorses : baseHorses,
+      foreignFallbackUsed:useExtraHorses
     });
   }
 
@@ -49,38 +52,43 @@ async function enrichAtIdIndependentV114() {
   const cityName = getCityName();
   if (!cityName) return false;
 
-  const baseCount = totalHorseCountV114(state.races);
-  const hasEmptyRace = (Array.isArray(state.races) ? state.races : []).some(r => !Array.isArray(r.horses) || r.horses.length === 0);
-
-  if (baseCount > 0 && !hasEmptyRace) return false;
-
   try {
-    status(`${cityName} at listesi AtId bağımsız olarak tamamlanıyor…`);
+    const before = totalHorseCountV114(state.races);
+    status(`${cityName} at listesi resmi tabloyla doğrulanıyor…`);
+
     const res = await fetch(
       `/api/tjk-race-meta?date=${encodeURIComponent(state.date)}&cityId=${encodeURIComponent(state.city)}&cityName=${encodeURIComponent(cityName)}&t=${Date.now()}`,
       { cache:'no-store', headers:{ accept:'application/json' } }
     );
-    if (!res.ok) throw new Error(`Yabancı program API ${res.status}`);
+    if (!res.ok) throw new Error(`Program doğrulama API ${res.status}`);
     const data = await res.json();
     if (!data?.ok || !Array.isArray(data.races) || !data.races.length) {
       throw new Error(data?.error || 'AtId bağımsız yarış tablosu bulunamadı.');
     }
 
-    const before = totalHorseCountV114(state.races);
     state.races = mergeFallbackRacesV114(state.races, data.races);
     const after = totalHorseCountV114(state.races);
+    const usedFallback = state.races.some(r => r.foreignFallbackUsed);
+
     save();
     renderProgram();
 
-    if (after > before) {
-      status(`${cityName}: ${state.races.length} koşu · ${after} at (yabancı/AtId bağımsız parser)`);
+    if (usedFallback || after > before) {
+      status(`${cityName}: ${state.races.length} koşu · ${after} at (AtId bağımsız resmi tablo tamamlaması)`);
       if (typeof refreshLiveMarketV113 === 'function') setTimeout(() => refreshLiveMarketV113(true), 100);
       return true;
     }
+
+    status(`${cityName}: ${state.races.length} koşu · ${after} at doğrulandı`);
     return false;
   } catch (e) {
-    console.warn('[AT AI] yabancı program fallback:', e);
-    status(`${cityName} programı var; at tablosu ayrıştırılamadı: ${e?.message || e}`);
+    console.warn('[AT AI] AtId bağımsız program doğrulama:', e);
+    const currentCount = totalHorseCountV114(state.races);
+    if (currentCount > 0) {
+      status(`${cityName}: mevcut ${currentCount} at korundu · ek tablo doğrulaması alınamadı`);
+    } else {
+      status(`${cityName} programı var; at tablosu ayrıştırılamadı: ${e?.message || e}`);
+    }
     return false;
   }
 }
