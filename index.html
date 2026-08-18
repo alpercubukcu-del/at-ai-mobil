@@ -37,22 +37,21 @@
           <button id="clearBtn" class="danger-ghost">Analizleri Temizle</button>
         </div>
 
-        <label>Kuponu hangi sinyale göre oluşturacağız?
-          <select id="signalSource">
-            <option value="combined">Birleşik Analiz</option>
-            <option value="historical">Tarihsel Benzerlik</option>
-            <option value="career">Kariyer Yol Haritası</option>
-            <option value="current">Güncel Analiz</option>
-            <option value="manual">Manuel Seçim</option>
-          </select>
-        </label>
+        <div class="five-model-note-v11">
+          <b>5 MODEL AYNI ANDA</b>
+          <span>Tam Eşleşme · Koşul İkizi · Yarış Ailesi · Kariyer/Hazırlık · Bileşik</span>
+          <small>Bileşik: %40 Tam + %25 İkiz + %20 Aile + %15 Kariyer. Eksik kanal sıfır sayılmaz; mevcut kanallar yeniden normalize edilir.</small>
+        </div>
+        <select id="signalSource" aria-label="V11 model kaynağı" style="display:none"><option value="combined">5 Model</option></select>
 
         <div id="betTypes" class="bet-grid"></div>
-        <div class="grid2">
+        <div class="ticket-settings-grid-v11">
           <label>Bütçe (₺)<input id="budget" type="number" min="1" value="500" /></label>
-          <label>Tek sayısı<select id="singleCount"><option>0</option><option selected>1</option><option>2</option><option>3</option></select></label>
+          <label>Birim fiyat (₺)<input id="unitPrice" type="number" min="0.01" step="0.01" value="1" /></label>
+          <label>Tek sayısı<select id="singleCount"><option>0</option><option selected>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
         </div>
-        <button id="buildAllBtn" class="primary">Seçili Sinyallerle Tüm Kuponları Oluştur</button>
+        <div class="ticket-rule-v11">Tek = 0 ise her ayakta en az 2 at zorunludur. Model verisi olmayan ayakta rastgele/fallback seçim yapılmaz.</div>
+        <button id="buildAllBtn" class="primary">5 Model Kuponlarını Oluştur</button>
       </section>
 
       <section class="panel">
@@ -64,7 +63,7 @@
 
       <section class="panel">
         <div class="eyebrow">OLUŞTURULAN KUPONLAR</div>
-        <h2>Kuponlar</h2>
+        <h2>5 Model Karşılaştırması</h2>
         <div id="tickets" class="ticket-list empty">Henüz kupon oluşturulmadı.</div>
       </section>
     </main>
@@ -85,7 +84,7 @@
     <div class="toolbar">
       <select id="analysisRace"><option value="all">Tüm Koşular</option></select>
       <button id="runAnalysis" class="primary small">Analizi Hesapla</button>
-      <button id="ticketFromAnalysis" class="secondary small">Bu Sinyallerle Kupon Oluştur</button>
+      <button id="ticketFromAnalysis" class="secondary small">5 Model Kupon Oluştur</button>
     </div>
     <div id="analysisContent" class="analysis-content empty">Analiz seçilmedi.</div>
   </dialog>
@@ -97,5 +96,6 @@
   <script src="/adaptive-history-v10.js"></script>
   <script src="/adaptive-history-v101.js"></script>
   <script src="/adaptive-history-v102.js"></script>
+  <script src="/ticket-models-v11.js"></script>
 </body>
 </html>
