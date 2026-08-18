@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#07111f" />
   <title>AT AI Mobil</title>
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/adaptive-history-v10.css" />
 </head>
 <body>
   <div class="app-shell">
@@ -89,9 +90,10 @@
     <div id="analysisContent" class="analysis-content empty">Analiz seçilmedi.</div>
   </dialog>
 
-  <!-- app.js import/export kullanmıyor. Classic yükleme, yalnız V9 düzeltme katmanının
-       mevcut fonksiyonları güvenli biçimde güncelleyebilmesi için kullanılır. -->
+  <!-- app.js import/export kullanmıyor. Classic yükleme, düzeltme katmanlarının
+       mevcut fonksiyonları kontrollü biçimde güncelleyebilmesi için kullanılır. -->
   <script src="/app.js"></script>
   <script src="/exact-history-v9.js"></script>
+  <script src="/adaptive-history-v10.js"></script>
 </body>
 </html>
