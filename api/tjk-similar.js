@@ -1,13 +1,13 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-EXACT-HISTORY-V7';
+const VERSION = 'TJK-EXACT-HISTORY-V7.1';
 const TJK = 'https://www.tjk.org';
 const PAGE_URL = `${TJK}/TR/YarisSever/Query/Page/KosuSorgulama`;
 const DATA_URL = `${TJK}/TR/YarisSever/Query/Data/KosuSorgulama`;
 const ROWS_URL = `${TJK}/TR/YarisSever/Query/DataRows/KosuSorgulama`;
 const SORT = 'Tarih desc, Sehir asc, KosuSirasi asc';
-const DEFAULT_MIN_YEAR = 2000;
 const DAY_WINDOW = 45;
+const DEFAULT_MIN_YEAR = 2000;
 
 const HEADERS = {
   'user-agent':'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/138 Safari/537.36',
@@ -21,42 +21,27 @@ function clean(v = '') {
 }
 
 function upper(v = '') {
-  return clean(v)
-    .toLocaleUpperCase('tr-TR')
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/İ/g, 'I');
-}
-
-function normalizeLetters(v = '') {
-  return upper(v)
-    .replace(/HANDIKAP/g, 'HANDIKAP')
-    .replace(/SARTLI/g, 'SARTLI')
-    .replace(/INGILIZ/g, 'INGILIZ');
+  return clean(v).toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
 }
 
 function normalizeClass(v = '') {
-  return normalizeLetters(v)
-    .replace(/\s*\/\s*/g, '/')
-    .replace(/\s*-\s*/g, '-')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return upper(v).replace(/\s*\/\s*/g, '/').replace(/\s*-\s*/g, '-').replace(/\s+/g, ' ').trim();
 }
 
 function normalizeCity(v = '') {
-  return normalizeLetters(v).replace(/[^A-Z0-9]/g, '');
+  return upper(v).replace(/[^A-Z0-9]/g, '');
 }
 
 function normalizeTrack(v = '') {
-  const t = normalizeLetters(v);
+  const t = upper(v);
   if (t.includes('SENTETIK')) return 'SENTETIK';
   if (t.includes('CIM')) return 'CIM';
   if (t.includes('KUM')) return 'KUM';
   return t;
 }
 
-function parseAgeGroup(v = '') {
-  const t = normalizeLetters(v).replace(/\s+/g, ' ');
+function parseAge(v = '') {
+  const t = upper(v).replace(/\s+/g, ' ');
   let breed = '';
   if (t.includes('INGILIZ')) breed = 'I';
   else if (t.includes('ARAP')) breed = 'A';
@@ -74,40 +59,27 @@ function parseAgeGroup(v = '') {
 }
 
 function ageKey(v = '') {
-  const a = parseAgeGroup(v);
-  if (!a.breed || a.min === null || a.max === null) return normalizeLetters(v).replace(/\s+/g, '');
-  return `${a.breed}:${a.min}:${a.max}`;
+  const a = parseAge(v);
+  if (a.breed && a.min !== null && a.max !== null) return `${a.breed}:${a.min}:${a.max}`;
+  return upper(v).replace(/\s+/g, '');
 }
 
-function parseDateDisplay(value = '') {
-  const m = clean(value).match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
+function parseDisplayDate(v = '') {
+  const m = clean(v).match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
   if (!m) return null;
   const dd = String(m[1]).padStart(2, '0');
   const mm = String(m[2]).padStart(2, '0');
   return { display:`${dd}.${mm}.${m[3]}`, iso:`${m[3]}-${mm}-${dd}` };
 }
 
-function parseIso(value = '') {
-  const m = clean(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return null;
-  return { year:Number(m[1]), month:Number(m[2]), day:Number(m[3]), iso:clean(value) };
+function parseIso(v = '') {
+  const m = clean(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? { year:Number(m[1]), month:Number(m[2]), day:Number(m[3]) } : null;
 }
 
 function isoToDisplay(iso = '') {
   const p = parseIso(iso);
   return p ? `${String(p.day).padStart(2,'0')}.${String(p.month).padStart(2,'0')}.${p.year}` : '';
-}
-
-function dateUtcMs(iso) {
-  const p = parseIso(iso);
-  return p ? Date.UTC(p.year, p.month - 1, p.day) : NaN;
-}
-
-function daysBetween(a, b) {
-  const x = dateUtcMs(a);
-  const y = dateUtcMs(b);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-  return Math.round(Math.abs(x - y) / 86400000);
 }
 
 function daysInMonth(year, month) {
@@ -121,18 +93,16 @@ function anchorIso(targetIso, year) {
   return `${year}-${String(p.month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
 }
 
-function exactCondition(target, row) {
-  return (
-    normalizeCity(target.city) === normalizeCity(row.city) &&
-    normalizeClass(target.class) === normalizeClass(row.class) &&
-    ageKey(target.ageGroup) === ageKey(row.ageGroup) &&
-    Number(target.distance) === Number(row.distance) &&
-    normalizeTrack(target.track) === normalizeTrack(row.track)
-  );
+function daysBetween(a, b) {
+  const x = parseIso(a), y = parseIso(b);
+  if (!x || !y) return null;
+  const xa = Date.UTC(x.year, x.month - 1, x.day);
+  const ya = Date.UTC(y.year, y.month - 1, y.day);
+  return Math.round(Math.abs(xa - ya) / 86400000);
 }
 
-function parseRaceFamily(value = '') {
-  const t = normalizeClass(value);
+function parseRaceFamily(v = '') {
+  const t = normalizeClass(v);
   let m = t.match(/HANDIKAP\s*(\d+)/);
   if (m) return { family:'HANDIKAP', level:Number(m[1]) };
   m = t.match(/SARTLI\s*(\d+)/);
@@ -161,84 +131,67 @@ function findClassOption(options, targetClass) {
   }) || null;
 }
 
-function findCityOption(options, targetCity) {
-  return options.find(x => normalizeCity(x.text) === normalizeCity(targetCity)) || null;
-}
-
-function findTrackOption(options, targetTrack) {
-  return options.find(x => normalizeTrack(x.text) === normalizeTrack(targetTrack)) || null;
-}
-
-function findGroupOption(options, targetAgeGroup) {
-  const key = ageKey(targetAgeGroup);
-  return options.find(x => ageKey(x.text) === key) || null;
-}
-
-async function fetchHtml(url) {
-  const response = await fetch(url, { headers:HEADERS, redirect:'follow' });
-  if (!response.ok) throw new Error(`TJK GET HTTP ${response.status}`);
-  return response.text();
-}
-
 async function resolveFilters(target) {
-  const html = await fetchHtml(PAGE_URL);
-  const $ = cheerio.load(html);
+  const response = await fetch(PAGE_URL, { headers:HEADERS, redirect:'follow' });
+  if (!response.ok) throw new Error(`TJK GET HTTP ${response.status}`);
+  const $ = cheerio.load(await response.text());
   return {
     raceClass:findClassOption(optionList($, '#QueryParameter_KosuCinsiId'), target.class),
-    city:findCityOption(optionList($, '#QueryParameter_SehirId'), target.city),
-    track:findTrackOption(optionList($, '#QueryParameter_PistId'), target.track),
-    group:findGroupOption(optionList($, '#QueryParameter_GrupId'), target.ageGroup)
+    city:optionList($, '#QueryParameter_SehirId').find(x => normalizeCity(x.text) === normalizeCity(target.city)) || null,
+    group:optionList($, '#QueryParameter_GrupId').find(x => ageKey(x.text) === ageKey(target.ageGroup)) || null,
+    track:optionList($, '#QueryParameter_PistId').find(x => normalizeTrack(x.text) === normalizeTrack(target.track)) || null
   };
 }
 
-async function postForm(url, data) {
+async function postForm(url, data, allowMissingPage = false) {
   const body = new URLSearchParams();
-  for (const [key, value] of Object.entries(data)) {
-    if (value === undefined || value === null) continue;
-    body.set(key, String(value));
-  }
+  for (const [key, value] of Object.entries(data)) body.set(key, String(value ?? ''));
   const response = await fetch(url, {
     method:'POST',
-    headers:{ ...HEADERS, 'content-type':'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with':'XMLHttpRequest' },
+    headers:{
+      ...HEADERS,
+      'content-type':'application/x-www-form-urlencoded; charset=UTF-8',
+      'x-requested-with':'XMLHttpRequest'
+    },
     body:body.toString(),
     redirect:'follow'
   });
+
+  if (allowMissingPage && response.status === 404) return null;
   if (!response.ok) throw new Error(`TJK POST HTTP ${response.status}`);
   return response.text();
 }
 
-function getHeaders($, table) {
-  return $(table).find('thead th').map((_, th) => clean($(th).text())).get();
-}
-
-function headerIndex(headers, re) {
-  return headers.findIndex(x => re.test(clean(x)));
-}
-
 function parseQueryTable(html) {
+  if (!html) return [];
   const $ = cheerio.load(html);
   const rows = [];
+
   $('table').each((_, table) => {
-    const headers = getHeaders($, table);
-    const dateIx = headerIndex(headers, /^Tarih$/i);
-    const cityIx = headerIndex(headers, /^Şehir$|^Sehir$/i);
-    const raceIx = headerIndex(headers, /^Koşu$|^Kosu$/i);
-    const ageIx = headerIndex(headers, /^Grup$/i);
-    const classIx = headerIndex(headers, /Koşu Cinsi|Kosu Cinsi/i);
-    const distanceIx = headerIndex(headers, /^Mesafe$/i);
-    const trackIx = headerIndex(headers, /^Pist$/i);
+    const headers = $(table).find('thead th').map((__, th) => clean($(th).text())).get();
+    const ix = re => headers.findIndex(x => re.test(clean(x)));
+    const dateIx = ix(/^Tarih$/i);
+    const cityIx = ix(/^Şehir$|^Sehir$/i);
+    const raceIx = ix(/^Koşu$|^Kosu$/i);
+    const ageIx = ix(/^Grup$/i);
+    const classIx = ix(/Koşu Cinsi|Kosu Cinsi/i);
+    const distanceIx = ix(/^Mesafe$/i);
+    const trackIx = ix(/^Pist$/i);
     if ([dateIx,cityIx,raceIx,ageIx,classIx,distanceIx,trackIx].some(x => x < 0)) return;
 
     $(table).find('tbody tr').each((__, tr) => {
       const cells = $(tr).find('td').map((___, td) => clean($(td).text())).get();
-      const pd = parseDateDisplay(cells[dateIx]);
+      const pd = parseDisplayDate(cells[dateIx]);
       if (!pd) return;
-      const raceNo = Number(String(cells[raceIx] || '').match(/\d+/)?.[0] || 0);
-      const distance = Number(String(cells[distanceIx] || '').match(/\d{3,4}/)?.[0] || 0);
       rows.push({
-        date:pd.display, isoDate:pd.iso, city:clean(cells[cityIx]), raceNo,
-        ageGroup:clean(cells[ageIx]), class:clean(cells[classIx]), distance,
-        track:clean(cells[trackIx])
+        date:pd.display,
+        isoDate:pd.iso,
+        city:cells[cityIx],
+        raceNo:Number(String(cells[raceIx] || '').match(/\d+/)?.[0] || 0),
+        ageGroup:cells[ageIx],
+        class:cells[classIx],
+        distance:Number(String(cells[distanceIx] || '').match(/\d{3,4}/)?.[0] || 0),
+        track:cells[trackIx]
       });
     });
   });
@@ -246,82 +199,97 @@ function parseQueryTable(html) {
 }
 
 function parseRowsFragment(html) {
-  const direct = parseQueryTable(html);
-  if (direct.length) return direct;
-  const wrapped = `<table><thead><tr><th>Tarih</th><th>Şehir</th><th>Koşu</th><th>Grup</th><th>Koşu Cinsi</th><th>Mesafe</th><th>Pist</th></tr></thead><tbody>${html}</tbody></table>`;
-  return parseQueryTable(wrapped);
+  if (!html) return [];
+  const $ = cheerio.load(`<table><tbody>${html}</tbody></table>`);
+  const rows = [];
+  $('tr').each((_, tr) => {
+    const cells = $(tr).find('td').map((__, td) => clean($(td).text())).get();
+    if (cells.length < 8) return;
+    const pd = parseDisplayDate(cells[0]);
+    if (!pd) return;
+    rows.push({
+      date:pd.display,
+      isoDate:pd.iso,
+      city:cells[1],
+      raceNo:Number(String(cells[2] || '').match(/\d+/)?.[0] || 0),
+      ageGroup:cells[3],
+      class:cells[4],
+      distance:Number(String(cells[6] || '').match(/\d{3,4}/)?.[0] || 0),
+      track:cells[7]
+    });
+  });
+  return rows;
 }
 
 function rowKey(r) {
   return [r.isoDate, normalizeCity(r.city), r.raceNo, normalizeClass(r.class), ageKey(r.ageGroup), r.distance, normalizeTrack(r.track)].join('|');
 }
 
-function buildForm(target, filters, minYear) {
-  return {
+function exactCondition(target, row) {
+  return normalizeCity(target.city) === normalizeCity(row.city) &&
+    normalizeClass(target.class) === normalizeClass(row.class) &&
+    ageKey(target.ageGroup) === ageKey(row.ageGroup) &&
+    Number(target.distance) === Number(row.distance) &&
+    normalizeTrack(target.track) === normalizeTrack(row.track);
+}
+
+function sourceYearFor(targetDate, historicalIso, minYear) {
+  const target = parseIso(targetDate);
+  const historical = parseIso(historicalIso);
+  if (!target || !historical || historicalIso >= targetDate) return null;
+  let best = null;
+
+  for (const year of [historical.year - 1, historical.year, historical.year + 1]) {
+    if (year >= target.year || year < minYear) continue;
+    const anchorDate = anchorIso(targetDate, year);
+    const diff = daysBetween(anchorDate, historicalIso);
+    if (diff === null || diff > DAY_WINDOW) continue;
+    if (!best || diff < best.dayDifference) best = { sourceYear:year, anchorDate, dayDifference:diff };
+  }
+  return best;
+}
+
+async function fetchExactCandidateRows(target, filters, minYear, maxPages) {
+  const form = {
     QueryParameter_Tarih_Start:`01.01.${minYear}`,
     QueryParameter_Tarih_End:isoToDisplay(target.date),
-    QueryParameter_SehirId:filters.city?.value || '',
+    QueryParameter_SehirId:filters.city.value,
     QueryParameter_IrkId:'',
-    QueryParameter_GrupId:filters.group?.value || '',
-    QueryParameter_KosuCinsiId:filters.raceClass?.value || '',
+    QueryParameter_GrupId:filters.group.value,
+    QueryParameter_KosuCinsiId:filters.raceClass.value,
     QueryParameter_Cinsiyet:'',
     QueryParameter_APRANTIKODU:'',
     QueryParameter_Mesafe:String(target.distance),
-    QueryParameter_PistId:filters.track?.value || '',
+    QueryParameter_PistId:filters.track.value,
     QueryParameter_BabaAdi:'',
     QueryParameter_AnneAdi:'',
     Era:'past',
     Sort:SORT
   };
-}
 
-async function fetchAllRows(form, maxPages) {
-  const seen = new Set();
-  const rows = [];
-  const diagnostics = [];
+  const first = parseQueryTable(await postForm(DATA_URL, form));
+  const seen = new Map();
+  first.forEach(row => seen.set(rowKey(row), row));
+  const diagnostics = [{ page:1, rows:first.length, status:first.length ? 'TAMAM' : 'BOS' }];
 
-  function consume(incoming, page) {
-    let added = 0;
-    for (const row of incoming) {
-      const key = rowKey(row);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      rows.push(row);
-      added++;
-    }
-    diagnostics.push({ page, rows:incoming.length, newRows:added, status:incoming.length ? (added ? 'TAMAM' : 'TEKRAR') : 'BOS' });
-    return added;
-  }
-
-  const firstHtml = await postForm(DATA_URL, form);
-  const first = parseQueryTable(firstHtml);
-  consume(first, 1);
-  if (!first.length) return { rows, diagnostics };
+  // TJK tam filtreli sorgu 50'den az satır verdiyse devam sayfası yoktur.
+  if (first.length < 50) return { rows:[...seen.values()], diagnostics };
 
   for (let page = 2; page <= maxPages; page++) {
-    const html = await postForm(ROWS_URL, { ...form, PageNumber:page, Sort:SORT });
-    const incoming = parseRowsFragment(html);
-    const added = consume(incoming, page);
-    if (!incoming.length || !added) break;
+    const raw = await postForm(ROWS_URL, { ...form, PageNumber:page, Sort:SORT }, true);
+    if (raw === null) {
+      diagnostics.push({ page, rows:0, status:'404_SAYFALAMA_BITTI' });
+      break;
+    }
+    const rows = parseRowsFragment(raw);
+    diagnostics.push({ page, rows:rows.length, status:rows.length ? 'TAMAM' : 'BOS' });
+    if (!rows.length) break;
+    const before = seen.size;
+    rows.forEach(row => seen.set(rowKey(row), row));
+    if (seen.size === before || rows.length < 50) break;
   }
 
-  return { rows, diagnostics };
-}
-
-function matchAnchorYear(targetDate, historicalIso, minYear) {
-  const target = parseIso(targetDate);
-  const hist = parseIso(historicalIso);
-  if (!target || !hist || historicalIso >= targetDate) return null;
-
-  let best = null;
-  for (const year of [hist.year - 1, hist.year, hist.year + 1]) {
-    if (year >= target.year || year < minYear) continue;
-    const anchor = anchorIso(targetDate, year);
-    const diff = daysBetween(anchor, historicalIso);
-    if (diff === null || diff > DAY_WINDOW) continue;
-    if (!best || diff < best.dayDifference) best = { sourceYear:year, anchorDate:anchor, dayDifference:diff };
-  }
-  return best;
+  return { rows:[...seen.values()], diagnostics };
 }
 
 export default async function handler(req, res) {
@@ -332,8 +300,8 @@ export default async function handler(req, res) {
     const ageGroup = clean(req.query.ageGroup || '');
     const track = clean(req.query.track || '');
     const distance = Number(req.query.distance || 0);
-    const maxPages = Math.min(Math.max(Number(req.query.maxPages || 40), 1), 80);
     const targetParts = parseIso(date);
+
     if (!targetParts) return res.status(400).json({ ok:false, version:VERSION, error:'date YYYY-MM-DD biçiminde gerekli.' });
     if (!city || !raceClass || !ageGroup || !track || !Number.isFinite(distance) || distance <= 0) {
       return res.status(400).json({ ok:false, version:VERSION, error:'city, class, ageGroup, track ve distance gerekli.' });
@@ -341,21 +309,23 @@ export default async function handler(req, res) {
 
     const requestedMinYear = Number(req.query.minYear || DEFAULT_MIN_YEAR);
     const minYear = Math.min(targetParts.year - 1, Math.max(1950, Number.isFinite(requestedMinYear) ? requestedMinYear : DEFAULT_MIN_YEAR));
+    const maxPages = Math.min(Math.max(Number(req.query.maxPages || 40), 1), 80);
     const target = { date, city, class:raceClass, ageGroup, track, distance };
     const filters = await resolveFilters(target);
 
     if (!filters.raceClass) throw new Error(`TJK Koşu Cinsi bulunamadı: ${raceClass}`);
+    if (!filters.city) throw new Error(`TJK Şehir filtresi bulunamadı: ${city}`);
+    if (!filters.group) throw new Error(`TJK Yaş grubu filtresi bulunamadı: ${ageGroup}`);
     if (!filters.track) throw new Error(`TJK Pist filtresi bulunamadı: ${track}`);
 
-    const form = buildForm(target, filters, minYear);
-    const scan = await fetchAllRows(form, maxPages);
-
+    const scan = await fetchExactCandidateRows(target, filters, minYear, maxPages);
     const exactMatches = [];
+
     for (const row of scan.rows) {
       if (row.isoDate >= target.date) continue;
       if (!exactCondition(target, row)) continue;
-      const anchor = matchAnchorYear(target.date, row.isoDate, minYear);
-      if (!anchor) continue;
+      const annual = sourceYearFor(target.date, row.isoDate, minYear);
+      if (!annual) continue;
       exactMatches.push({
         date:row.isoDate,
         dateDisplay:row.date,
@@ -365,9 +335,9 @@ export default async function handler(req, res) {
         ageGroup:row.ageGroup,
         distance:row.distance,
         track:row.track,
-        sourceYear:anchor.sourceYear,
-        anchorDate:anchor.anchorDate,
-        calendarDayDifference:anchor.dayDifference,
+        sourceYear:annual.sourceYear,
+        anchorDate:annual.anchorDate,
+        calendarDayDifference:annual.dayDifference,
         similarity:100,
         raceConditionSimilarity:100,
         exact:true,
@@ -404,8 +374,13 @@ export default async function handler(req, res) {
         conditionSimilarityForAcceptedRace:100,
         minYear
       },
-      resolvedFilters:{ raceClass:filters.raceClass, city:filters.city, group:filters.group, track:filters.track },
-      diagnostics:{ pagesRead:scan.diagnostics.length, scanned:scan.rows.length, exactMatchCount:exactMatches.length, pageDiagnostics:scan.diagnostics },
+      resolvedFilters:filters,
+      diagnostics:{
+        scanned:scan.rows.length,
+        pagesRead:scan.diagnostics.length,
+        pageDiagnostics:scan.diagnostics,
+        exactMatchCount:exactMatches.length
+      },
       searchedYears:{ from:targetParts.year - 1, to:minYear, count:Math.max(0, targetParts.year - minYear) },
       yearResults,
       years:yearResults,
@@ -415,7 +390,7 @@ export default async function handler(req, res) {
       source:'TJK_KOSU_SORGULAMA_EXACT_YEAR_WINDOW'
     });
   } catch (e) {
-    console.error('tjk-similar exact V7:', e);
+    console.error('tjk-similar exact V7.1:', e);
     return res.status(500).json({ ok:false, version:VERSION, error:e?.message || 'Tam tarihsel eşleşme hesaplanamadı.' });
   }
 }
