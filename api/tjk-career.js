@@ -1,10 +1,11 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'CAREER-WINS-V9.3';
+const VERSION = 'CAREER-WINS-V9.4';
 const BASE_URL = 'https://www.tjk.org/TR/YarisSever/Query/ConnectedPage/AtKosuBilgileri';
 const PAGE_SIZE = 50;
 const TIMEOUT_MS = 20000;
 const MIN_SCAN_YEAR = 1950;
+const SEMANTIC_YEAR_RETRIES = 3;
 
 function clean(v = '') {
   return String(v ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
@@ -12,6 +13,10 @@ function clean(v = '') {
 
 function upper(v = '') {
   return clean(v).toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function parseNumber(v) {
@@ -76,7 +81,9 @@ function splitTrack(v = '') {
   return { surface, condition:raw.includes(':') ? clean(raw.split(':').slice(1).join(':')) : '' };
 }
 
-function createSession() { return { cookie:'' }; }
+function createSession() {
+  return { cookie:'' };
+}
 
 function updateCookie(session, response) {
   let values = [];
@@ -86,6 +93,7 @@ function updateCookie(session, response) {
     if (raw) values = [raw];
   }
   if (!values.length) return;
+
   const jar = {};
   for (const pair of clean(session.cookie).split(';')) {
     const i = pair.indexOf('=');
@@ -102,8 +110,11 @@ function updateCookie(session, response) {
 async function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try { return await fetch(url, { ...options, signal:controller.signal }); }
-  finally { clearTimeout(timer); }
+  try {
+    return await fetch(url, { ...options, signal:controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function downloadHorsePage(session, horseId, year = null) {
@@ -112,21 +123,27 @@ async function downloadHorsePage(session, horseId, year = null) {
     try {
       const params = new URLSearchParams({ '1':'1', Era:'today', QueryParameter_AtId:String(horseId) });
       if (year) params.set('QueryParameter_Yil', String(year));
+
       const headers = {
         'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/150 Safari/537.36',
-        'Accept-Language':'tr-TR,tr;q=0.9,en;q=0.6', Accept:'text/html, */*; q=0.01',
-        Referer:'https://www.tjk.org/', 'Cache-Control':'no-cache', Pragma:'no-cache'
+        'Accept-Language':'tr-TR,tr;q=0.9,en;q=0.6',
+        Accept:'text/html, */*; q=0.01',
+        Referer:'https://www.tjk.org/',
+        'Cache-Control':'no-cache',
+        Pragma:'no-cache'
       };
       if (session.cookie) headers.Cookie = session.cookie;
+
       const response = await fetchWithTimeout(`${BASE_URL}?${params.toString()}`, { headers, redirect:'follow' });
       updateCookie(session, response);
       if (!response.ok) throw new Error(`TJK HTTP ${response.status}`);
+
       const html = await response.text();
       if (!html) throw new Error('TJK boş cevap döndürdü.');
       return { html, url:response.url };
     } catch (e) {
       lastError = e;
-      if (attempt < 4) await new Promise(r => setTimeout(r, attempt * 300));
+      if (attempt < 4) await sleep(attempt * 300);
     }
   }
   throw new Error(`At sayfası indirilemedi: ${lastError?.message || lastError}`);
@@ -176,14 +193,16 @@ function extractMetadata(html) {
   $('select[name="QueryParameter_Yil"] option, select#QueryParameter_Yil option').each((_, option) => {
     const value = clean($(option).attr('value'));
     const text = clean($(option).text());
-    const candidate = /^(?:19|20)\d{2}$/.test(value) ? value : (text.match(/(?:19|20)\d{2}/)?.[0] || '');
+    const candidate = /^(?:19|20)\d{2}$/.test(value)
+      ? value
+      : (text.match(/(?:19|20)\d{2}/)?.[0] || '');
     if (candidate) listedYears.add(Number(candidate));
   });
 
   return {
     careerTotal,
     yearTotals,
-    listedYears:[...listedYears].filter(Number.isFinite).sort((a,b) => b-a)
+    listedYears:[...listedYears].filter(Number.isFinite).sort((a, b) => b - a)
   };
 }
 
@@ -202,15 +221,19 @@ function parseHistory(html, horseId, sourceUrl, fallbackHeaders = []) {
   for (const tr of bodyRows) {
     const cells = $(tr).find('td').toArray();
     if (cells.length < 5) continue;
+
     const values = cells.map(td => clean($(td).text()));
     const record = {};
     for (let i = 0; i < Math.min(headers.length, values.length); i++) record[headers[i]] = values[i];
+
     const isoDate = parseDate(record.tarih);
     if (!isoDate) continue;
+
     const finish = parseIntValue(record.sira) ?? 0;
     const distance = parseIntValue(record.mesafe) ?? 0;
     const trk = splitTrack(record.pist_raw);
     const uniqueKey = [String(horseId), isoDate, upper(record.sehir), distance, finish, clean(record.derece)].join('|');
+
     rows.push({
       uniqueKey,
       horseId:String(horseId),
@@ -257,6 +280,52 @@ function uniqueHistory(rows = []) {
   return [...map.values()].sort((a, b) => b.isoDate.localeCompare(a.isoDate));
 }
 
+function countsByYear(rows = []) {
+  const out = {};
+  for (const row of rows) {
+    const year = String(row?.isoDate || '').slice(0, 4);
+    if (!/^\d{4}$/.test(year)) continue;
+    out[year] = (out[year] || 0) + 1;
+  }
+  return out;
+}
+
+async function readYearWithSemanticRetry({ horseId, year, headers, summaryExpected, sharedSession }) {
+  let last = { rows:[], rawRows:0, attempts:0, semanticMismatch:false, error:null };
+
+  for (let attempt = 1; attempt <= SEMANTIC_YEAR_RETRIES; attempt++) {
+    try {
+      const session = attempt === 1 ? sharedSession : createSession();
+      const page = await downloadHorsePage(session, horseId, year);
+      const parsed = parseHistory(page.html, horseId, page.url, headers);
+      const allRows = uniqueHistory(parsed.rows);
+      const sameYearRows = allRows.filter(row => row.isoDate.startsWith(`${year}-`));
+
+      last = {
+        rows:sameYearRows,
+        rawRows:allRows.length,
+        attempts:attempt,
+        semanticMismatch:Number.isFinite(summaryExpected) && sameYearRows.length !== summaryExpected,
+        error:null
+      };
+
+      if (!Number.isFinite(summaryExpected) || sameYearRows.length === summaryExpected) return last;
+      if (attempt < SEMANTIC_YEAR_RETRIES) await sleep(250 * attempt);
+    } catch (e) {
+      last = {
+        rows:[],
+        rawRows:0,
+        attempts:attempt,
+        semanticMismatch:false,
+        error:e?.message || String(e)
+      };
+      if (attempt < SEMANTIC_YEAR_RETRIES) await sleep(300 * attempt);
+    }
+  }
+
+  return last;
+}
+
 async function collectCompleteHistory(horseId) {
   const session = createSession();
   const first = await downloadHorsePage(session, horseId);
@@ -274,6 +343,7 @@ async function collectCompleteHistory(horseId) {
   }
 
   if (firstRows.length === metadata.careerTotal) {
+    const yearCounts = countsByYear(firstRows);
     return {
       horseName:parsedFirst.horseName,
       history:firstRows,
@@ -284,57 +354,71 @@ async function collectCompleteHistory(horseId) {
         missingCount:0,
         strategy:'FIRST_PAGE',
         coverageStatus:'TAM',
-        yearCounts:{},
-        scannedYears:[]
+        yearCounts,
+        scannedYears:[],
+        yearDiagnostics:[]
       }
     };
   }
 
-  const newestYear = Number(firstRows[0]?.isoDate?.slice(0,4));
-  if (!Number.isFinite(newestYear)) {
-    throw new Error('TJK TAM GEÇMİŞ KONTROLÜ: en yeni kariyer yılı belirlenemedi.');
+  const oldestFirstYear = Number(firstRows[firstRows.length - 1]?.isoDate?.slice(0, 4));
+  if (!Number.isFinite(oldestFirstYear)) {
+    throw new Error('TJK TAM GEÇMİŞ KONTROLÜ: ilk 50 satırın en eski yılı belirlenemedi.');
   }
 
-  const union = new Map();
-  const yearCounts = {};
-  const rawYearCounts = {};
+  // En kritik V9.4 farkı: ilk 50 satır ana havuzun parçasıdır.
+  // Yıl filtresi bazı atlarda bir yılı boş/yanlış döndürse bile ilk 50 içindeki doğrulanmış kayıtlar kaybolmaz.
+  const union = new Map(firstRows.map(row => [row.uniqueKey, row]));
   const scannedYears = [];
+  const yearDiagnostics = [];
 
-  // TJK'nin yıl seçim kutusu ve özet tablosu eksik olabiliyor.
-  // Bu nedenle yılları doğrudan, en yeni yıldan geriye doğru sorguluyoruz.
-  // Toplanan benzersiz satır sayısı TJK kariyer toplamına ulaştığında duruyoruz.
-  for (let year = newestYear; year >= MIN_SCAN_YEAR; year--) {
-    const page = await downloadHorsePage(session, horseId, year);
-    const parsed = parseHistory(page.html, horseId, page.url, parsedFirst.headers);
-    const allPageRows = uniqueHistory(parsed.rows);
-    const sameYearRows = allPageRows.filter(row => row.isoDate.startsWith(`${year}-`));
+  // Eksik kayıtlar kronolojik olarak ilk sayfanın en eski satırından daha eskidir.
+  // Bu yüzden en yeni yıldan 1950'ye kadar gereksiz tarama yerine yalnız sınır yıldan geriye gideriz.
+  for (let year = oldestFirstYear; year >= MIN_SCAN_YEAR && union.size < metadata.careerTotal; year--) {
+    const summaryExpected = metadata.yearTotals[String(year)];
+    const result = await readYearWithSemanticRetry({
+      horseId,
+      year,
+      headers:parsedFirst.headers,
+      summaryExpected,
+      sharedSession:session
+    });
+
+    const beforeSize = union.size;
+    for (const row of result.rows) union.set(row.uniqueKey, row);
+    const added = union.size - beforeSize;
 
     scannedYears.push(year);
-    rawYearCounts[year] = allPageRows.length;
-    yearCounts[year] = sameYearRows.length;
+    yearDiagnostics.push({
+      year,
+      summaryExpected:Number.isFinite(summaryExpected) ? summaryExpected : null,
+      rawRows:result.rawRows,
+      sameYearRows:result.rows.length,
+      newRowsAdded:added,
+      attempts:result.attempts,
+      semanticMismatch:result.semanticMismatch,
+      error:result.error
+    });
 
-    const summaryExpected = metadata.yearTotals[String(year)];
-    if (Number.isFinite(summaryExpected) && sameYearRows.length !== summaryExpected) {
-      throw new Error(`TJK TAM GEÇMİŞ KONTROLÜ: ${year} yılı doğrulanamadı; beklenen ${summaryExpected}, gelen ${sameYearRows.length}.`);
-    }
-
-    for (const row of sameYearRows) union.set(row.uniqueKey, row);
-
-    if (union.size === metadata.careerTotal) break;
     if (union.size > metadata.careerTotal) {
       throw new Error(`TJK TAM GEÇMİŞ KONTROLÜ: toplanan satır ${union.size}, TJK kariyer toplamı ${metadata.careerTotal}; fazla kayıt oluştu.`);
     }
 
-    await new Promise(r => setTimeout(r, 60));
+    if (union.size < metadata.careerTotal) await sleep(80);
   }
 
   const collected = uniqueHistory([...union.values()]);
   if (collected.length !== metadata.careerTotal) {
     throw new Error(
-      `TJK TAM GEÇMİŞ KONTROLÜ: yıllık doğrudan tarama eksik; kariyer ${metadata.careerTotal}, ` +
-      `toplanan ${collected.length}; yıllar ${JSON.stringify(yearCounts)}.`
+      `TJK TAM GEÇMİŞ KONTROLÜ: sınır yıldan geriye tamamlama eksik; kariyer ${metadata.careerTotal}, ` +
+      `toplanan ${collected.length}; taranan yıllar ${JSON.stringify(yearDiagnostics)}.`
     );
   }
+
+  const yearCounts = countsByYear(collected);
+  const summaryMismatches = Object.entries(metadata.yearTotals || {})
+    .map(([year, expected]) => ({ year:Number(year), expected:Number(expected), collected:Number(yearCounts[year] || 0) }))
+    .filter(x => Number.isFinite(x.expected) && x.expected !== x.collected);
 
   return {
     horseName:parsedFirst.horseName,
@@ -344,11 +428,12 @@ async function collectCompleteHistory(horseId) {
       firstPageCount:firstRows.length,
       collectedTotal:collected.length,
       missingCount:0,
-      strategy:'DIRECT_DESCENDING_YEAR_SCAN',
+      strategy:'FIRST50_PLUS_BOUNDARY_YEAR_SCAN',
       coverageStatus:'TAM',
       yearCounts,
-      rawYearCounts,
-      scannedYears
+      scannedYears,
+      yearDiagnostics,
+      summaryMismatches
     }
   };
 }
@@ -405,7 +490,8 @@ export default async function handler(req, res) {
         historicalRaceDayExcluded:Boolean(beforeIso),
         finishFilter:'finish === 1',
         leakageProtection:Boolean(beforeIso),
-        paginationReplacement:'direct descending year scan until collectedTotal === TJK careerTotal'
+        paginationReplacement:'first 50 + boundary-year descending scan until collectedTotal === TJK careerTotal',
+        semanticYearRetry:SEMANTIC_YEAR_RETRIES
       },
       counts:{
         tjkCareerTotal:complete.audit.careerTotal,
@@ -434,12 +520,18 @@ export default async function handler(req, res) {
         type:'TJK_AT_KOSU_BILGILERI',
         endpoint:BASE_URL,
         columns:{ date:'Tarih', city:'Şehir', distance:'Msf', track:'Pist', finish:'S', ageGroup:'Grup', class:'Kcins' },
-        collection:{ pageSize:PAGE_SIZE, strategy:complete.audit.strategy, directYearScan:true }
+        collection:{
+          pageSize:PAGE_SIZE,
+          strategy:complete.audit.strategy,
+          firstPageSeeded:true,
+          boundaryYearScan:true,
+          semanticYearRetry:SEMANTIC_YEAR_RETRIES
+        }
       },
       durationMs:Date.now() - startedAt
     });
   } catch (e) {
-    console.error('tjk-career V9.3:', e);
+    console.error('tjk-career V9.4:', e);
     return res.status(500).json({
       ok:false,
       version:VERSION,
