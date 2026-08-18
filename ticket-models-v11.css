@@ -1,0 +1,45 @@
+/* AT AI Mobil — Five Ticket Models V11 */
+.five-model-note-v11{margin:8px 0 12px;padding:11px 12px;border:1px solid rgba(114,213,255,.22);border-radius:12px;background:rgba(114,213,255,.06);line-height:1.45}
+.five-model-note-v11 b{display:block;font-size:12px;color:#72d5ff;letter-spacing:.05em}
+.five-model-note-v11 span{display:block;font-size:12px;font-weight:750;margin-top:3px;color:#e8f4ff}
+.five-model-note-v11 small{display:block;font-size:10px;opacity:.66;margin-top:5px}
+.ticket-settings-grid-v11{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;align-items:end}
+.ticket-settings-grid-v11 label{margin-bottom:6px}
+.ticket-rule-v11{font-size:10px;line-height:1.45;color:#91a9c2;margin:2px 0 10px;padding:7px 9px;border-radius:8px;background:rgba(255,255,255,.035)}
+.ticket-group-v11{border:1px solid #264661;border-radius:14px;background:#071521;margin:10px 0;overflow:hidden}
+.ticket-group-v11>summary{list-style:none;cursor:pointer;user-select:none}
+.ticket-group-v11>summary::-webkit-details-marker{display:none}
+.ticket-group-summary-v11{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:12px 13px;background:#0d2032}
+.ticket-group-summary-v11 div{min-width:0}
+.ticket-group-summary-v11 b{display:block;font-size:15px}
+.ticket-group-summary-v11 small{display:block;font-size:10px;opacity:.62;margin-top:2px}
+.ticket-group-summary-v11>span{font-size:10px;opacity:.72;white-space:nowrap}
+.ticket-group-body-v11{padding:10px}
+.ticket-model-tabs-v11{display:flex;gap:7px;overflow-x:auto;padding:1px 0 9px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.ticket-model-tabs-v11::-webkit-scrollbar{display:none}
+.ticket-model-tab-v11{flex:0 0 auto;border:1px solid #315b81;border-radius:999px;background:#091928;color:#a9c4df;padding:7px 10px;font-size:11px;font-weight:800;white-space:nowrap;cursor:pointer}
+.ticket-model-tab-v11.active{background:#1b4e78;color:#fff;border-color:#4e92c7}
+.ticket-model-panel-v11{display:none;border:1px solid rgba(255,255,255,.09);border-radius:11px;background:rgba(255,255,255,.018);padding:10px}
+.ticket-model-panel-v11.active{display:block}
+.ticket-model-title-v11{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.08)}
+.ticket-model-title-v11 b{display:block;font-size:14px}
+.ticket-model-title-v11 small{display:block;font-size:9px;opacity:.62;margin-top:2px}
+.ticket-money-v11{text-align:right;white-space:nowrap}
+.ticket-money-v11 b{color:#7ee2a8;font-size:14px}
+.ticket-meta-v11{font-size:10px;color:#8ea7c0;margin:8px 0}
+.ticket-warning-v11{font-size:10px;line-height:1.5;color:#ffc078;margin:7px 0;padding:7px 8px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.16);border-radius:8px}
+.ticket-leg-v11{padding:9px 0;border-top:1px solid rgba(255,255,255,.07)}
+.ticket-leg-v11:first-of-type{border-top:0}
+.ticket-leg-head-v11{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:11px;margin-bottom:6px}
+.ticket-leg-head-v11>span:not(.ticket-single-v11){font-size:9px;opacity:.62}
+.ticket-single-v11{font-size:9px;font-weight:900;color:#07111f;background:#7ee2a8;border-radius:999px;padding:3px 6px}
+.ticket-picks-v11{display:flex;flex-wrap:wrap;gap:5px}
+.ticket-pick-v11{display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:5px 7px;border-radius:8px;background:#10243a;border:1px solid #223f5b;font-size:10px;color:#d9e8f7}
+.ticket-pick-v11 b{color:#72d5ff}
+.ticket-pick-v11 small{font-size:9px;color:#7ee2a8;font-weight:800}
+@media(max-width:560px){
+  .ticket-settings-grid-v11{grid-template-columns:1fr 1fr}
+  .ticket-settings-grid-v11 label:last-child{grid-column:1/-1}
+  .ticket-group-body-v11{padding:8px}
+  .ticket-model-panel-v11{padding:9px}
+}
