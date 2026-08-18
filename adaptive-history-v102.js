@@ -1,9 +1,14 @@
-/* AT AI Mobil — Adaptive Historical Path V10.2
-   TJK Günlük Programı ile Koşu Sorgulama arasındaki sınıf adı aliaslarını eşitler. */
+/* AT AI Mobil — Adaptive Historical Path V10.4
+   V10.2 TJK class aliaslari korunur.
+   V10.4: at bazli accordion detaylari geri getirir, Galibiyet/Hazirlik yollarini
+   ayni siralamada karistirmaz ve analiz dialogu acikken arka sayfayi kilitler. */
 
 const ADAPTIVE_HISTORY_ALIAS_VERSION = 'ADAPTIVE-HISTORY-UI-V10.2';
-const CAREER_HORSE_ACCORDION_VERSION = 'CAREER-HORSE-ACCORDION-V10.3';
+const CAREER_HORSE_ACCORDION_VERSION = 'CAREER-HORSE-ACCORDION-V10.4';
+const CAREER_MODE_RANK_VERSION = 'CAREER-MODE-RANK-V10.4';
+const ANALYSIS_DIALOG_VERSION = 'ANALYSIS-DIALOG-FULLSCREEN-V10.4';
 const runCareerAnalysisV101 = runCareerAnalysis;
+const openAnalysisBeforeV104 = openAnalysis;
 
 fetchHistoricalRoadmap = async function(meta) {
   if (!meta?.ok) return { ok:false, error:meta?.error || 'Koşu koşulları eksik.' };
@@ -52,32 +57,78 @@ runCareerAnalysis = async function(selectedRaces, raceValue) {
     state.analyses.career.adaptiveHistoryV102 = true;
     state.analyses.career.patchVersion = ADAPTIVE_HISTORY_ALIAS_VERSION;
     state.analyses.career.roadmapApiVersion = 'TJK-ADAPTIVE-ROADMAP-V10.2';
-    state.analyses.career.similarityNote = 'Her yıl ayrı ±45 gün taranır. TJK Günlük Programı ve Koşu Sorgulama arasındaki sınıf adı aliasları kanonikleştirilir. Kariyer yolu ve koşul aktarılabilirliği ayrı hesaplanır; yıllar birbirine ortalanmaz.';
+    state.analyses.career.careerAccordionVersion = CAREER_HORSE_ACCORDION_VERSION;
+    state.analyses.career.careerRankingVersion = CAREER_MODE_RANK_VERSION;
+    state.analyses.career.similarityNote = 'Her yıl ayrı ±45 gün taranır. TJK sınıf aliasları kanonikleştirilir. Galibiyet Yolu ve Hazırlık/İlk 5 Yolu farklı analiz ölçekleridir ve aynı sıralamada birbirine karşı kullanılmaz.';
     save();
   }
 };
 
 /* =========================================================
-   V10.3 — AT BAZLI KARİYER ACCORDION
-   Koşu accordion'u açık kalsa bile atlar varsayılan kapalıdır.
-   Hesaplama/veri mantığı değişmez; yalnız mobil görünüm sıkıştırılır.
+   V10.4 — ANALIZ MODU VE MOD-ICI SIRALAMA
+   WIN_PATH ile PREPARATION_PATH yuzdeleri ayni olcek degildir.
+   Her grup kendi icinde siralanir. Ana yillik skor korunur;
+   esitte cok-yilli destek sadece tie-break olarak kullanilir.
+========================================================= */
+
+function careerModeV104(item) {
+  const explicit = item?.galibiyetBenzerligi?.analysisMode || item?.career?.analysisMode;
+  if (explicit === 'WIN_PATH' || explicit === 'PREPARATION_PATH' || explicit === 'DEBUT') return explicit;
+  const roadmap = Array.isArray(item?.career?.roadmap) ? item.career.roadmap : [];
+  return typeof adaptiveCurrentMode === 'function' ? adaptiveCurrentMode(roadmap) : 'DEBUT';
+}
+
+function modeLabelV104(mode) {
+  if (mode === 'WIN_PATH') return 'Galibiyet Yolu';
+  if (mode === 'PREPARATION_PATH') return 'Hazırlık / İlk 5 Yolu';
+  return 'Debut';
+}
+
+function supportMetricsV104(item) {
+  const rows = Array.isArray(item?.galibiyetBenzerligi?.byYear)
+    ? item.galibiyetBenzerligi.byYear
+        .filter(row => row?.score !== null && row?.score !== undefined && Number.isFinite(Number(row.score)))
+        .sort((a,b) => Number(b?.year || 0) - Number(a?.year || 0))
+    : [];
+  const strongest = Number(item?.galibiyetBenzerligi?.score);
+  return {
+    score: Number.isFinite(strongest) ? strongest : -1,
+    strongYears: rows.filter(row => Number(row.score) >= 85).length,
+    supportYears: rows.filter(row => Number(row.score) >= 70).length,
+    scoredYears: rows.length,
+    latestScore: rows.length ? Number(rows[0].score) : -1
+  };
+}
+
+function sortCareerGroupV104(a, b) {
+  const ma = supportMetricsV104(a);
+  const mb = supportMetricsV104(b);
+  if (mb.score !== ma.score) return mb.score - ma.score;
+  if (mb.strongYears !== ma.strongYears) return mb.strongYears - ma.strongYears;
+  if (mb.supportYears !== ma.supportYears) return mb.supportYears - ma.supportYears;
+  if (mb.latestScore !== ma.latestScore) return mb.latestScore - ma.latestScore;
+  if (mb.scoredYears !== ma.scoredYears) return mb.scoredYears - ma.scoredYears;
+  return Number(a?.horse?.no || 999) - Number(b?.horse?.no || 999);
+}
+
+/* =========================================================
+   V10.4 — AT BAZLI ACCORDION + TAM DETAY
+   Kapali: kisa ozet.
+   Acik: yillara gore tarihsel yol + en guclu yol + kariyer ozeti + tam tablo.
 ========================================================= */
 
 careerHorseHtml = function(item, similarityRank = null) {
   const horse = item?.horse;
   const career = item?.career;
   const sim = item?.galibiyetBenzerligi || {};
-
   if (!horse) return '';
 
-  const hasScore =
-    sim.score !== null &&
-    sim.score !== undefined &&
-    sim.score !== '' &&
-    Number.isFinite(Number(sim.score));
-
+  const mode = careerModeV104(item);
+  const modeLabel = modeLabelV104(mode);
+  const hasScore = sim.score !== null && sim.score !== undefined && sim.score !== '' && Number.isFinite(Number(sim.score));
   const roadmap = Array.isArray(career?.roadmap) ? career.roadmap : [];
   const summary = normalizeCareerSummary(career || {}, roadmap);
+  const metrics = supportMetricsV104(item);
 
   const compactScore = hasScore
     ? `<div style="font-size:18px;font-weight:900;line-height:1;color:#7ee2a8;">%${escapeHtml(sim.score)}</div>`
@@ -87,64 +138,168 @@ careerHorseHtml = function(item, similarityRank = null) {
     ? 'TJK At ID bulunamadı'
     : !career?.ok
       ? 'Kariyer verisi alınamadı'
-      : `İlk 5: ${escapeHtml(summary.totalTop5)} · 1: ${escapeHtml(summary.first)} · 2: ${escapeHtml(summary.second)} · 3: ${escapeHtml(summary.third)}`;
+      : `${escapeHtml(modeLabel)} · İlk 5: ${escapeHtml(summary.totalTop5)} · 1: ${escapeHtml(summary.first)} · 2: ${escapeHtml(summary.second)} · 3: ${escapeHtml(summary.third)}`;
 
-  const detailBody = !horse.id
-    ? `<div style="padding:11px 12px;opacity:.72;">TJK At ID bulunamadığı için kariyer alınamadı.</div>`
-    : !career?.ok
-      ? `<div style="padding:11px 12px;opacity:.72;">Kariyer verisi alınamadı: ${escapeHtml(career?.error || 'Bilinmeyen hata')}</div>`
-      : `
-        <div style="padding:10px 12px 12px 12px;">
-          <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
-            <div style="min-width:0;">
-              ${horse.jockey ? `<div style="opacity:.72;font-size:12px;">Jokey: ${escapeHtml(horse.jockey)}</div>` : ''}
-              <div style="font-size:10px;opacity:.55;margin-top:3px;">TJK ID: ${escapeHtml(horse.id)}</div>
-            </div>
-            ${similarityRank ? `<div style="font-size:11px;opacity:.68;white-space:nowrap;">Benzerlik sırası ${similarityRank}</div>` : ''}
+  let detailBody = '';
+  if (!horse.id) {
+    detailBody = `<div class="career-horse-detail-v104">${yearSimilarityHtml(sim)}<div style="padding:10px 0;opacity:.72;">TJK At ID bulunamadığı için kariyer alınamadı.</div></div>`;
+  } else if (!career?.ok) {
+    detailBody = `<div class="career-horse-detail-v104">${yearSimilarityHtml(sim)}<div style="padding:10px 0;opacity:.72;">Kariyer verisi alınamadı: ${escapeHtml(career?.error || 'Bilinmeyen hata')}</div></div>`;
+  } else {
+    const strongest = sim?.strongest;
+    detailBody = `
+      <div class="career-horse-detail-v104">
+        ${yearSimilarityHtml(sim)}
+        ${strongest ? `
+          <div style="margin-top:8px;padding:8px 9px;border-radius:8px;background:rgba(126,226,168,.08);font-size:11px;line-height:1.5;">
+            En güçlü yıllık tarihsel yol:
+            <b>${escapeHtml(strongest.year || '')}</b> ·
+            <b>${escapeHtml(strongest.historicalHorse || '')}</b> ·
+            geçmişte <b>${escapeHtml(strongest.historicalFinish || '')}.</b> ·
+            <b>%${escapeHtml(strongest.score)}</b>
           </div>
-
-          ${sim.matchedHistoricalHorse ? `
-            <div style="margin-top:8px;padding:7px 9px;border-radius:8px;background:rgba(126,226,168,.08);font-size:11px;line-height:1.45;">
-              En yakın tarihsel yol: <b>${escapeHtml(sim.matchedHistoricalHorse)}</b>
-              ${sim.matchedHistoricalFinish ? ` · geçmişte ${escapeHtml(sim.matchedHistoricalFinish)}.` : ''}
-              ${sim.matchedHistoricalRace ? `<br><span style="opacity:.7;">${escapeHtml(sim.matchedHistoricalRace)}</span>` : ''}
-            </div>
-          ` : ''}
-
-          ${careerSummaryHtml(career)}
-          ${roadmapTableHtml(roadmap)}
-        </div>
-      `;
+        ` : ''}
+        ${metrics.scoredYears ? `
+          <div style="margin-top:8px;padding:7px 9px;border-radius:8px;background:rgba(114,213,255,.06);font-size:11px;line-height:1.45;">
+            Çok-yıllı destek özeti: <b>${metrics.scoredYears}</b> değerlendirilebilir yıl ·
+            <b>${metrics.strongYears}</b> güçlü (≥%85) · <b>${metrics.supportYears}</b> destek (≥%70).
+            Bu özet yalnız aynı analiz modu içindeki eşitlikleri ayırmak için kullanılır; yıllar tek yüzdeye ortalanmaz.
+          </div>
+        ` : ''}
+        ${careerSummaryHtml(career)}
+        ${roadmapTableHtml(roadmap)}
+      </div>`;
+  }
 
   return `
-    <details
-      style="margin:8px 0;border:1px solid rgba(255,255,255,.14);border-radius:11px;overflow:hidden;background:rgba(255,255,255,.02);"
-    >
-      <summary
-        style="cursor:pointer;list-style:none;padding:10px 12px;user-select:none;"
-      >
-        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;">
+    <details class="career-horse-accordion-v104">
+      <summary>
+        <div class="career-horse-summary-v104">
           <div style="min-width:0;">
-            <div style="font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-              ${escapeHtml(horse.no)}. ${escapeHtml(horse.name)}
-            </div>
-            <div style="font-size:11px;opacity:.66;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-              ${statusLine}
-            </div>
+            <div class="career-horse-name-v104">${escapeHtml(horse.no)}. ${escapeHtml(horse.name)}</div>
+            <div class="career-horse-status-v104">${statusLine}</div>
           </div>
-          <div style="display:flex;align-items:center;gap:9px;flex:0 0 auto;text-align:right;">
+          <div class="career-horse-score-v104">
             <div>
               ${compactScore}
-              <div style="font-size:9px;opacity:.62;margin-top:2px;">Benzerlik</div>
+              <div style="font-size:9px;opacity:.62;margin-top:2px;">${escapeHtml(modeLabel)}</div>
+              ${similarityRank ? `<div style="font-size:9px;opacity:.72;margin-top:2px;">Sıra ${escapeHtml(similarityRank)}</div>` : ''}
             </div>
-            <div style="font-size:13px;opacity:.72;">Detay ▾</div>
+            <div class="career-detail-label-v104">Detay ▾</div>
           </div>
         </div>
       </summary>
       ${detailBody}
-    </details>
-  `;
+    </details>`;
 };
+
+function careerGroupHtmlV104(title, note, items, cssClass) {
+  if (!items.length) return '';
+  const sorted = [...items].sort(sortCareerGroupV104);
+  return `
+    <div class="career-mode-group-v104 ${cssClass || ''}">
+      <div class="career-mode-head-v104">
+        <div><b>${escapeHtml(title)}</b><div>${escapeHtml(note)}</div></div>
+        <span>${sorted.length} at</span>
+      </div>
+      ${sorted.map((item, index) => careerHorseHtml(item, index + 1)).join('')}
+    </div>`;
+}
+
+careerRaceAccordionHtml = function(race, forceOpen) {
+  const horses = Array.isArray(race?.horses) ? [...race.horses] : [];
+  const winPath = horses.filter(item => careerModeV104(item) === 'WIN_PATH');
+  const prepPath = horses.filter(item => careerModeV104(item) === 'PREPARATION_PATH');
+  const debut = horses.filter(item => careerModeV104(item) === 'DEBUT');
+
+  return `
+    <details
+      ${forceOpen ? 'open' : ''}
+      class="career-race-accordion-v104"
+    >
+      <summary class="career-race-summary-v104">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;">
+          <div>
+            <div style="font-size:16px;font-weight:800;">${escapeHtml(race.no)}. KOŞU</div>
+            <div style="font-size:12px;opacity:.72;margin-top:3px;">
+              ${escapeHtml(race.class || race.meta?.class || '-')} ·
+              ${escapeHtml(race.ageGroup || race.meta?.ageGroup || '-')} ·
+              ${escapeHtml(race.distance || race.meta?.distance || '-')} ${escapeHtml(race.track || race.meta?.track || '')}
+            </div>
+          </div>
+          <div style="font-size:11px;opacity:.72;text-align:right;white-space:nowrap;">
+            ${winPath.length ? `Galibiyet ${winPath.length}` : ''}
+            ${winPath.length && prepPath.length ? '<br>' : ''}
+            ${prepPath.length ? `Hazırlık ${prepPath.length}` : ''}
+            ${(winPath.length || prepPath.length) && debut.length ? '<br>' : ''}
+            ${debut.length ? `Debut ${debut.length}` : ''} ▾
+          </div>
+        </div>
+      </summary>
+      <div class="career-race-body-v104">
+        ${race.roadmapError ? `
+          <div style="margin:8px 0;padding:9px;border-radius:8px;background:rgba(245,158,11,.10);font-size:11px;">
+            Tarihsel yol üretilemedi: ${escapeHtml(race.roadmapError)}
+          </div>` : ''}
+        ${careerGroupHtmlV104('GALİBİYET YOLU SIRALAMASI', 'Yalnız kariyerinde gerçek galibiyeti bulunan atlar; kendi aralarında sıralanır.', winPath, 'win-path-v104')}
+        ${careerGroupHtmlV104('HAZIRLIK / İLK 5 YOLU SIRALAMASI', 'Galibiyeti olmayan atların hazırlık yolu; Galibiyet Yolu yüzdesiyle doğrudan karşılaştırılmaz.', prepPath, 'prep-path-v104')}
+        ${careerGroupHtmlV104('DEBUT / KARİYER YOLU YOK', 'Yarış geçmişi olmayan atlarda kariyer yüzdesi üretilmez.', debut, 'debut-path-v104')}
+        ${!horses.length ? `<div style="padding:12px;opacity:.7;">Bu koşunun kariyer verisi yeniden hesaplanmalıdır.</div>` : ''}
+      </div>
+    </details>`;
+};
+
+/* =========================================================
+   V10.4 — ANALIZ DIALOGU SAYFA KILIDI
+   Dialog acikken alttaki ana sayfa yer degistiremez/kayamaz.
+========================================================= */
+
+let analysisScrollYV104 = 0;
+
+function lockAnalysisPageV104() {
+  if (!document.body || document.body.dataset.analysisLockV104 === '1') return;
+  analysisScrollYV104 = window.scrollY || window.pageYOffset || 0;
+  document.documentElement.classList.add('analysis-lock-v104');
+  document.body.classList.add('analysis-lock-v104');
+  document.body.dataset.analysisLockV104 = '1';
+  document.body.style.position = 'fixed';
+  document.body.style.top = `-${analysisScrollYV104}px`;
+  document.body.style.left = '0';
+  document.body.style.right = '0';
+  document.body.style.width = '100%';
+}
+
+function unlockAnalysisPageV104() {
+  if (!document.body || document.body.dataset.analysisLockV104 !== '1') return;
+  const restoreY = analysisScrollYV104;
+  document.documentElement.classList.remove('analysis-lock-v104');
+  document.body.classList.remove('analysis-lock-v104');
+  delete document.body.dataset.analysisLockV104;
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.left = '';
+  document.body.style.right = '';
+  document.body.style.width = '';
+  window.scrollTo(0, restoreY);
+}
+
+openAnalysis = function(view) {
+  lockAnalysisPageV104();
+  try {
+    return openAnalysisBeforeV104(view);
+  } catch (error) {
+    unlockAnalysisPageV104();
+    throw error;
+  }
+};
+
+const analysisDialogV104 = document.getElementById('analysisDialog');
+if (analysisDialogV104 && analysisDialogV104.dataset.lockHandlerV104 !== '1') {
+  analysisDialogV104.dataset.lockHandlerV104 = '1';
+  analysisDialogV104.addEventListener('close', unlockAnalysisPageV104);
+}
 
 console.info('[AT AI]', ADAPTIVE_HISTORY_ALIAS_VERSION, 'aktif');
 console.info('[AT AI]', CAREER_HORSE_ACCORDION_VERSION, 'aktif');
+console.info('[AT AI]', CAREER_MODE_RANK_VERSION, 'aktif');
+console.info('[AT AI]', ANALYSIS_DIALOG_VERSION, 'aktif');
