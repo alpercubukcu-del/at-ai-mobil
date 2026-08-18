@@ -1,319 +1,306 @@
 import * as cheerio from 'cheerio';
 
-const TJK_BASE =
-  'https://www.tjk.org/TR/YarisSever/Info/Sehir/GunlukYarisProgrami';
+const VERSION = 'TJK-FOREIGN-PROGRAM-V11.4';
+const TJK_BASE = 'https://www.tjk.org/TR/YarisSever/Info/Sehir/GunlukYarisProgrami';
+const TIMEOUT_MS = 25000;
 
-function trDate(iso) {
-  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return '';
-  return `${m[3]}/${m[2]}/${m[1]}`;
+function clean(v = '') {
+  return String(v ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function cleanText(value = '') {
-  return String(value)
-    .replace(/\u00a0/g, ' ')
-    .replace(/\r/g, '\n')
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\n[ \t]+/g, '\n')
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n{2,}/g, '\n')
-    .trim();
+function norm(v = '') {
+  return clean(v)
+    .toLocaleUpperCase('tr-TR')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/İ/g, 'I');
 }
 
-function normalizeRaceClass(value = '') {
-  return cleanText(value)
-    .replace(/\s*\/\s*/g, ' /')
-    .replace(/\s+/g, ' ')
-    .trim();
+function key(v = '') {
+  return norm(v).replace(/[^A-Z0-9]/g, '');
 }
 
-function extractAgeGroup(text = '') {
-  const t = cleanText(text);
+function toTjkDate(iso = '') {
+  const m = clean(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+}
 
-  const patterns = [
-    /(\d+\s+ve\s+Yukarı\s+İngilizler)/i,
-    /(\d+\s+ve\s+Yukarı\s+Araplar)/i,
-    /(\d+\s+Yaşlı\s+İngilizler)/i,
-    /(\d+\s+Yaşlı\s+Araplar)/i
-  ];
+function parseDecimal(v) {
+  const t = clean(v);
+  if (!t || /^[-–—]$/.test(t)) return null;
+  const m = t.match(/-?\d+(?:[.,]\d+)?/);
+  if (!m) return null;
+  const n = Number(m[0].replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
 
-  for (const p of patterns) {
-    const m = t.match(p);
-    if (m) return m[1].replace(/\s+/g, ' ').trim();
+function parseInteger(v) {
+  const n = parseDecimal(v);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+}
+
+async function fetchHtml(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      cache:'no-store',
+      redirect:'follow',
+      signal:controller.signal,
+      headers:{
+        'User-Agent':'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/150 Mobile Safari/537.36',
+        Accept:'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language':'tr-TR,tr;q=0.9,en;q=0.6',
+        'Cache-Control':'no-cache'
+      }
+    });
+    if (!response.ok) throw new Error(`TJK HTTP ${response.status}`);
+    const html = await response.text();
+    if (!html || html.length < 300) throw new Error('TJK program sayfası boş döndü.');
+    return html;
+  } finally {
+    clearTimeout(timer);
   }
-
-  return '';
 }
 
-function extractDistanceTrack(text = '') {
-  const t = cleanText(text);
-
-  const m = t.match(
-    /(?:^|,)\s*(\d{3,4})\s*(Kum|Çim|Sentetik)(?:\s|,|$)/i
-  );
-
-  if (!m) {
-    return {
-      distance: '',
-      track: ''
-    };
-  }
-
-  return {
-    distance: Number(m[1]),
-    track:
-      m[2].charAt(0).toUpperCase() +
-      m[2].slice(1).toLowerCase()
-  };
+function raceNoFromText(text = '') {
+  const m = clean(text).match(/\b(\d{1,2})\s*\.\s*Koşu\b/i);
+  return m ? Number(m[1]) : null;
 }
 
-function conditionBeforeAge(text = '', ageGroup = '') {
-  if (!ageGroup) return '';
-
-  const t = cleanText(text);
-  const i = t.toLocaleLowerCase('tr-TR').indexOf(
-    ageGroup.toLocaleLowerCase('tr-TR')
-  );
-
-  if (i < 0) return '';
-
-  let left = t.slice(0, i);
-
-  left = left
-    .replace(/^\d+\.\s*Koşu\s*\d{1,2}[.:]\d{2}\s*/i, '')
-    .replace(/^\d+\.\s*Koşu\s*/i, '')
-    .replace(/[,\s]+$/g, '')
-    .trim();
-
-  const lines = left
-    .split('\n')
-    .map(x => x.trim())
-    .filter(Boolean);
-
-  const candidate = lines.length
-    ? lines[lines.length - 1]
-    : left;
-
-  return normalizeRaceClass(candidate);
+function raceTimeFromText(text = '') {
+  const m = clean(text).match(/\b\d{1,2}\s*\.\s*Koşu\b\s*:?\s*(\d{1,2}[.:]\d{2})?/i);
+  return m?.[1] ? m[1].replace('.', ':') : '';
 }
 
-function findRaceCondition(bodyText, raceNo) {
-  const source = cleanText(bodyText);
-
-  const raceRe = new RegExp(
-    `(?:^|\\n)\\s*${raceNo}\\.\\s*Koşu(?:\\s+\\d{1,2}[.:]\\d{2})?`,
-    'gi'
-  );
-
-  const starts = [];
-  let m;
-
-  while ((m = raceRe.exec(source))) {
-    starts.push(m.index);
-  }
-
-  if (!starts.length) {
-    const fallback = new RegExp(
-      `${raceNo}\\.\\s*Koşu(?:\\s+\\d{1,2}[.:]\\d{2})?`,
-      'gi'
-    );
-
-    while ((m = fallback.exec(source))) {
-      starts.push(m.index);
-    }
-  }
-
-  let best = null;
-
-  for (const start of starts) {
-    const slice = source.slice(start, start + 1800);
-
-    const ageGroup = extractAgeGroup(slice);
-    const dt = extractDistanceTrack(slice);
-
-    if (!ageGroup || !dt.distance || !dt.track) {
-      continue;
-    }
-
-    const prizeIndex = slice.search(
-      /(?:İkramiye|Ikramiye)\s*:/i
-    );
-
-    const conditionArea =
-      prizeIndex >= 0
-        ? slice.slice(0, prizeIndex)
-        : slice.slice(0, 700);
-
-    const raceClass = conditionBeforeAge(
-      conditionArea,
-      ageGroup
-    );
-
-    const score =
-      (prizeIndex >= 0 ? 10 : 0) +
-      (raceClass ? 5 : 0) +
-      (ageGroup ? 5 : 0) +
-      (dt.distance ? 3 : 0) +
-      (dt.track ? 3 : 0);
-
-    if (!best || score > best.score) {
-      best = {
-        score,
-        conditionArea,
-        raceClass,
-        ageGroup,
-        distance: dt.distance,
-        track: dt.track
-      };
-    }
-  }
-
+function headersForTable($, table) {
+  let best = [];
+  $(table).find('tr').each((_, tr) => {
+    const cells = $(tr).find('th,td').toArray();
+    if (!cells.length) return;
+    const values = cells.map(c => clean($(c).text()));
+    const ks = values.map(key);
+    const looks = ks.some(x => x.includes('ATISMI') || x.includes('ATADI')) &&
+      (ks.some(x => x.includes('JOKEY')) || ks.some(x => x.includes('SIKLET') || x.includes('KILO')));
+    if (looks && values.length > best.length) best = values;
+  });
   return best;
 }
 
-export default async function handler(req, res) {
-  res.setHeader(
-    'Access-Control-Allow-Origin',
-    '*'
-  );
-
-  res.setHeader(
-    'Cache-Control',
-    'no-store, max-age=0'
-  );
-
-  const date = String(
-    req.query?.date || ''
-  ).trim();
-
-  const cityId = String(
-    req.query?.cityId || ''
-  ).trim();
-
-  const city = String(
-    req.query?.city || ''
-  ).trim();
-
-  const raceNo = Number(
-    req.query?.raceNo || 0
-  );
-
-  if (
-    !date ||
-    !cityId ||
-    !city ||
-    !Number.isInteger(raceNo) ||
-    raceNo < 1
-  ) {
-    return res.status(400).json({
-      ok: false,
-      version: 'TJK-RACE-META-V1',
-      error:
-        'date, cityId, city ve raceNo zorunludur.'
-    });
+function headerIndex(headers, aliases) {
+  const hs = headers.map(key);
+  for (const alias of aliases) {
+    const a = key(alias);
+    let i = hs.findIndex(h => h === a);
+    if (i >= 0) return i;
+    i = hs.findIndex(h => h.includes(a) || a.includes(h));
+    if (i >= 0) return i;
   }
+  return -1;
+}
 
-  const tjkDate = trDate(date);
-
-  if (!tjkDate) {
-    return res.status(400).json({
-      ok: false,
-      version: 'TJK-RACE-META-V1',
-      error:
-        'date YYYY-MM-DD biçiminde olmalıdır.'
-    });
+function nearestRaceHeading($, table) {
+  const all = $('body *').toArray();
+  const tableIndex = all.indexOf(table);
+  for (let i = tableIndex - 1; i >= 0; i -= 1) {
+    const el = all[i];
+    const tag = String(el.tagName || '').toLowerCase();
+    if (!/^h[1-6]$/.test(tag)) continue;
+    const text = clean($(el).text());
+    const no = raceNoFromText(text);
+    if (no) return { no, time:raceTimeFromText(text), text };
   }
+  return null;
+}
 
-  const url =
-    `${TJK_BASE}` +
-    `?Era=today` +
-    `&QueryParameter_Tarih=${encodeURIComponent(tjkDate)}` +
-    `&SehirAdi=${encodeURIComponent(city)}` +
-    `&SehirId=${encodeURIComponent(cityId)}`;
+function nearestConditionText($, table, raceNo) {
+  const all = $('body *').toArray();
+  const tableIndex = all.indexOf(table);
+  let condition = '';
+  for (let i = tableIndex - 1; i >= 0; i -= 1) {
+    const el = all[i];
+    const tag = String(el.tagName || '').toLowerCase();
+    if (!/^h[1-6]$/.test(tag)) continue;
+    const text = clean($(el).text());
+    const no = raceNoFromText(text);
+    if (no) break;
+    if (!condition && /\d{3,4}\s*(?:Çim|Kum|Sentetik|Dirt|Turf|All Weather|Polytrack)\b/i.test(text)) {
+      condition = text;
+    }
+  }
+  return condition;
+}
 
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      cache: 'no-store',
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/139 Safari/537.36',
-        'Accept':
-          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language':
-          'tr-TR,tr;q=0.9,en;q=0.7',
-        'Cache-Control':
-          'no-cache',
-        'Pragma':
-          'no-cache'
+function parseMeta(text = '') {
+  const raw = clean(text);
+  const distanceMatch = raw.match(/\b(\d{3,4})\s*(Çim|Kum|Sentetik|Dirt|Turf|All Weather|Polytrack)\b/i);
+  const ageMatch = raw.match(/\b(\d+\s*(?:ve\s*Yukarı)?\s*(?:Yaşlı\s*)?(?:İngilizler|Araplar)|\d+\s*Yaşlı\s*(?:İngilizler|Araplar))\b/i);
+  const parts = raw.split(',').map(clean).filter(Boolean);
+  let raceClass = parts[0] || '';
+  if (/^\d+\s*\.\s*Koşu/i.test(raceClass)) raceClass = parts[1] || '';
+  return {
+    class:raceClass,
+    ageGroup:ageMatch?.[1] || '',
+    distance:distanceMatch?.[1] || '',
+    track:distanceMatch?.[2] || ''
+  };
+}
+
+function rowText($, cell) {
+  const clone = $(cell).clone();
+  clone.find('script,style,.tooltip,.tooltiptextt,.popover,[title]').remove();
+  return clean(clone.text());
+}
+
+function parseHorseRows($, table, headers) {
+  const idxNo = headerIndex(headers, ['N','At No','No','Sıra']);
+  const idxName = headerIndex(headers, ['At İsmi','At Adı','At']);
+  const idxAge = headerIndex(headers, ['Yaş','Yas']);
+  const idxWeight = headerIndex(headers, ['Sıklet','Siklet','Kilo']);
+  const idxJockey = headerIndex(headers, ['Jokey','Jockey']);
+  const idxOwner = headerIndex(headers, ['Sahip','Owner']);
+  const idxTrainer = headerIndex(headers, ['Antrenör','Antrenor','Trainer']);
+  const idxSt = headerIndex(headers, ['St','Start','Kulvar']);
+  const idxHp = headerIndex(headers, ['HP','H']);
+  const idxLast6 = headerIndex(headers, ['Son 6 Y.','Son 6','Son6']);
+  const idxKgs = headerIndex(headers, ['KGS']);
+  const idxS20 = headerIndex(headers, ['s20','S20']);
+  const idxBest = headerIndex(headers, ['En İyi D.','En Iyi D.','En İyi Derece']);
+  const idxGny = headerIndex(headers, ['Gny','Ganyan','Muhtemel']);
+  const idxAgf = headerIndex(headers, ['AGF']);
+  const idxOrigin = headerIndex(headers, ['Orijin(Baba - Anne)','Orijin']);
+
+  const horses = [];
+  $(table).find('tr').each((_, tr) => {
+    const cells = $(tr).find('td').toArray();
+    if (!cells.length) return;
+    const values = cells.map(c => rowText($, c));
+    const get = idx => idx >= 0 && idx < values.length ? values[idx] : '';
+    let no = parseInteger(get(idxNo));
+    if (!no) {
+      for (const value of values.slice(0, 3)) {
+        const n = parseInteger(value);
+        if (n && n > 0 && n < 100) { no = n; break; }
       }
+    }
+    let name = clean(get(idxName));
+    if (!name) return;
+    name = name.replace(/\s+\b(?:KG|SK|DB|KUL|GKR|SGKR)\b.*$/i, '').trim();
+    if (!no || !name) return;
+
+    let id = null;
+    const atLink = $(tr).find('a[href*="QueryParameter_AtId="],a[href*="AtKosuBilgileri"]').first();
+    if (atLink.length) {
+      const href = atLink.attr('href') || '';
+      const m = href.match(/(?:QueryParameter_AtId|AtId)=([0-9]+)/i);
+      if (m) id = Number(m[1]);
+    }
+
+    horses.push({
+      no,
+      id,
+      name,
+      age:get(idxAge),
+      origin:get(idxOrigin),
+      weight:parseDecimal(get(idxWeight)),
+      weightText:get(idxWeight),
+      jockey:get(idxJockey),
+      owner:get(idxOwner),
+      trainer:get(idxTrainer),
+      st:parseInteger(get(idxSt)),
+      hp:parseInteger(get(idxHp)),
+      last6:get(idxLast6),
+      kgs:parseInteger(get(idxKgs)),
+      s20:parseDecimal(get(idxS20)),
+      best:get(idxBest),
+      odds:parseDecimal(get(idxGny)),
+      gny:parseDecimal(get(idxGny)),
+      agf:parseDecimal(get(idxAgf)),
+      foreignNoAtId:!id
     });
+  });
 
-    if (!response.ok) {
-      throw new Error(
-        `TJK HTTP ${response.status}`
-      );
+  return [...new Map(horses.map(h => [`${h.no}|${h.id || norm(h.name)}`, h])).values()]
+    .sort((a,b) => a.no - b.no);
+}
+
+function parseRaces(html) {
+  const $ = cheerio.load(html);
+  $('script,style,noscript').remove();
+  const out = new Map();
+
+  $('table').each((_, table) => {
+    const headers = headersForTable($, table);
+    if (!headers.length) return;
+    const heading = nearestRaceHeading($, table);
+    if (!heading?.no) return;
+    const horses = parseHorseRows($, table, headers);
+    if (!horses.length) return;
+    const conditionText = nearestConditionText($, table, heading.no);
+    const meta = parseMeta(conditionText);
+    const race = {
+      no:heading.no,
+      time:heading.time || '',
+      class:meta.class,
+      yaradi1:meta.class,
+      ageGroup:meta.ageGroup,
+      yaradi2:meta.ageGroup,
+      condition:'',
+      yaradi3:'',
+      distance:meta.distance,
+      mesafe:meta.distance,
+      track:meta.track,
+      pist:meta.track,
+      betStarts:[],
+      horses,
+      programLoaded:true,
+      detailsLoaded:true,
+      source:'TJK Günlük Yarış Programı — AtId bağımsız tablo parserı'
+    };
+    const current = out.get(race.no);
+    if (!current || horses.length > current.horses.length) out.set(race.no, race);
+  });
+
+  return [...out.values()].sort((a,b) => a.no - b.no);
+}
+
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  try {
+    const date = clean(req.query?.date || '');
+    const cityId = clean(req.query?.cityId || '');
+    const cityName = clean(req.query?.cityName || req.query?.city || '');
+    const tjkDate = toTjkDate(date);
+    if (!date || !tjkDate || !cityId || !cityName) {
+      return res.status(400).json({ ok:false, version:VERSION, error:'date, cityId ve cityName zorunludur.' });
     }
 
-    const html = await response.text();
+    const url = new URL(TJK_BASE);
+    url.searchParams.set('Era','today');
+    url.searchParams.set('QueryParameter_Tarih',tjkDate);
+    url.searchParams.set('SehirAdi',cityName);
+    url.searchParams.set('SehirId',cityId);
 
-    if (!html || html.length < 500) {
-      throw new Error(
-        'TJK program HTML boş veya eksik.'
-      );
-    }
-
-    const $ = cheerio.load(html);
-
-    $('script,style,noscript').remove();
-
-    const bodyText =
-      $('body').text();
-
-    const found =
-      findRaceCondition(
-        bodyText,
-        raceNo
-      );
-
-    if (!found) {
-      return res.status(404).json({
-        ok: false,
-        version: 'TJK-RACE-META-V1',
-        date,
-        cityId,
-        city,
-        raceNo,
-        error:
-          'Koşunun resmi yaş grubu / pist / mesafe bilgisi TJK programından ayrıştırılamadı.'
-      });
-    }
-
+    const html = await fetchHtml(url.toString());
+    const races = parseRaces(html);
+    const horseCount = races.reduce((sum, r) => sum + (r.horses?.length || 0), 0);
     return res.status(200).json({
-      ok: true,
-      version: 'TJK-RACE-META-V1',
+      ok:true,
+      version:VERSION,
       date,
       cityId,
-      city,
-      raceNo,
-      class: found.raceClass,
-      ageGroup: found.ageGroup,
-      distance: found.distance,
-      track: found.track,
-      source: 'TJK Günlük Yarış Programı',
-      sourceUrl: url
+      cityName,
+      raceCount:races.length,
+      horseCount,
+      races,
+      sourceUrl:url.toString()
     });
-  } catch (error) {
+  } catch (e) {
     return res.status(502).json({
-      ok: false,
-      version: 'TJK-RACE-META-V1',
-      date,
-      cityId,
-      city,
-      raceNo,
-      error:
-        error?.message ||
-        'TJK koşu meta verisi alınamadı.'
+      ok:false,
+      version:VERSION,
+      error:e?.name === 'AbortError' ? 'TJK yabancı program sayfası zaman aşımına uğradı.' : (e?.message || 'Yabancı yarış programı alınamadı.')
     });
   }
 }

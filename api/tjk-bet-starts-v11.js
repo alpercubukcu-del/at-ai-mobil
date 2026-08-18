@@ -1,7 +1,8 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-BET-STARTS-V11.0';
+const VERSION = 'TJK-BET-STARTS-V11.4-AGF';
 const BASE_URL = 'https://www.tjk.org/TR/YarisSever/Info/Sehir/GunlukYarisProgrami';
+const AGF_ROOT = 'https://www.tjk.org/AGFv2';
 const TIMEOUT_MS = 25000;
 
 function clean(v = '') {
@@ -19,6 +20,11 @@ function upper(v = '') {
 function toTjkDate(iso = '') {
   const m = clean(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return m ? `${m[3]}/${m[2]}/${m[1]}` : clean(iso);
+}
+
+function toAgfDate(iso = '') {
+  const m = clean(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}${m[2]}${m[1]}` : '';
 }
 
 function raceNoFromText(text = '') {
@@ -54,11 +60,12 @@ async function fetchHtml(url) {
         'Cache-Control':'no-cache'
       },
       redirect:'follow',
+      cache:'no-store',
       signal:controller.signal
     });
     if (!response.ok) throw new Error(`TJK HTTP ${response.status}`);
     const html = await response.text();
-    if (!html) throw new Error('TJK boş program sayfası döndürdü.');
+    if (!html) throw new Error('TJK boş sayfa döndürdü.');
     return html;
   } finally {
     clearTimeout(timer);
@@ -90,10 +97,6 @@ function parseHeadings(html) {
   return starts;
 }
 
-/*
-  Bazı TJK şablonlarında bahis metni h4 yerine div/a içinde olabilir.
-  İkinci geçişte DOM sırasını koruyup yalnız doğrudan metni olan blokları tararız.
-*/
 function parseFallbackBlocks(html, existing) {
   const $ = cheerio.load(html);
   const starts = new Map(existing);
@@ -120,12 +123,100 @@ function parseFallbackBlocks(html, existing) {
   return starts;
 }
 
+function nearestAgfLegForTable($, table) {
+  const all = $('body *').toArray();
+  const tableIndex = all.indexOf(table);
+  for (let i = tableIndex - 1; i >= 0; i -= 1) {
+    const el = all[i];
+    const text = clean($(el).clone().children().remove().end().text() || $(el).text());
+    const m = text.match(/^(\d{1,2})\s*\.\s*AYAK\b/i);
+    if (m) return Number(m[1]);
+  }
+  return null;
+}
+
+function parseAgfHtml(html) {
+  const $ = cheerio.load(html);
+  $('script,style,noscript').remove();
+  const legs = {};
+
+  $('table').each((_, table) => {
+    const leg = nearestAgfLegForTable($, table);
+    if (!leg) return;
+    const horses = legs[String(leg)] || {};
+
+    $(table).find('tr').each((__, tr) => {
+      $(tr).find('td,th').each((___, cell) => {
+        const text = clean($(cell).text());
+        if (!text || !text.includes('%') || !text.includes('(')) return;
+        const re = /(?:^|[^0-9])(\d{1,2})\s*\(\s*%\s*(\d+(?:[.,]\d+)?)\s*\)/g;
+        let m;
+        while ((m = re.exec(text))) {
+          const no = Number(m[1]);
+          const agf = Number(String(m[2]).replace(',', '.'));
+          if (!Number.isFinite(no) || !Number.isFinite(agf) || no < 1 || no > 99) continue;
+          horses[String(no)] = agf;
+        }
+      });
+    });
+
+    if (Object.keys(horses).length) legs[String(leg)] = horses;
+  });
+
+  return legs;
+}
+
+function startRaceForPool(starts, poolNo) {
+  const wanted = `${poolNo}. 6'LI GANYAN`;
+  for (const [raceNo, labels] of starts.entries()) {
+    if ((labels || []).some(label => upper(label) === upper(wanted))) return Number(raceNo);
+  }
+  return null;
+}
+
+async function loadAgfPool(cityId, date, poolNo, starts) {
+  const compactDate = toAgfDate(date);
+  if (!compactDate) return null;
+  const startRace = startRaceForPool(starts, poolNo);
+  if (!startRace) return null;
+
+  const url = `${AGF_ROOT}/${encodeURIComponent(cityId)}/${compactDate}/TR/${poolNo}/1`;
+  try {
+    const html = await fetchHtml(url);
+    const legs = parseAgfHtml(html);
+    const byRace = {};
+    for (const [legText, horseMap] of Object.entries(legs)) {
+      const leg = Number(legText);
+      if (!Number.isFinite(leg) || leg < 1) continue;
+      byRace[String(startRace + leg - 1)] = horseMap;
+    }
+    return {
+      poolNo,
+      startRace,
+      legs,
+      byRace,
+      sourceUrl:url,
+      horseValueCount:Object.values(legs).reduce((sum, x) => sum + Object.keys(x || {}).length, 0)
+    };
+  } catch (e) {
+    return {
+      poolNo,
+      startRace,
+      legs:{},
+      byRace:{},
+      sourceUrl:url,
+      error:e?.message || String(e),
+      horseValueCount:0
+    };
+  }
+}
+
 export default async function handler(req, res) {
   const startedAt = Date.now();
   try {
     const date = clean(req.query?.date || '');
     const cityId = clean(req.query?.cityId || '');
-    const cityName = clean(req.query?.cityName || '');
+    const cityName = clean(req.query?.cityName || req.query?.city || '');
     if (!date || !cityId || !cityName) {
       return res.status(400).json({ ok:false, version:VERSION, error:'date, cityId ve cityName zorunludur.' });
     }
@@ -146,7 +237,13 @@ export default async function handler(req, res) {
       .map(([raceNo, betStarts]) => ({ raceNo:Number(raceNo), betStarts }));
 
     const allStarts = races.flatMap(r => r.betStarts.map(label => ({ raceNo:r.raceNo, label })));
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=900');
+
+    const [agf1, agf2] = await Promise.all([
+      loadAgfPool(cityId, date, 1, starts),
+      loadAgfPool(cityId, date, 2, starts)
+    ]);
+
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     return res.status(200).json({
       ok:true,
       version:VERSION,
@@ -156,6 +253,7 @@ export default async function handler(req, res) {
       races,
       allStarts,
       startCount:allStarts.length,
+      agf:{ pool1:agf1, pool2:agf2 },
       sourceUrl:url.toString(),
       durationMs:Date.now()-startedAt
     });
@@ -163,7 +261,7 @@ export default async function handler(req, res) {
     return res.status(500).json({
       ok:false,
       version:VERSION,
-      error:e?.name === 'AbortError' ? 'TJK bahis başlangıç sayfası zaman aşımına uğradı.' : (e?.message || 'Bahis başlangıçları alınamadı.'),
+      error:e?.name === 'AbortError' ? 'TJK sayfası zaman aşımına uğradı.' : (e?.message || 'Bahis başlangıçları / AGF alınamadı.'),
       durationMs:Date.now()-startedAt
     });
   }
