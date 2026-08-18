@@ -1,4 +1,6 @@
-const VERSION = 'TJK-ROADMAP-EXACT-V4';
+const VERSION = 'TJK-ROADMAP-EXACT-V4.1';
+const INTERNAL_RETRIES = 3;
+const CAREER_CONCURRENCY = 2;
 
 function cleanText(value) {
   if (value === undefined || value === null) return '';
@@ -10,6 +12,10 @@ function firstValue(...values) {
     if (value !== undefined && value !== null && String(value).trim() !== '') return value;
   }
   return null;
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function toInteger(value) {
@@ -69,26 +75,59 @@ function setParam(url, key, value) {
   if (text) url.searchParams.set(key, text);
 }
 
-async function fetchJson(url, timeoutMs = 25000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, {
-      headers:{ Accept:'application/json, text/plain, */*', 'Cache-Control':'no-cache' },
-      signal:controller.signal
-    });
-    const text = await response.text();
-    let data;
-    try { data = text ? JSON.parse(text) : {}; }
-    catch { throw new Error(`JSON olmayan cevap (${response.status}): ${text.slice(0,180)}`); }
-    if (!response.ok) throw new Error(data?.error || `HTTP ${response.status}`);
-    return data;
-  } catch (e) {
-    if (e?.name === 'AbortError') throw new Error('TJK isteği zaman aşımına uğradı.');
-    throw e;
-  } finally {
-    clearTimeout(timer);
+async function fetchJson(url, timeoutMs = 25000, attempts = INTERNAL_RETRIES) {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        headers:{
+          Accept:'application/json, text/plain, */*',
+          'Cache-Control':'no-cache',
+          Pragma:'no-cache'
+        },
+        signal:controller.signal
+      });
+      const text = await response.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(`JSON olmayan cevap (${response.status}): ${text.slice(0, 180)}`);
+      }
+
+      if (!response.ok) throw new Error(data?.error || `HTTP ${response.status}`);
+      return data;
+    } catch (e) {
+      lastError = e?.name === 'AbortError'
+        ? new Error('TJK isteği zaman aşımına uğradı.')
+        : e;
+      if (attempt < attempts) await sleep(300 * attempt);
+    } finally {
+      clearTimeout(timer);
+    }
   }
+
+  throw lastError || new Error('İstek başarısız.');
+}
+
+async function mapLimit(items, limit, worker) {
+  const output = new Array(items.length);
+  let cursor = 0;
+
+  async function run() {
+    while (true) {
+      const index = cursor++;
+      if (index >= items.length) return;
+      output[index] = await worker(items[index], index);
+    }
+  }
+
+  const count = Math.min(Math.max(1, limit), items.length || 1);
+  await Promise.all(Array.from({ length:count }, () => run()));
+  return output;
 }
 
 function normalizeHistoricalCandidate(raw) {
@@ -97,6 +136,7 @@ function normalizeHistoricalCandidate(raw) {
   const city = cleanText(firstValue(raw.city, raw.sehir, raw.şehir, raw.Şehir));
   const raceNo = toInteger(firstValue(raw.raceNo, raw.raceNumber, raw.kosuNo, raw.koşuNo, raw.kosuSirasi));
   if (!date || !city || !raceNo) return null;
+
   return {
     date,
     city,
@@ -185,9 +225,18 @@ function freezeWins(sourceRows, cutoffExclusive) {
 
   for (const raw of sourceRows) {
     const row = normalizeCareerRow(raw);
-    if (!row.isoDate) { rejectedInvalidDate++; continue; }
-    if (row.isoDate >= cutoffExclusive) { rejectedAfterCutoff++; continue; }
-    if (row.finish !== 1) { rejectedFinish++; continue; }
+    if (!row.isoDate) {
+      rejectedInvalidDate++;
+      continue;
+    }
+    if (row.isoDate >= cutoffExclusive) {
+      rejectedAfterCutoff++;
+      continue;
+    }
+    if (row.finish !== 1) {
+      rejectedFinish++;
+      continue;
+    }
     rows.push(row);
   }
 
@@ -222,8 +271,10 @@ async function buildHistoricalHorseCareer({ baseUrl, horse, historicalDateIso })
     const url = new URL('/api/tjk-career', baseUrl);
     setParam(url, 'horseId', horse.horseId);
     setParam(url, 'before', historicalDateIso);
+    url.searchParams.set('_roadmapRetry', String(Date.now()));
+
     const startedAt = Date.now();
-    const career = await fetchJson(url.toString(), 30000);
+    const career = await fetchJson(url.toString(), 45000, INTERNAL_RETRIES);
     result.career.durationMs = Date.now() - startedAt;
     result.career.careerVersion = career?.version || null;
     if (!career?.ok) throw new Error(career?.error || 'At kariyeri okunamadı.');
@@ -233,7 +284,6 @@ async function buildHistoricalHorseCareer({ baseUrl, horse, historicalDateIso })
     result.career.ok = true;
     result.career.winsBefore = frozen.rows;
     result.career.winsBeforeCount = frozen.rows.length;
-    // Eski frontend uyumluluğu: içerik artık yalnız galibiyetlerden oluşur.
     result.career.top5Before = frozen.rows;
     result.career.top5BeforeCount = frozen.rows.length;
     result.career.diagnostics = {
@@ -280,8 +330,10 @@ async function buildHistoricalRace({ baseUrl, candidate }) {
     setParam(historyUrl, 'date', candidate.date);
     setParam(historyUrl, 'city', candidate.city);
     setParam(historyUrl, 'raceNo', candidate.raceNo);
+    historyUrl.searchParams.set('_roadmapRetry', String(Date.now()));
+
     const startedAt = Date.now();
-    const history = await fetchJson(historyUrl.toString(), 20000);
+    const history = await fetchJson(historyUrl.toString(), 35000, INTERNAL_RETRIES);
     output.historyDurationMs = Date.now() - startedAt;
     output.historyVersion = history?.version || null;
     if (!history?.ok) throw new Error(history?.error || 'Geçmiş yarış sonucu okunamadı.');
@@ -295,11 +347,15 @@ async function buildHistoricalRace({ baseUrl, candidate }) {
     };
 
     const top3 = Array.isArray(history.top3)
-      ? history.top3.map(normalizeTop3Horse).filter(Boolean).sort((a,b) => a.finish - b.finish).slice(0,3)
+      ? history.top3.map(normalizeTop3Horse).filter(Boolean).sort((a, b) => a.finish - b.finish).slice(0, 3)
       : [];
     if (!top3.length) throw new Error('Tarihsel yarışın gerçek ilk 3 verisi bulunamadı.');
 
-    output.top3 = await Promise.all(top3.map(horse => buildHistoricalHorseCareer({ baseUrl, horse, historicalDateIso:candidate.date })));
+    output.top3 = await mapLimit(
+      top3,
+      CAREER_CONCURRENCY,
+      horse => buildHistoricalHorseCareer({ baseUrl, horse, historicalDateIso:candidate.date })
+    );
     output.top3Count = output.top3.length;
     output.ok = true;
     return output;
@@ -323,17 +379,24 @@ function getRules(minYear) {
     historicalCareer:'career_race_date < historical_race_date',
     careerFinish:'finish === 1 only',
     leakageProtection:true,
+    internalRetries:INTERNAL_RETRIES,
+    careerConcurrency:CAREER_CONCURRENCY,
     minYear
   };
 }
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
+
   try {
     const { date, city, class:raceClass, ageGroup, track, distance } = req.query || {};
     const targetDateIso = dateToIso(date);
-    if (!targetDateIso) return res.status(400).json({ ok:false, version:VERSION, error:'date YYYY-MM-DD biçiminde gerekli.' });
-    if (!cleanText(city)) return res.status(400).json({ ok:false, version:VERSION, error:'city gerekli.' });
+    if (!targetDateIso) {
+      return res.status(400).json({ ok:false, version:VERSION, error:'date YYYY-MM-DD biçiminde gerekli.' });
+    }
+    if (!cleanText(city)) {
+      return res.status(400).json({ ok:false, version:VERSION, error:'city gerekli.' });
+    }
 
     const minYear = Math.max(1950, toInteger(req.query?.minYear) || 2000);
     const baseUrl = getBaseUrl(req);
@@ -346,9 +409,10 @@ export default async function handler(req, res) {
     setParam(similarUrl, 'distance', distance);
     setParam(similarUrl, 'minYear', minYear);
     setParam(similarUrl, 'maxPages', req.query?.maxPages || 40);
+    similarUrl.searchParams.set('_roadmapRetry', String(Date.now()));
 
     const similarStartedAt = Date.now();
-    const similar = await fetchJson(similarUrl.toString(), 30000);
+    const similar = await fetchJson(similarUrl.toString(), 35000, INTERNAL_RETRIES);
     const similarDurationMs = Date.now() - similarStartedAt;
     if (!similar?.ok) throw new Error(similar?.error || 'Tam tarihsel eşleşme servisi başarısız.');
 
@@ -357,7 +421,14 @@ export default async function handler(req, res) {
       return res.status(200).json({
         ok:true,
         version:VERSION,
-        target:{ date:targetDateIso, city:cleanText(city), class:cleanText(raceClass), ageGroup:normalizeAgeGroup(ageGroup), track:cleanText(track), distance:normalizeDistance(distance) },
+        target:{
+          date:targetDateIso,
+          city:cleanText(city),
+          class:cleanText(raceClass),
+          ageGroup:normalizeAgeGroup(ageGroup),
+          track:cleanText(track),
+          distance:normalizeDistance(distance)
+        },
         rules:getRules(minYear),
         diagnostics:{ similarVersion:similar.version || null, similarDurationMs, exactMatchesFound:similar.matchCount || 0, selectedYearCount:0 },
         yearResults:Array.isArray(similar.yearResults) ? similar.yearResults : [],
@@ -369,16 +440,19 @@ export default async function handler(req, res) {
     const historicalRaces = [];
     for (const candidate of selectedCandidates) {
       historicalRaces.push(await buildHistoricalRace({ baseUrl, candidate }));
+      await sleep(100);
     }
 
     let historicalHorseCount = 0;
     let successfulCareerCount = 0;
     let failedCareerCount = 0;
     let frozenWinRowCount = 0;
+
     for (const race of historicalRaces) {
       for (const horse of Array.isArray(race.top3) ? race.top3 : []) {
         historicalHorseCount++;
-        if (horse.career?.ok) successfulCareerCount++; else failedCareerCount++;
+        if (horse.career?.ok) successfulCareerCount++;
+        else failedCareerCount++;
         frozenWinRowCount += Array.isArray(horse.career?.winsBefore) ? horse.career.winsBefore.length : 0;
       }
     }
@@ -399,7 +473,14 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ok:true,
       version:VERSION,
-      target:{ date:targetDateIso, city:cleanText(city), class:cleanText(raceClass), ageGroup:normalizeAgeGroup(ageGroup), track:cleanText(track), distance:normalizeDistance(distance) },
+      target:{
+        date:targetDateIso,
+        city:cleanText(city),
+        class:cleanText(raceClass),
+        ageGroup:normalizeAgeGroup(ageGroup),
+        track:cleanText(track),
+        distance:normalizeDistance(distance)
+      },
       rules:getRules(minYear),
       diagnostics:{
         similarVersion:similar.version || null,
@@ -413,7 +494,9 @@ export default async function handler(req, res) {
         historicalHorseCount,
         successfulCareerCount,
         failedCareerCount,
-        frozenWinRowCount
+        frozenWinRowCount,
+        internalRetries:INTERNAL_RETRIES,
+        careerConcurrency:CAREER_CONCURRENCY
       },
       yearResults:Array.isArray(similar.yearResults) ? similar.yearResults : [],
       byYear,
@@ -421,6 +504,10 @@ export default async function handler(req, res) {
     });
   } catch (e) {
     console.error(`[${VERSION}]`, e);
-    return res.status(500).json({ ok:false, version:VERSION, error:e?.message || 'Tam tarihsel yol haritası oluşturulamadı.' });
+    return res.status(500).json({
+      ok:false,
+      version:VERSION,
+      error:e?.message || 'Tam tarihsel yol haritası oluşturulamadı.'
+    });
   }
 }
