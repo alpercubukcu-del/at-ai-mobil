@@ -1,13 +1,20 @@
-/* AT AI Mobil — V11.1 KİLO / SIKLET BENZERLİĞİ
+/* AT AI Mobil — V11.2 KİLO / SIKLET / IRK BENZERLİĞİ
    Kariyer / Hazırlık yolunda:
+   - İl
+   - Sınıf
+   - Yaş grubu
+   - Irk
+   - Mesafe
+   - Pist
    - HP
    - Kilo şartı (kaynakta bulunabiliyorsa)
    - Atın fiilen taşıdığı sıklet
    ayrı sinyaller olarak kullanılır.
+   Galibiyet/İlk-5 kronolojik sırası orderedPathSimilarity tarafından korunur.
    Eksik veri sıfır sayılmaz; mevcut kriterler yeniden normalize edilir.
 */
 
-const TICKET_WEIGHT_VERSION = 'CAREER-WEIGHT-SIMILARITY-V11.1';
+const TICKET_WEIGHT_VERSION = 'CAREER-WEIGHT-BREED-SIMILARITY-V11.2';
 
 function numericWeightV111(v) {
   if (v === null || v === undefined || v === '') return null;
@@ -74,16 +81,42 @@ function weightConditionSimilarityV111(a, b) {
   return na === nb ? 1.00 : 0.40;
 }
 
+function breedValueV112(row = {}) {
+  const direct = [row.breed, row.irk, row.raceBreed, row.horseBreed]
+    .find(v => v !== null && v !== undefined && String(v).trim());
+  const raw = direct !== undefined
+    ? String(direct)
+    : [row.ageGroup, row.group, row.groupRaw, row.classRaw, row.raceClass, row.class]
+        .filter(Boolean).join(' ');
+  const n = typeof normalizeTextV11 === 'function'
+    ? normalizeTextV11(raw)
+    : String(raw).toUpperCase();
+  if (n.includes('ARAP')) return 'Arap';
+  if (n.includes('INGILIZ')) return 'İngiliz';
+  return null;
+}
+
+function breedSimilarityV112(a, b) {
+  const x = breedValueV112(a || {});
+  const y = breedValueV112(b || {});
+  if (!x || !y) return null;
+  return x === y ? 1.00 : 0.00;
+}
+
 /*
-  V11.1 kriter dağılımı (veri varsa):
-  Sınıf        %21
-  Yaş          %12
-  Mesafe       %14
-  Pist         %11
-  Şehir        %08
-  HP           %15
-  Kilo şartı   %09
+  V11.2 kriter dağılımı (veri varsa):
+  Sınıf        %18
+  Yaş          %10
+  Irk          %08
+  Mesafe       %13
+  Pist         %10
+  Şehir        %07
+  HP           %14
+  Kilo şartı   %10
   Taşınan kg   %10
+
+  Kronolojik sıra ayrı bir sabit yüzde değildir: orderedPathSimilarity,
+  galibiyet/ilk-5 dizisini sırasını bozmadan hizalar ve gap cezası uygular.
 
   Eksik kriterlerin ağırlığı toplamdan çıkarılır; at eksik veri nedeniyle 0'a çekilmez.
 */
@@ -91,18 +124,21 @@ careerRowSimilarity = function(a, b) {
   if (!a || !b) return 0;
 
   const parts = [
-    [classSimilarity(a.class || a.raceClass, b.class || b.raceClass), 0.21],
-    [ageGroupSimilarity(a.ageGroup || a.group, b.ageGroup || b.group), 0.12],
-    [distanceSimilarity(a.distance || a.mesafe || a.msf, b.distance || b.mesafe || b.msf), 0.14],
-    [trackSimilarity(a.track || a.pist, b.track || b.pist), 0.11],
-    [citySimilarity(a.city, b.city), 0.08]
+    [classSimilarity(a.class || a.raceClass, b.class || b.raceClass), 0.18],
+    [ageGroupSimilarity(a.ageGroup || a.group, b.ageGroup || b.group), 0.10],
+    [distanceSimilarity(a.distance || a.mesafe || a.msf, b.distance || b.mesafe || b.msf), 0.13],
+    [trackSimilarity(a.track || a.pist, b.track || b.pist), 0.10],
+    [citySimilarity(a.city, b.city), 0.07]
   ];
 
+  const breed = breedSimilarityV112(a, b);
+  if (breed !== null) parts.push([breed, 0.08]);
+
   const hp = typeof hpSimilarityV11 === 'function' ? hpSimilarityV11(a.hp, b.hp) : null;
-  if (hp !== null) parts.push([hp, 0.15]);
+  if (hp !== null) parts.push([hp, 0.14]);
 
   const kiloSarti = weightConditionSimilarityV111(a, b);
-  if (kiloSarti !== null) parts.push([kiloSarti, 0.09]);
+  if (kiloSarti !== null) parts.push([kiloSarti, 0.10]);
 
   const tasinan = carriedWeightSimilarityV111(
     a.weight ?? a.siklet ?? a.carriedWeight,
@@ -121,9 +157,11 @@ careerRowSimilarity = function(a, b) {
   return weight > 0 ? Math.max(0, Math.min(1, sum / weight)) : 0;
 };
 
-// İleride arayüzde açıklama satırı için kullanılabilecek kırılım.
 function careerRowSimilarityBreakdownV111(a, b) {
   return {
+    breed: breedSimilarityV112(a || {}, b || {}),
+    currentBreed: breedValueV112(a || {}),
+    historicalBreed: breedValueV112(b || {}),
     hp: typeof hpSimilarityV11 === 'function' ? hpSimilarityV11(a?.hp, b?.hp) : null,
     weightCondition: weightConditionSimilarityV111(a || {}, b || {}),
     carriedWeight: carriedWeightSimilarityV111(
