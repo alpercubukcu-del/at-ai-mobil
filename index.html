@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/home-race-cards-v113.css" />
   <link rel="stylesheet" href="/podium-similarity-v115.css" />
   <link rel="stylesheet" href="/calibration-v116.css" />
+  <link rel="stylesheet" href="/manual-ticket-v117.css" />
 </head>
 <body>
   <div class="app-shell">
@@ -30,13 +31,13 @@
       </section>
       <section class="panel">
         <div class="section-title-row">
-          <div><div class="eyebrow">KUPON MERKEZİ</div><h2>Günün Bahisleri</h2></div>
+          <div><div class="eyebrow">KUPON MERKEZİ</div><h2>Manuel Kupon</h2></div>
           <button id="clearBtn" class="danger-ghost">Analizleri Temizle</button>
         </div>
         <div class="five-model-note-v11">
-          <b>5 MODEL AYNI ANDA</b>
-          <span>Tam Eşleşme · Koşul İkizi · Yarış Ailesi · Kariyer/Hazırlık · Bileşik</span>
-          <small>Bileşik: %40 Tam + %25 İkiz + %20 Aile + %15 Kariyer. Eksik kanal sıfır sayılmaz; mevcut kanallar yeniden normalize edilir.</small>
+          <b>SİSTEM SEÇİMLERİ + MANUEL DÜZENLEME</b>
+          <span>Bileşik · Tam · İkiz · Aile · Kariyer</span>
+          <small>Bahis türünü seç; TJK resmi başlangıç koşusu otomatik bulunur. Ayaklarda sistemin seçtiği atlar işaretli gelir.</small>
         </div>
         <select id="signalSource" aria-label="V11 model kaynağı" style="display:none"><option value="combined">5 Model</option></select>
         <div id="betTypes" class="bet-grid"></div>
@@ -45,8 +46,8 @@
           <label>Birim fiyat (₺)<input id="unitPrice" type="number" min="0.01" step="0.01" value="1" /></label>
           <label>Tek sayısı<select id="singleCount"><option>0</option><option selected>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
         </div>
-        <div class="ticket-rule-v11">Tek = 0 ise her ayakta en az 2 at zorunludur. Model verisi olmayan ayakta rastgele/fallback seçim yapılmaz.</div>
-        <button id="buildAllBtn" class="primary">5 Model Kuponlarını Oluştur</button>
+        <div class="ticket-rule-v11">Atları ayak içinde dokunarak ekleyip çıkarabilirsin. Kupon Oluştur yalnız seçtiğin bahis tipini oluşturur.</div>
+        <button id="buildAllBtn" class="primary">Kupon Oluştur</button>
       </section>
       <section class="panel">
         <div class="eyebrow">GÜNLÜK PROGRAM</div><h2>Koşular</h2>
@@ -54,7 +55,7 @@
         <div id="raceList" class="race-list empty">Program henüz yüklenmedi.</div>
       </section>
       <section class="panel">
-        <div class="eyebrow">OLUŞTURULAN KUPONLAR</div><h2>5 Model Karşılaştırması</h2>
+        <div class="eyebrow">OLUŞTURULAN KUPON</div><h2>Seçili Bahis</h2>
         <div id="tickets" class="ticket-list empty">Henüz kupon oluşturulmadı.</div>
       </section>
     </main>
@@ -74,7 +75,7 @@
     <div class="toolbar">
       <select id="analysisRace"><option value="all">Tüm Koşular</option></select>
       <button id="runAnalysis" class="primary small">Analizi Hesapla</button>
-      <button id="ticketFromAnalysis" class="secondary small">5 Model Kupon Oluştur</button>
+      <button id="ticketFromAnalysis" class="secondary small">Manuel Kupon</button>
     </div>
     <div id="analysisContent" class="analysis-content empty">Analiz seçilmedi.</div>
   </dialog>
@@ -92,5 +93,6 @@
   <script src="/foreign-program-v114.js"></script>
   <script src="/podium-similarity-v115.js"></script>
   <script src="/calibration-v116.js"></script>
+  <script src="/manual-ticket-v117.js"></script>
 </body>
 </html>
