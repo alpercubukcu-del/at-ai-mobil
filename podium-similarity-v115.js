@@ -1,22 +1,27 @@
 /* AT AI Mobil — Podium Similarity Rankings V11.5
-   Her koşuda 1.lik / 2.lik / 3.lük için ayrı tarihsel yol sıralaması üretir.
-   Kanallar: Bileşik, Tam, İkiz, Aile, Kariyer.
+   Mevcut V11 5-model motorunu dereceye duyarlı hale getirir.
 
-   Temel kurallar:
-   - 1.lik yalnız geçmiş yarışların 1.leriyle, 2.lik yalnız 2.leriyle,
-     3.lük yalnız 3.leriyle karşılaştırılır.
-   - Kaynak yıllar birbirine ortalanmaz; kanal skoru en güçlü yıllık yoldur.
+   Her koşuda:
+   - 1.lik yalnız tarihsel 1.lerle,
+   - 2.lik yalnız tarihsel 2.lerle,
+   - 3.lük yalnız tarihsel 3.lerle karşılaştırılır.
+
+   Her derece için ayrı sıralamalar:
+   Bileşik / Tam / İkiz / Aile / Kariyer.
+
+   Korunan V11 kuralları:
+   - Yıllar ortalanmaz; kanalın ham skoru en güçlü yıllık yoldur.
    - WIN_PATH ve PREPARATION_PATH ham yüzdeleri doğrudan karşılaştırılmaz.
-     Her kanal/mod önce kendi içinde sıralanır; ortak sıralama mod-içi karar puanıyla yapılır.
-   - Bileşik ağırlıkları V11 ile aynıdır: %40 Tam + %25 İkiz + %20 Aile + %15 Kariyer.
-   - Eksik kanal sıfır değildir; mevcut kanallar yeniden normalize edilir.
+     Önce her mod kendi içinde sıralanır; ortak sıralama karar puanıyla yapılır.
+   - Bileşik: %40 Tam + %25 İkiz + %20 Aile + %15 Kariyer.
+   - Eksik kanal sıfır sayılmaz; mevcut kanallar yeniden normalize edilir.
 */
 
 const PODIUM_SIMILARITY_V115 = 'PODIUM-SIMILARITY-V11.5';
-const calculateGalibiyetBenzerligiBeforeV115 = calculateGalibiyetBenzerligi;
-const runCareerAnalysisBeforeV115 = runCareerAnalysis;
-const isValidCareerCacheBeforeV115 = isValidCareerCache;
-const careerRaceAccordionHtmlBeforeV115 = careerRaceAccordionHtml;
+const horseModelScoresBeforeV115 = horseModelScoresV11;
+const prepareRaceModelsBeforeV115 = prepareRaceModelsV11;
+const renderCareerAnalysisBeforeV115 = renderCareerAnalysis;
+let podiumRenderTokenV115 = 0;
 
 function finitePodiumV115(value) {
   const n = Number(value);
@@ -28,22 +33,25 @@ function clampPodiumV115(value, lo = 0, hi = 100) {
   return n === null ? null : Math.max(lo, Math.min(hi, n));
 }
 
-function modePodiumV115(path) {
-  const rows = Array.isArray(path) ? path : [];
-  if (typeof adaptiveCurrentMode === 'function') return adaptiveCurrentMode(rows);
-  if (!rows.length) return 'DEBUT';
-  return rows.some(row => Number(row?.finish ?? row?.rank ?? row?.sira) === 1)
-    ? 'WIN_PATH'
-    : 'PREPARATION_PATH';
+function modePodiumV115(career = {}) {
+  if (career?.analysisMode === 'WIN_PATH' || career?.analysisMode === 'PREPARATION_PATH' || career?.analysisMode === 'DEBUT') {
+    return career.analysisMode;
+  }
+  if (typeof analysisModeV11 === 'function') return analysisModeV11(career);
+  const path = Array.isArray(career?.roadmap) ? career.roadmap : [];
+  if (!path.length) return 'DEBUT';
+  return path.some(row => Number(row?.finish ?? row?.rank ?? row?.sira) === 1) ? 'WIN_PATH' : 'PREPARATION_PATH';
 }
 
 function modeLabelPodiumV115(mode) {
+  if (typeof modeLabelV11 === 'function') return modeLabelV11(mode);
   if (mode === 'WIN_PATH') return 'Galibiyet Yolu';
   if (mode === 'PREPARATION_PATH') return 'Hazırlık / İlk 5';
   return 'Debut';
 }
 
 function referencePathPodiumV115(ref, mode) {
+  if (typeof referencePathV11 === 'function') return referencePathV11(ref, mode);
   if (typeof adaptiveReferencePath === 'function') return adaptiveReferencePath(ref, mode);
   if (mode === 'WIN_PATH') {
     return Array.isArray(ref?.career?.winsBefore)
@@ -51,8 +59,7 @@ function referencePathPodiumV115(ref, mode) {
       : [];
   }
   const top5 = Array.isArray(ref?.career?.top5Before) ? ref.career.top5Before : [];
-  if (top5.length) return top5;
-  return Array.isArray(ref?.career?.preparationPathBefore) ? ref.career.preparationPathBefore : [];
+  return top5.length ? top5 : (Array.isArray(ref?.career?.preparationPathBefore) ? ref.career.preparationPathBefore : []);
 }
 
 function orderedPathScorePodiumV115(currentPath, historicalPath) {
@@ -63,20 +70,14 @@ function orderedPathScorePodiumV115(currentPath, historicalPath) {
   return Math.round(Math.max(0, Math.min(1, raw)) * 100);
 }
 
-function scoreFinishRowsPodiumV115(currentPath, historicalRaces, targetFinish, useCondition = true) {
-  const path = Array.isArray(currentPath) ? [...currentPath] : [];
-  const mode = modePodiumV115(path);
+function scoreFinishRowsPodiumV115(career, historicalRaces, targetFinish, useCondition = true) {
+  const path = Array.isArray(career?.roadmap) ? career.roadmap : [];
+  const mode = modePodiumV115(career);
   if (!path.length || mode === 'DEBUT') {
     return {
-      score:null,
-      strongest:null,
-      rows:[],
-      mode,
-      targetFinish,
-      strongYears:0,
-      supportYears:0,
-      latestScore:null,
-      coverageYears:0
+      score:null, rawScore:null, strongest:null, rows:[], mode, targetFinish,
+      strongYears:0, supportYears:0, latestScore:null, coverageYears:0,
+      yearAggregation:'NONE'
     };
   }
 
@@ -131,15 +132,9 @@ function scoreFinishRowsPodiumV115(currentPath, historicalRaces, targetFinish, u
   const rows = [...byYear.values()].sort((a, b) => b.year - a.year);
   if (!rows.length) {
     return {
-      score:null,
-      strongest:null,
-      rows:[],
-      mode,
-      targetFinish,
-      strongYears:0,
-      supportYears:0,
-      latestScore:null,
-      coverageYears:0
+      score:null, rawScore:null, strongest:null, rows:[], mode, targetFinish,
+      strongYears:0, supportYears:0, latestScore:null, coverageYears:0,
+      yearAggregation:'NONE'
     };
   }
 
@@ -149,6 +144,7 @@ function scoreFinishRowsPodiumV115(currentPath, historicalRaces, targetFinish, u
 
   return {
     score:strongest.score,
+    rawScore:strongest.score,
     strongest,
     rows,
     mode,
@@ -161,7 +157,19 @@ function scoreFinishRowsPodiumV115(currentPath, historicalRaces, targetFinish, u
   };
 }
 
-function weightedCompositePodiumV115(channels, preferRaw = false) {
+function uniqueHistoricalPodiumV115(models = {}) {
+  if (typeof uniqueHistoricalRacesV11 === 'function') return uniqueHistoricalRacesV11(models);
+  const map = new Map();
+  for (const type of ['EXACT', 'CONDITION_TWIN', 'RACE_FAMILY']) {
+    for (const race of Array.isArray(models?.[type]) ? models[type] : []) {
+      const key = [race?.date, race?.city, race?.raceNo].join('|');
+      if (!map.has(key)) map.set(key, race);
+    }
+  }
+  return [...map.values()];
+}
+
+function weightedCompositePodiumV115(channels, raw = false) {
   const weights = { exact:0.40, twin:0.25, family:0.20, career:0.15 };
   let weighted = 0;
   let usedWeight = 0;
@@ -169,7 +177,7 @@ function weightedCompositePodiumV115(channels, preferRaw = false) {
 
   for (const [id, weight] of Object.entries(weights)) {
     const channel = channels?.[id] || {};
-    const value = preferRaw
+    const value = raw
       ? finitePodiumV115(channel.rawScore ?? channel.score)
       : finitePodiumV115(channel.score);
     if (value === null) continue;
@@ -186,40 +194,34 @@ function weightedCompositePodiumV115(channels, preferRaw = false) {
   };
 }
 
-function placementChannelsPodiumV115(currentPath, roadmapData, targetFinish) {
-  const all = Array.isArray(roadmapData?.historicalRaces)
-    ? roadmapData.historicalRaces.filter(race => race?.ok !== false)
-    : [];
-  const exactRaces = all.filter(race => String(race?.referenceType || 'EXACT') === 'EXACT');
-  const twinRaces = all.filter(race => String(race?.referenceType || '') === 'CONDITION_TWIN');
-  const familyRaces = all.filter(race => String(race?.referenceType || '') === 'RACE_FAMILY');
-
-  const exact = scoreFinishRowsPodiumV115(currentPath, exactRaces, targetFinish, true);
-  const twin = scoreFinishRowsPodiumV115(currentPath, twinRaces, targetFinish, true);
-  const family = scoreFinishRowsPodiumV115(currentPath, familyRaces, targetFinish, true);
-  const career = scoreFinishRowsPodiumV115(currentPath, all, targetFinish, false);
-  const composite = weightedCompositePodiumV115({ exact, twin, family, career });
+function placementScoresPodiumV115(career, roadmap, targetFinish) {
+  const exact = scoreFinishRowsPodiumV115(career, roadmap?.models?.EXACT || [], targetFinish, true);
+  const twin = scoreFinishRowsPodiumV115(career, roadmap?.models?.CONDITION_TWIN || [], targetFinish, true);
+  const family = scoreFinishRowsPodiumV115(career, roadmap?.models?.RACE_FAMILY || [], targetFinish, true);
+  const allHistorical = uniqueHistoricalPodiumV115(roadmap?.models || {});
+  const careerScore = scoreFinishRowsPodiumV115(career, allHistorical, targetFinish, false);
+  const composite = weightedCompositePodiumV115({ exact, twin, family, career:careerScore }, true);
 
   return {
     targetFinish:Number(targetFinish),
-    analysisMode:modePodiumV115(currentPath),
+    analysisMode:modePodiumV115(career),
     exact,
     twin,
     family,
-    career,
+    career:careerScore,
     composite:{ ...composite, rawScore:composite.score }
   };
 }
 
-calculateGalibiyetBenzerligi = function(currentPath, roadmapData) {
-  const base = calculateGalibiyetBenzerligiBeforeV115(currentPath, roadmapData);
+horseModelScoresV11 = function(career, roadmap) {
+  const base = horseModelScoresBeforeV115(career, roadmap);
   return {
     ...base,
     podiumSimilarityVersion:PODIUM_SIMILARITY_V115,
     byFinish:{
-      1:placementChannelsPodiumV115(currentPath, roadmapData, 1),
-      2:placementChannelsPodiumV115(currentPath, roadmapData, 2),
-      3:placementChannelsPodiumV115(currentPath, roadmapData, 3)
+      1:placementScoresPodiumV115(career, roadmap, 1),
+      2:placementScoresPodiumV115(career, roadmap, 2),
+      3:placementScoresPodiumV115(career, roadmap, 3)
     }
   };
 };
@@ -235,8 +237,8 @@ function decisionScorePodiumV115(index, size, coverageYears) {
 }
 
 function rawSortPodiumV115(a, b, finish, modelId) {
-  const sa = a?.galibiyetBenzerligi?.byFinish?.[finish]?.[modelId] || {};
-  const sb = b?.galibiyetBenzerligi?.byFinish?.[finish]?.[modelId] || {};
+  const sa = a?.scores?.byFinish?.[finish]?.[modelId] || {};
+  const sb = b?.scores?.byFinish?.[finish]?.[modelId] || {};
   const av = finitePodiumV115(sa.rawScore ?? sa.score) ?? -1;
   const bv = finitePodiumV115(sb.rawScore ?? sb.score) ?? -1;
   return bv - av ||
@@ -254,14 +256,14 @@ function applyModeAwarePodiumV115(horses) {
       for (const mode of ['WIN_PATH', 'PREPARATION_PATH']) {
         const group = list
           .filter(item => {
-            const placement = item?.galibiyetBenzerligi?.byFinish?.[finish];
+            const placement = item?.scores?.byFinish?.[finish];
             const channel = placement?.[modelId];
             return placement?.analysisMode === mode && finitePodiumV115(channel?.score) !== null;
           })
           .sort((a, b) => rawSortPodiumV115(a, b, finish, modelId));
 
         group.forEach((item, index) => {
-          const channel = item.galibiyetBenzerligi.byFinish[finish][modelId];
+          const channel = item.scores.byFinish[finish][modelId];
           channel.rawScore = finitePodiumV115(channel.rawScore ?? channel.score);
           channel.modeRank = index + 1;
           channel.modeSize = group.length;
@@ -272,32 +274,32 @@ function applyModeAwarePodiumV115(horses) {
       }
 
       for (const item of list) {
-        const placement = item?.galibiyetBenzerligi?.byFinish?.[finish];
+        const placement = item?.scores?.byFinish?.[finish];
         if (!placement || placement.analysisMode !== 'DEBUT') continue;
-        if (placement[modelId]) {
-          placement[modelId].rawScore = finitePodiumV115(placement[modelId].rawScore ?? placement[modelId].score);
-          placement[modelId].score = null;
-          placement[modelId].decisionScore = null;
-          placement[modelId].modeAware = true;
-        }
+        const channel = placement?.[modelId];
+        if (!channel) continue;
+        channel.rawScore = finitePodiumV115(channel.rawScore ?? channel.score);
+        channel.score = null;
+        channel.decisionScore = null;
+        channel.modeAware = true;
       }
     }
 
     for (const item of list) {
-      const placement = item?.galibiyetBenzerligi?.byFinish?.[finish];
+      const placement = item?.scores?.byFinish?.[finish];
       if (!placement) continue;
       const rawComposite = weightedCompositePodiumV115({
-        exact:{ score:placement.exact?.rawScore ?? placement.exact?.score },
-        twin:{ score:placement.twin?.rawScore ?? placement.twin?.score },
-        family:{ score:placement.family?.rawScore ?? placement.family?.score },
-        career:{ score:placement.career?.rawScore ?? placement.career?.score }
-      });
+        exact:placement.exact,
+        twin:placement.twin,
+        family:placement.family,
+        career:placement.career
+      }, true);
       const decisionComposite = weightedCompositePodiumV115({
         exact:placement.exact,
         twin:placement.twin,
         family:placement.family,
         career:placement.career
-      });
+      }, false);
       placement.composite = {
         ...decisionComposite,
         rawScore:rawComposite.score,
@@ -309,56 +311,24 @@ function applyModeAwarePodiumV115(horses) {
   return list;
 }
 
-isValidCareerCache = function(cached) {
-  return Boolean(
-    isValidCareerCacheBeforeV115(cached) &&
-    cached?.podiumSimilarityV115 === true &&
-    Array.isArray(cached?.races) &&
-    cached.races.every(race =>
-      Array.isArray(race?.horses) &&
-      race.horses.every(item => {
-        const byFinish = item?.galibiyetBenzerligi?.byFinish;
-        return byFinish && byFinish[1] && byFinish[2] && byFinish[3];
-      })
-    )
-  );
-};
-
-if (state?.analyses?.career && !state.analyses.career.podiumSimilarityV115) {
-  state.analyses.career = {};
-  save();
-}
-
-runCareerAnalysis = async function(selectedRaces, raceValue) {
-  await runCareerAnalysisBeforeV115(selectedRaces, raceValue);
-  const careerAnalysis = state?.analyses?.career;
-  if (!careerAnalysis || !Array.isArray(careerAnalysis.races)) return;
-
-  for (const race of careerAnalysis.races) {
-    race.horses = applyModeAwarePodiumV115(race.horses);
-    race.podiumSimilarityVersion = PODIUM_SIMILARITY_V115;
-  }
-
-  careerAnalysis.podiumSimilarityV115 = true;
-  careerAnalysis.podiumSimilarityVersion = PODIUM_SIMILARITY_V115;
-  careerAnalysis.podiumRule = '1.lik yalnız tarihsel 1.lerle; 2.lik yalnız tarihsel 2.lerle; 3.lük yalnız tarihsel 3.lerle. Her sıra için Bileşik/Tam/İkiz/Aile/Kariyer ayrı sıralanır.';
-  save();
+prepareRaceModelsV11 = async function(race, progress) {
+  const result = await prepareRaceModelsBeforeV115(race, progress);
+  result.horses = applyModeAwarePodiumV115(result?.horses || []);
+  result.podiumSimilarityVersion = PODIUM_SIMILARITY_V115;
+  result.podiumRule = '1↔1, 2↔2, 3↔3; her derece için Bileşik/Tam/İkiz/Aile/Kariyer.';
+  return result;
 };
 
 const PODIUM_MODEL_LABELS_V115 = {
-  composite:'Bileşik',
-  exact:'Tam',
-  twin:'İkiz',
-  family:'Aile',
-  career:'Kariyer'
+  composite:'Bileşik', exact:'Tam', twin:'İkiz', family:'Aile', career:'Kariyer'
 };
 
-function modelRankingPodiumV115(race, finish, modelId) {
-  const rows = (Array.isArray(race?.horses) ? race.horses : [])
+function modelRankingPodiumV115(data, finish, modelId) {
+  return (Array.isArray(data?.horses) ? data.horses : [])
     .map(item => ({
       item,
-      channel:item?.galibiyetBenzerligi?.byFinish?.[finish]?.[modelId] || null,
-      placement:item?.galibiyetBenzerligi?.byFinish?.[finish] || null
+      placement:item?.scores?.byFinish?.[finish] || null,
+      channel:item?.scores?.byFinish?.[finish]?.[modelId] || null
     }))
     .filter(row => finitePodiumV115(row?.channel?.score) !== null)
     .sort((a, b) => {
@@ -370,31 +340,28 @@ function modelRankingPodiumV115(race, finish, modelId) {
         Number(b.channel?.coverageYears || 0) - Number(a.channel?.coverageYears || 0) ||
         Number(a.item?.horse?.no || 999) - Number(b.item?.horse?.no || 999);
     });
-  return rows;
 }
 
 function scoreMetaPodiumV115(row, modelId) {
   const channel = row?.channel || {};
-  const placement = row?.placement || {};
   const raw = finitePodiumV115(channel.rawScore);
-  const coverage = modelId === 'composite'
-    ? (Array.isArray(channel.present) ? channel.present.length : 0)
-    : Number(channel.coverageYears || 0);
-  const bits = [];
-  bits.push(modeLabelPodiumV115(placement.analysisMode));
+  const bits = [modeLabelPodiumV115(row?.placement?.analysisMode || 'DEBUT')];
   if (raw !== null) bits.push(`ham %${raw}`);
   if (modelId === 'composite') {
+    const coverage = Array.isArray(channel.present) ? channel.present.length : 0;
     if (coverage) bits.push(`${coverage}/4 kanal`);
-  } else if (coverage) {
-    bits.push(`${coverage} yıl`);
+  } else {
+    const coverageYears = Number(channel.coverageYears || 0);
+    if (coverageYears) bits.push(`${coverageYears} yıl`);
   }
   return bits.join(' · ');
 }
 
-function modelBlockPodiumV115(race, finish, modelId, open = false) {
-  const rows = modelRankingPodiumV115(race, finish, modelId);
+function modelBlockPodiumV115(data, finish, modelId, open = false) {
+  const rows = modelRankingPodiumV115(data, finish, modelId);
   const label = PODIUM_MODEL_LABELS_V115[modelId] || modelId;
-  const emptyCount = (Array.isArray(race?.horses) ? race.horses.length : 0) - rows.length;
+  const total = Array.isArray(data?.horses) ? data.horses.length : 0;
+  const missing = Math.max(0, total - rows.length);
 
   return `
     <details class="podium-model-v115" ${open ? 'open' : ''}>
@@ -414,22 +381,17 @@ function modelBlockPodiumV115(race, finish, modelId, open = false) {
             </div>
             <div class="podium-score-v115">${escapeHtml(row.channel.score)}<small>puan</small></div>
           </div>
-        `).join('') : `
-          <div class="podium-empty-v115">Bu modelde ${escapeHtml(finish)}. sıra için karşılaştırılabilir tarihsel yol bulunamadı.</div>
-        `}
-        ${emptyCount > 0 && rows.length ? `<div class="podium-missing-v115">${escapeHtml(emptyCount)} atta bu model için yeterli veri yok.</div>` : ''}
+        `).join('') : `<div class="podium-empty-v115">Bu modelde ${escapeHtml(finish)}. sıra için karşılaştırılabilir tarihsel yol bulunamadı.</div>`}
+        ${missing > 0 && rows.length ? `<div class="podium-missing-v115">${escapeHtml(missing)} atta bu model için yeterli veri yok.</div>` : ''}
       </div>
     </details>`;
 }
 
-function finishLeaderPodiumV115(race, finish) {
-  return modelRankingPodiumV115(race, finish, 'composite')[0] || null;
-}
-
-function finishBlockPodiumV115(race, finish, open = false) {
-  const leader = finishLeaderPodiumV115(race, finish);
+function finishBlockPodiumV115(data, finish, open = false) {
+  const leader = modelRankingPodiumV115(data, finish, 'composite')[0] || null;
   const medal = finish === 1 ? '🥇' : finish === 2 ? '🥈' : '🥉';
   const label = finish === 1 ? '1.LİK' : finish === 2 ? '2.LİK' : '3.LÜK';
+
   return `
     <details class="podium-finish-v115" ${open ? 'open' : ''}>
       <summary>
@@ -439,51 +401,90 @@ function finishBlockPodiumV115(race, finish, open = false) {
           : 'Bileşik veri yok'}</span>
       </summary>
       <div class="podium-finish-body-v115">
-        ${modelBlockPodiumV115(race, finish, 'composite', true)}
-        ${modelBlockPodiumV115(race, finish, 'exact')}
-        ${modelBlockPodiumV115(race, finish, 'twin')}
-        ${modelBlockPodiumV115(race, finish, 'family')}
-        ${modelBlockPodiumV115(race, finish, 'career')}
+        ${modelBlockPodiumV115(data, finish, 'composite', true)}
+        ${modelBlockPodiumV115(data, finish, 'exact')}
+        ${modelBlockPodiumV115(data, finish, 'twin')}
+        ${modelBlockPodiumV115(data, finish, 'family')}
+        ${modelBlockPodiumV115(data, finish, 'career')}
       </div>
     </details>`;
 }
 
-function podiumRaceHtmlV115(race) {
-  const hasPodium = (Array.isArray(race?.horses) ? race.horses : []).some(item =>
-    item?.galibiyetBenzerligi?.byFinish?.[1] ||
-    item?.galibiyetBenzerligi?.byFinish?.[2] ||
-    item?.galibiyetBenzerligi?.byFinish?.[3]
-  );
-  if (!hasPodium) return '';
-
-  return `
-    <section class="podium-panel-v115">
-      <div class="podium-panel-head-v115">
-        <div>
-          <b>İLK 3 BENZERLİK SIRALAMASI</b>
-          <small>Geçmişteki aynı dereceyle karşılaştırılır: 1↔1, 2↔2, 3↔3.</small>
-        </div>
-        <span>5 MODEL</span>
-      </div>
-      <div class="podium-note-v115">
-        Ana sıra, Galibiyet Yolu ile Hazırlık/İlk 5 yüzdelerini doğrudan karıştırmaz; önce mod-içi sıra ortak karar puanına çevrilir. Ham yüzde detayda korunur. Yıllar ortalanmaz.
-      </div>
-      ${finishBlockPodiumV115(race, 1, true)}
-      ${finishBlockPodiumV115(race, 2, false)}
-      ${finishBlockPodiumV115(race, 3, false)}
-    </section>`;
+function podiumRaceShellV115(race, open = false) {
+  return `<details class="podium-race-v115" data-podium-race="${escapeHtml(race?.no)}" ${open ? 'open' : ''}>
+    <summary>
+      <div><b>${escapeHtml(race?.no)}. Koşu</b><small>${escapeHtml(race?.class || '')} · ${escapeHtml(race?.ageGroup || '')} · ${escapeHtml(race?.distance || '')} ${escapeHtml(race?.track || '')}</small></div>
+      <span>1 · 2 · 3 ▾</span>
+    </summary>
+    <div class="podium-loading-v115">1.lik / 2.lik / 3.lük için 5 model sıralamaları hazırlanıyor…</div>
+  </details>`;
 }
 
-careerRaceAccordionHtml = function(race, forceOpen) {
-  const baseHtml = careerRaceAccordionHtmlBeforeV115(race, forceOpen);
-  const podiumHtml = podiumRaceHtmlV115(race);
-  if (!podiumHtml) return baseHtml;
+function podiumRaceBodyV115(data) {
+  return `
+    <div class="podium-note-v115">
+      1.lik adayı yalnız geçmiş 1.lerle; 2.lik adayı yalnız geçmiş 2.lerle; 3.lük adayı yalnız geçmiş 3.lerle karşılaştırılır.
+      Ana sıra mod-içi karar puanıdır; ham benzerlik yüzdesi korunur ve yıllar ortalanmaz.
+    </div>
+    ${finishBlockPodiumV115(data, 1, true)}
+    ${finishBlockPodiumV115(data, 2, false)}
+    ${finishBlockPodiumV115(data, 3, false)}`;
+}
 
-  const marker = '<div class="career-race-body-v104">';
-  if (String(baseHtml).includes(marker)) {
-    return String(baseHtml).replace(marker, `${marker}${podiumHtml}`);
+async function hydratePodiumV115(races, token) {
+  for (const race of races) {
+    if (token !== podiumRenderTokenV115) return;
+    const selector = `[data-podium-race="${String(race?.no).replace(/"/g, '\\"')}"]`;
+    const shell = document.querySelector(selector);
+    if (!shell) continue;
+    try {
+      const data = typeof getCareerRaceModelsV112 === 'function'
+        ? await getCareerRaceModelsV112(race)
+        : await prepareRaceModelsV11(race);
+      if (token !== podiumRenderTokenV115) return;
+      shell.innerHTML = `<summary>
+          <div><b>${escapeHtml(race?.no)}. Koşu</b><small>${escapeHtml(race?.class || '')} · ${escapeHtml(race?.ageGroup || '')} · ${escapeHtml(race?.distance || '')} ${escapeHtml(race?.track || '')}</small></div>
+          <span>1 · 2 · 3 ▾</span>
+        </summary>${podiumRaceBodyV115(data)}`;
+    } catch (e) {
+      shell.innerHTML = `<summary><div><b>${escapeHtml(race?.no)}. Koşu</b></div><span>1 · 2 · 3 ▾</span></summary>
+        <div class="podium-empty-v115">⚠ ${escapeHtml(e?.message || 'İlk 3 benzerlik sıralaması hazırlanamadı.')}</div>`;
+    }
   }
-  return `${baseHtml}${podiumHtml}`;
+}
+
+renderCareerAnalysis = function(result, raceFilter = null) {
+  renderCareerAnalysisBeforeV115(result, raceFilter);
+  const content = $('analysisContent');
+  if (!content) return;
+
+  const filter = raceFilter || $('analysisRace')?.value || 'all';
+  const races = filter === 'all'
+    ? (Array.isArray(state.races) ? state.races : [])
+    : (Array.isArray(state.races) ? state.races.filter(race => String(race?.no) === String(filter)) : []);
+  if (!races.length) return;
+
+  const old = $('careerPodiumV115');
+  if (old) old.remove();
+
+  const section = document.createElement('section');
+  section.id = 'careerPodiumV115';
+  section.className = 'podium-panel-v115';
+  section.innerHTML = `
+    <div class="podium-panel-head-v115">
+      <div><b>1. · 2. · 3. BENZERLİK SIRALAMALARI</b><small>Her derece için Bileşik · Tam · İkiz · Aile · Kariyer</small></div>
+      <span>V11.5</span>
+    </div>
+    <div class="podium-races-v115">
+      ${races.map((race, index) => podiumRaceShellV115(race, races.length === 1 || index === 0)).join('')}
+    </div>`;
+
+  const fiveModelSection = $('careerFiveModelV112');
+  if (fiveModelSection && fiveModelSection.parentNode === content) fiveModelSection.after(section);
+  else content.prepend(section);
+
+  const token = ++podiumRenderTokenV115;
+  hydratePodiumV115(races, token);
 };
 
 console.info('[AT AI]', PODIUM_SIMILARITY_V115, 'aktif');
