@@ -1,0 +1,44 @@
+/* AT AI Mobil — Model Calibration V11.6 */
+#analysisDialog.calibration-dialog-v116 .toolbar{display:none!important}
+.cal-home-v116{display:grid;gap:10px}
+.cal-hero-v116,.cal-result-head-v116{
+  display:flex;justify-content:space-between;gap:10px;align-items:flex-start;
+  padding:11px;border:1px solid rgba(114,213,255,.18);border-radius:11px;
+  background:rgba(114,213,255,.055)
+}
+.cal-hero-v116 b,.cal-result-head-v116 b{display:block;font-size:13px}
+.cal-hero-v116 small,.cal-result-head-v116 small{display:block;margin-top:3px;font-size:9px;opacity:.68}
+.cal-hero-v116>span,.cal-result-head-v116>span{font-size:9px;font-weight:800;opacity:.7;white-space:nowrap}
+.cal-day-v116,.cal-result-v116,.cal-summary-v116{
+  border:1px solid rgba(255,255,255,.10);border-radius:11px;padding:10px;background:rgba(255,255,255,.024)
+}
+.cal-day-v116 b{font-size:13px}
+.cal-day-v116 p{font-size:10px;line-height:1.45;opacity:.72;margin:6px 0}
+.cal-day-v116 .primary{width:100%;margin-top:6px}
+.cal-status-v116{margin-top:7px;font-size:10px;line-height:1.4;opacity:.72}
+.cal-result-v116{padding:8px}
+.cal-summary-v116{margin-top:8px;padding:8px}
+.cal-summary-v116>b{display:block;margin-bottom:7px;font-size:10px;letter-spacing:.03em}
+.cal-table-wrap-v116{overflow-x:auto;width:100%;-webkit-overflow-scrolling:touch}
+.cal-table-v116{width:100%;min-width:680px;border-collapse:collapse;font-size:9px}
+.cal-table-v116 th,.cal-table-v116 td{padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.075);text-align:center;white-space:nowrap}
+.cal-table-v116 th{font-size:8px;letter-spacing:.03em;opacity:.68;background:rgba(255,255,255,.025)}
+.cal-table-v116 td:first-child,.cal-table-v116 th:first-child{text-align:left;position:sticky;left:0;background:#0a1726;z-index:1}
+.cal-truth-v116{text-align:left!important}
+.cal-summary-table-v116{min-width:520px}
+.cal-finish-v116{margin-top:8px;border:1px solid rgba(255,255,255,.10);border-radius:10px;overflow:hidden}
+.cal-finish-v116>summary{list-style:none;padding:10px;font-size:11px;font-weight:850;cursor:pointer;background:rgba(255,255,255,.03)}
+.cal-finish-v116>summary::-webkit-details-marker{display:none}
+.cal-finish-v116[open]>summary{background:rgba(114,213,255,.055)}
+.cal-finish-v116>.cal-table-wrap-v116{padding:6px 6px 0}
+.cal-finish-v116>.cal-summary-v116{margin:7px}
+.cal-rank1-v116{color:#7ee2a8!important;background:rgba(126,226,168,.07)}
+.cal-rank3-v116{color:#f1d36b!important;background:rgba(241,211,107,.06)}
+.cal-rankout-v116{color:#ff9b74!important;background:rgba(255,155,116,.05)}
+.cal-ranknone-v116{opacity:.48}
+.cal-legend-v116{display:flex;gap:6px;flex-wrap:wrap;padding:9px 2px 2px}
+.cal-legend-v116 span{font-size:8px;padding:4px 6px;border:1px solid rgba(255,255,255,.08);border-radius:999px}
+@media(max-width:520px){
+  .cal-table-v116{font-size:8px;min-width:640px}
+  .cal-table-v116 th,.cal-table-v116 td{padding:6px 5px}
+}
