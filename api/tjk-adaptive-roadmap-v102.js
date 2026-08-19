@@ -1,6 +1,6 @@
 import roadmapV101 from './tjk-adaptive-roadmap-v101.js';
 
-const VERSION = 'TJK-ADAPTIVE-ROADMAP-V10.2';
+const VERSION = 'TJK-ADAPTIVE-ROADMAP-V10.2.1';
 
 function clean(v = '') {
   return String(v ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
@@ -15,13 +15,15 @@ function upper(v = '') {
 
 /*
  * TJK aynı yarış sınıfını iki farklı sayfada farklı gösterebiliyor.
- * Örnek:
+ * Örnekler:
  *   Günlük Program : Handikap 14 /DHÖW/H2/D
  *   Koşu Sorgulama: Handikap 14 /Dişi /H2
  *
- * Bu katman yalnız gösterim aliaslarını kanonikleştirir. H1/H2/H3 gibi
- * gerçek handikap alt şartları ve Dişi şartı korunur. /H2 ile /Dişi/H2
- * birbirine eşit sayılmaz.
+ *   Günlük/Yıllık Program: G 2 /DHT
+ *   Koşu Sorgulama / performans özeti: G 2
+ *
+ * Bu katman yalnız sayfalar arası gösterim aliaslarını kanonikleştirir.
+ * H1/H2/H3 gibi gerçek handikap alt şartları ve Dişi şartı korunur.
  */
 function canonicalClassForQuery(v = '') {
   const normalized = upper(v)
@@ -40,7 +42,9 @@ function canonicalClassForQuery(v = '') {
   const ignoredDecorators = new Set([
     'DHOW', // DHÖW
     'DHO',  // DHÖ
-    'HOW'   // HÖW
+    'HOW',  // HÖW
+    'DHT',  // Koşu Sorgulama bazı satırlarda göstermiyor
+    'DH'    // Koşu Sorgulama bazı satırlarda göstermiyor
   ]);
 
   const kept = rawTokens.filter(token => {
@@ -75,7 +79,7 @@ export default async function handler(req, res) {
           input:originalClass || null,
           canonical:canonicalClass || originalClass || null,
           applied:aliasApplied,
-          rule:'DHÖW/DHÖ/HÖW query-display decorators ignored; standalone D or Dişi => DISI; H1/H2/H3 and other real suffixes preserved.'
+          rule:'DHÖW/DHÖ/HÖW/DHT/DH query-display decorators ignored; standalone D or Dişi => DISI; H1/H2/H3 and other real suffixes preserved.'
         }
       };
       if (payload.target && typeof payload.target === 'object') {
@@ -89,7 +93,7 @@ export default async function handler(req, res) {
         next.rules = {
           ...payload.rules,
           classAliasNormalization:true,
-          classAliasVersion:'TJK_PROGRAM_TO_QUERY_CLASS_ALIAS_V10.2'
+          classAliasVersion:'TJK_PROGRAM_TO_QUERY_CLASS_ALIAS_V10.2.1'
         };
       }
       return originalJson(next);
