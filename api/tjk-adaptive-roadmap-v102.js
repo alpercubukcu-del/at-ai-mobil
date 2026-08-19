@@ -1,6 +1,6 @@
 import roadmapV101 from './tjk-adaptive-roadmap-v101.js';
 
-const VERSION = 'TJK-ADAPTIVE-ROADMAP-V10.2.1';
+const VERSION = 'TJK-ADAPTIVE-ROADMAP-V10.2.2';
 
 function clean(v = '') {
   return String(v ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
@@ -14,16 +14,18 @@ function upper(v = '') {
 }
 
 /*
- * TJK aynı yarış sınıfını iki farklı sayfada farklı gösterebiliyor.
- * Örnekler:
- *   Günlük Program : Handikap 14 /DHÖW/H2/D
- *   Koşu Sorgulama: Handikap 14 /Dişi /H2
+ * TJK aynı yarış sınıfını farklı sayfalarda farklı gösterebiliyor.
+ * Bu katman artık TEK YÖNLÜ kanonikleştirme yapmaz.
  *
- *   Günlük/Yıllık Program: G 2 /DHT
- *   Koşu Sorgulama / performans özeti: G 2
+ * 1) Önce Günlük Program'daki sınıf yazımı AYNEN denenir.
+ * 2) Bu yazımla hiç eşleşme çıkmazsa kanonik alias denenir.
  *
- * Bu katman yalnız sayfalar arası gösterim aliaslarını kanonikleştirir.
- * H1/H2/H3 gibi gerçek handikap alt şartları ve Dişi şartı korunur.
+ * Böylece hem:
+ *   Program G 2/DHT  <-> Sorgu G 2/DHT
+ * hem de:
+ *   Program G 2/DHT  <-> Sorgu G 2
+ * çalışır.
+ * Aynı mantık Şartlı, Handikap, KV, Maiden, Satış ve diğer ailelere uygulanır.
  */
 function canonicalClassForQuery(v = '') {
   const normalized = upper(v)
@@ -43,8 +45,8 @@ function canonicalClassForQuery(v = '') {
     'DHOW', // DHÖW
     'DHO',  // DHÖ
     'HOW',  // HÖW
-    'DHT',  // Koşu Sorgulama bazı satırlarda göstermiyor
-    'DH'    // Koşu Sorgulama bazı satırlarda göstermiyor
+    'DHT',
+    'DH'
   ]);
 
   const kept = rawTokens.filter(token => {
@@ -61,47 +63,124 @@ function canonicalClassForQuery(v = '') {
   return ordered.length ? `${head}/${ordered.join('/')}` : head;
 }
 
+function selectedYearCount(payload) {
+  const n = Number(payload?.diagnostics?.selectedYearCount);
+  if (Number.isFinite(n)) return n;
+  return Array.isArray(payload?.historicalRaces)
+    ? payload.historicalRaces.filter(x => x?.date).length
+    : 0;
+}
+
+function acceptedCandidateCount(payload) {
+  const n = Number(payload?.diagnostics?.acceptedCandidateCount);
+  return Number.isFinite(n) ? n : 0;
+}
+
+async function runV101(req, classValue) {
+  const originalClass = req?.query?.class;
+  const headers = {};
+  let statusCode = 200;
+  let payload = null;
+
+  const captureRes = {
+    setHeader(name, value) { headers[name] = value; },
+    status(code) { statusCode = code; return this; },
+    json(value) { payload = value; return value; }
+  };
+
+  try {
+    if (req?.query) req.query.class = classValue;
+    await roadmapV101(req, captureRes);
+    return { statusCode, payload, headers };
+  } finally {
+    if (req?.query) req.query.class = originalClass;
+  }
+}
+
+function decorate(payload, originalClass, canonicalClass, strategy, firstAttempt = null) {
+  const aliasApplied = Boolean(originalClass && canonicalClass && upper(originalClass) !== upper(canonicalClass));
+  const next = {
+    ...(payload || {}),
+    version:VERSION,
+    classAlias:{
+      input:originalClass || null,
+      canonical:canonicalClass || originalClass || null,
+      applied:aliasApplied,
+      strategy,
+      generic:true,
+      rule:'Önce program sınıfı aynen; sıfır eşleşmede DHÖW/DHÖ/HÖW/DHT/DH aliasları kanonik fallback. Dişi ve H1/H2/H3 gerçek şart olarak korunur.'
+    },
+    classMatching:{
+      strategy,
+      generic:true,
+      originalClassFirst:true,
+      canonicalFallback:true,
+      appliesTo:['GROUP','KV','HANDIKAP','SARTLI','MAIDEN','SATIS','OTHER'],
+      firstAttemptSelectedYears:firstAttempt ? selectedYearCount(firstAttempt) : null,
+      firstAttemptAcceptedCandidates:firstAttempt ? acceptedCandidateCount(firstAttempt) : null
+    }
+  };
+
+  if (payload?.target && typeof payload.target === 'object') {
+    next.target = {
+      ...payload.target,
+      class:originalClass || payload.target.class,
+      classCanonical:canonicalClass || payload.target.class
+    };
+  }
+  if (payload?.rules && typeof payload.rules === 'object') {
+    next.rules = {
+      ...payload.rules,
+      classAliasNormalization:true,
+      classAliasVersion:'TJK_BIDIRECTIONAL_CLASS_MATCH_V10.2.2',
+      classMatchingStrategy:'ORIGINAL_CLASS_FIRST_CANONICAL_FALLBACK'
+    };
+  }
+  if (payload?.diagnostics && typeof payload.diagnostics === 'object') {
+    next.diagnostics = {
+      ...payload.diagnostics,
+      classMatchingStrategy:strategy,
+      originalClassSelectedYears:firstAttempt ? selectedYearCount(firstAttempt) : selectedYearCount(payload),
+      originalClassAcceptedCandidates:firstAttempt ? acceptedCandidateCount(firstAttempt) : acceptedCandidateCount(payload)
+    };
+  }
+  return next;
+}
+
 export default async function handler(req, res) {
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
   const originalClass = clean(req?.query?.class || '');
   const canonicalClass = canonicalClassForQuery(originalClass);
   const aliasApplied = Boolean(originalClass && canonicalClass && upper(originalClass) !== upper(canonicalClass));
 
-  if (req?.query) req.query.class = canonicalClass || originalClass;
-
-  const originalJson = typeof res.json === 'function' ? res.json.bind(res) : null;
-  if (originalJson) {
-    res.json = payload => {
-      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return originalJson(payload);
-      const next = {
-        ...payload,
-        version:VERSION,
-        classAlias:{
-          input:originalClass || null,
-          canonical:canonicalClass || originalClass || null,
-          applied:aliasApplied,
-          rule:'DHÖW/DHÖ/HÖW/DHT/DH query-display decorators ignored; standalone D or Dişi => DISI; H1/H2/H3 and other real suffixes preserved.'
-        }
-      };
-      if (payload.target && typeof payload.target === 'object') {
-        next.target = {
-          ...payload.target,
-          class:originalClass || payload.target.class,
-          classCanonical:canonicalClass || payload.target.class
-        };
-      }
-      if (payload.rules && typeof payload.rules === 'object') {
-        next.rules = {
-          ...payload.rules,
-          classAliasNormalization:true,
-          classAliasVersion:'TJK_PROGRAM_TO_QUERY_CLASS_ALIAS_V10.2.1'
-        };
-      }
-      return originalJson(next);
-    };
-  }
-
   try {
-    return await roadmapV101(req, res);
+    // KRİTİK: önce TJK programındaki sınıfı HİÇ DEĞİŞTİRMEDEN dene.
+    const raw = await runV101(req, originalClass);
+    const rawPayload = raw.payload;
+    const rawHasMatches = Boolean(
+      rawPayload?.ok &&
+      (selectedYearCount(rawPayload) > 0 || acceptedCandidateCount(rawPayload) > 0)
+    );
+
+    if (rawHasMatches || !aliasApplied) {
+      return res.status(raw.statusCode || 200).json(
+        decorate(rawPayload, originalClass, canonicalClass, 'ORIGINAL_CLASS')
+      );
+    }
+
+    // Orijinal yazım 0 eşleşmeyse ancak o zaman kanonik alias dene.
+    const canonical = await runV101(req, canonicalClass || originalClass);
+    return res.status(canonical.statusCode || 200).json(
+      decorate(canonical.payload, originalClass, canonicalClass, 'CANONICAL_ALIAS_FALLBACK', rawPayload)
+    );
+  } catch (e) {
+    return res.status(500).json({
+      ok:false,
+      version:VERSION,
+      error:e?.message || 'Çift yönlü TJK sınıf eşleştirmesi başarısız.',
+      classAlias:{ input:originalClass || null, canonical:canonicalClass || originalClass || null, applied:aliasApplied },
+      classMatching:{ strategy:'FAILED', generic:true, originalClassFirst:true, canonicalFallback:true }
+    });
   } finally {
     if (req?.query) req.query.class = originalClass;
   }
