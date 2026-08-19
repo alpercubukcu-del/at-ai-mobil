@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-ADAPTIVE-ROADMAP-V10.1.1';
+const VERSION = 'TJK-ADAPTIVE-ROADMAP-V10.1.2';
 const TJK = 'https://www.tjk.org';
 const PAGE_URL = `${TJK}/TR/YarisSever/Query/Page/KosuSorgulama`;
 const DATA_URL = `${TJK}/TR/YarisSever/Query/Data/KosuSorgulama`;
@@ -68,8 +68,7 @@ function classCoreKey(v = '') {
   const family = parseRaceFamily(normalized);
   const suffix = normalized.split('/').slice(1)
     .map(x => clean(x).replace(/\s+/g, ''))
-    .filter(Boolean)
-    .filter(x => !/^Y-?\d+$/.test(x));
+    .filter(Boolean);
   return `${family.family}:${family.level ?? ''}|${suffix.join('/')}`;
 }
 function parseDisplayDate(v = '') {
@@ -418,10 +417,10 @@ function getRules(minYear) {
     yearByYear:true,
     calendarWindowDays:DAY_WINDOW,
     scanStrategy:'EACH_SOURCE_YEAR_HAS_ITS_OWN_PM45_DATE_QUERY',
-    exactReference:'same city + class core + age/breed + distance + track',
-    raceFamilyReference:'same city + class core + age/breed; distance/track may differ',
-    conditionTwinReference:'different city + same class core + age/breed + distance + track',
-    classCoreNote:'G1/G 1/G-1/GRUP 1 (aynı şekilde G2/G3) eşdeğer; Y-1/Y-2 gibi jokey alt şartları yarış ailesi çekirdeğinden çıkarılır',
+    exactReference:'same city + full class identity + age/breed + distance + track',
+    raceFamilyReference:'same city + full class identity + age/breed; distance/track may differ',
+    conditionTwinReference:'different city + full class identity + age/breed + distance + track',
+    classCoreNote:'Yarış sınıfı ana sınıf ve tüm /ekleriyle tek kimliktir. G2/G 2/G-2/GRUP 2 yalnız yazım eşdeğeridir; /DHT, /DHÖW, /H1-/H3, /D, /Y-1 vb. hiçbir ek düşürülmez.',
     transferability:'distance + track + city + calendar penalties',
     careerWinPath:'finish=1',
     preparationPath:'finish 1..5; no-win horses use preparation path',
@@ -480,7 +479,7 @@ export default async function handler(req, res) {
       warning:selected.length ? '' : '±45 gün içinde tam eşleşme, aynı yarış ailesi veya koşul ikizi bulunamadı.'
     });
   } catch (e) {
-    console.error('adaptive roadmap V10.1.1:', e);
+    console.error('adaptive roadmap V10.1.2:', e);
     return res.status(500).json({ ok:false, version:VERSION, error:e?.message || 'Uyarlanabilir tarihsel yol oluşturulamadı.' });
   }
 }
