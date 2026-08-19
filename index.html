@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="/career-model-tabs-v112.css" />
   <link rel="stylesheet" href="/home-race-cards-v113.css" />
   <link rel="stylesheet" href="/podium-similarity-v115.css" />
+  <link rel="stylesheet" href="/calibration-v116.css" />
 </head>
 <body>
   <div class="app-shell">
@@ -64,7 +65,8 @@
     <button data-view="historical">2. Tarihsel Benzerlik</button>
     <button data-view="scenario">3. Koşu Senaryosu</button>
     <button data-view="career">4. Kariyer Yol Haritası</button>
-    <div class="drawer-note">Her bölümde tüm koşuları birlikte veya tek koşuyu ayrı inceleyebilirsiniz. Analizler siz temizleyene kadar bu cihazda saklanır.</div>
+    <button data-view="calibration">5. Model Kalibrasyonu</button>
+    <div class="drawer-note">Her bölümde tüm koşuları birlikte veya tek koşuyu ayrı inceleyebilirsiniz. Kalibrasyon ekranı gerçek sonuçlarla model sıralamasını ölçer.</div>
   </aside>
   <div id="overlay" class="overlay"></div>
   <dialog id="analysisDialog">
@@ -89,5 +91,6 @@
   <script src="/home-race-cards-v113.js"></script>
   <script src="/foreign-program-v114.js"></script>
   <script src="/podium-similarity-v115.js"></script>
+  <script src="/calibration-v116.js"></script>
 </body>
 </html>
