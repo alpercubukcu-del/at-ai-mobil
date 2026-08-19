@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-EXACT-HISTORY-V7.1';
+const VERSION = 'TJK-EXACT-HISTORY-V7.1.1';
 const TJK = 'https://www.tjk.org';
 const PAGE_URL = `${TJK}/TR/YarisSever/Query/Page/KosuSorgulama`;
 const DATA_URL = `${TJK}/TR/YarisSever/Query/Data/KosuSorgulama`;
@@ -272,7 +272,6 @@ async function fetchExactCandidateRows(target, filters, minYear, maxPages) {
   first.forEach(row => seen.set(rowKey(row), row));
   const diagnostics = [{ page:1, rows:first.length, status:first.length ? 'TAMAM' : 'BOS' }];
 
-  // TJK tam filtreli sorgu 50'den az satır verdiyse devam sayfası yoktur.
   if (first.length < 50) return { rows:[...seen.values()], diagnostics };
 
   for (let page = 2; page <= maxPages; page++) {
@@ -359,7 +358,26 @@ export default async function handler(req, res) {
       });
     }
 
-    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
+    const sampleRows = scan.rows.slice(0, 20).map(row => ({
+      date:row.isoDate,
+      city:row.city,
+      raceNo:row.raceNo,
+      ageGroup:row.ageGroup,
+      class:row.class,
+      distance:row.distance,
+      track:row.track,
+      normalizedClass:normalizeClass(row.class),
+      normalizedAge:ageKey(row.ageGroup),
+      checks:{
+        city:normalizeCity(target.city) === normalizeCity(row.city),
+        class:normalizeClass(target.class) === normalizeClass(row.class),
+        ageGroup:ageKey(target.ageGroup) === ageKey(row.ageGroup),
+        distance:Number(target.distance) === Number(row.distance),
+        track:normalizeTrack(target.track) === normalizeTrack(row.track)
+      }
+    }));
+
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     return res.status(200).json({
       ok:true,
       version:VERSION,
@@ -379,7 +397,9 @@ export default async function handler(req, res) {
         scanned:scan.rows.length,
         pagesRead:scan.diagnostics.length,
         pageDiagnostics:scan.diagnostics,
-        exactMatchCount:exactMatches.length
+        exactMatchCount:exactMatches.length,
+        targetNormalized:{ class:normalizeClass(target.class), ageGroup:ageKey(target.ageGroup), city:normalizeCity(target.city), track:normalizeTrack(target.track), distance:Number(target.distance) },
+        sampleRows
       },
       searchedYears:{ from:targetParts.year - 1, to:minYear, count:Math.max(0, targetParts.year - minYear) },
       yearResults,
@@ -390,7 +410,7 @@ export default async function handler(req, res) {
       source:'TJK_KOSU_SORGULAMA_EXACT_YEAR_WINDOW'
     });
   } catch (e) {
-    console.error('tjk-similar exact V7.1:', e);
+    console.error('tjk-similar exact V7.1.1:', e);
     return res.status(500).json({ ok:false, version:VERSION, error:e?.message || 'Tam tarihsel eşleşme hesaplanamadı.' });
   }
 }
