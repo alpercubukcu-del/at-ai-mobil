@@ -1,38 +1,102 @@
-const VERSION = 'TJK-MODEL-ROADMAP-V11.0';
+const VERSION = 'TJK-MODEL-ROADMAP-V11.9';
 const INTERNAL_RETRIES = 2;
 const RACE_CONCURRENCY = 2;
 const CAREER_CONCURRENCY = 3;
+const VERIFY_CONCURRENCY = 2;
 const MODEL_TYPES = ['EXACT', 'CONDITION_TWIN', 'RACE_FAMILY'];
 
 function clean(v = '') {
   return String(v ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
 }
-
-function num(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
+function upper(v = '') {
+  return clean(v).toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
 }
-
 function getBaseUrl(req) {
   const host = clean(req.headers?.['x-forwarded-host']) || clean(req.headers?.host) || 'at-ai-mobil.vercel.app';
   const protocol = clean(req.headers?.['x-forwarded-proto']) || (host.includes('localhost') ? 'http' : 'https');
   return `${protocol}://${host}`;
 }
-
-function candidateKey(x = {}) {
-  return [clean(x.date), clean(x.city).toLocaleUpperCase('tr-TR'), Number(x.raceNo || 0)].join('|');
-}
-
 function normalizeType(v = '') {
-  const t = clean(v).toUpperCase();
+  const t = upper(v);
   if (t === 'SAME_RACE_FAMILY') return 'RACE_FAMILY';
   return MODEL_TYPES.includes(t) ? t : '';
 }
-
 function typeLabel(type) {
   if (type === 'EXACT') return 'TAM TARİHSEL EŞLEŞME';
   if (type === 'CONDITION_TWIN') return 'KOŞUL İKİZİ';
   return 'AYNI YARIŞ AİLESİ';
+}
+function normalizeCity(v = '') {
+  return upper(v).replace(/[^A-Z0-9]/g, '');
+}
+function normalizeTrack(v = '') {
+  const t = upper(v);
+  if (t.includes('SENTETIK')) return 'SENTETIK';
+  if (t.includes('CIM')) return 'CIM';
+  if (t.includes('KUM')) return 'KUM';
+  return t;
+}
+function normalizeDistance(v) {
+  if (typeof v === 'number' && Number.isFinite(v)) return Math.round(v);
+  const m = clean(v).match(/\d{3,4}/);
+  return m ? Number.parseInt(m[0], 10) : 0;
+}
+function parseAge(v = '') {
+  const t = upper(v).replace(/\s+/g, ' ');
+  let breed = '';
+  if (t.includes('INGILIZ')) breed = 'I';
+  else if (t.includes('ARAP')) breed = 'A';
+  let m = t.match(/(\d+)\s*VE\s*YUKARI/);
+  if (m) return { breed, min:Number(m[1]), max:99 };
+  m = t.match(/(\d+)\s*YASLI/);
+  if (m) return { breed, min:Number(m[1]), max:Number(m[1]) };
+  m = t.replace(/\s+/g, '').match(/^(\d+)(\+)?([IA])$/);
+  if (m) return { breed:m[3], min:Number(m[1]), max:m[2] ? 99 : Number(m[1]) };
+  return { breed, min:null, max:null };
+}
+function ageKey(v = '') {
+  const a = parseAge(v);
+  if (a.breed && a.min !== null && a.max !== null) return `${a.breed}:${a.min}:${a.max}`;
+  return upper(v).replace(/\s+/g, '');
+}
+function normalizeClass(v = '') {
+  return upper(v)
+    .replace(/\s*\/\s*/g, '/')
+    .replace(/\s*-\s*/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+function parseRaceFamily(v = '') {
+  const t = normalizeClass(v);
+  let m = t.match(/HANDIKAP\s*(\d+)/); if (m) return { family:'HANDIKAP', level:Number(m[1]) };
+  m = t.match(/SARTLI\s*(\d+)/); if (m) return { family:'SARTLI', level:Number(m[1]) };
+  m = t.match(/\bKV[- ]*(\d+)\b/); if (m) return { family:'KV', level:Number(m[1]) };
+  m = t.match(/\b(?:G|GRUP)\s*-?\s*([123])\b/); if (m) return { family:'GROUP', level:Number(m[1]) };
+  if (t.includes('MAIDEN')) return { family:'MAIDEN', level:0 };
+  if (t.includes('SATIS')) return { family:'SATIS', level:0 };
+  return { family:t.split('/')[0], level:null };
+}
+function canonicalDecoratorToken(v = '') {
+  const t = clean(v).replace(/\s+/g, '');
+  if (t === 'D' || t === 'DISI') return 'DISI';
+  return t;
+}
+function classTokens(v = '') {
+  return normalizeClass(v).split('/').slice(1)
+    .map(canonicalDecoratorToken)
+    .filter(Boolean)
+    .filter((x, i, a) => a.indexOf(x) === i)
+    .sort();
+}
+function classCoreKey(v = '') {
+  const f = parseRaceFamily(v);
+  return `${f.family}:${f.level ?? ''}|${classTokens(v).join('/')}`;
+}
+function candidateKey(x = {}) {
+  return [clean(x.date), normalizeCity(x.city), Number(x.raceNo || 0)].join('|');
+}
+function candidateModelKey(x = {}) {
+  return `${candidateKey(x)}|${normalizeType(x.referenceType)}`;
 }
 
 async function fetchJson(url, timeoutMs = 60000, attempts = INTERNAL_RETRIES) {
@@ -60,7 +124,6 @@ async function fetchJson(url, timeoutMs = 60000, attempts = INTERNAL_RETRIES) {
   }
   throw lastError || new Error('İstek başarısız.');
 }
-
 async function mapLimit(items, limit, worker) {
   const list = Array.isArray(items) ? items : [];
   const out = new Array(list.length);
@@ -75,7 +138,6 @@ async function mapLimit(items, limit, worker) {
   await Promise.all(Array.from({ length:Math.min(Math.max(1, limit), list.length || 1) }, () => run()));
   return out;
 }
-
 function normalizeHorse(raw = {}) {
   const finish = Number(raw.finish ?? raw.rank ?? raw.sira ?? 0) || null;
   return {
@@ -86,29 +148,39 @@ function normalizeHorse(raw = {}) {
     margin:clean(raw.margin ?? raw.fark ?? raw.distanceBehind ?? raw.behind ?? '') || null
   };
 }
-
+function chronological(rows = []) {
+  return [...rows].sort((a,b) => String(a?.isoDate || a?.date || '').localeCompare(String(b?.isoDate || b?.date || '')));
+}
 function careerEnvelope(career = {}) {
-  const wins = Array.isArray(career.wins) ? career.wins : [];
-  const top5 = Array.isArray(career.top5) ? career.top5 : [];
-  const prep = Array.isArray(career.preparationPath) ? career.preparationPath : [];
+  const full = chronological(Array.isArray(career.history) ? career.history : []);
+  const wins = chronological(Array.isArray(career.wins) ? career.wins : full.filter(r => Number(r?.finish ?? r?.rank ?? r?.sira) === 1));
+  const top5 = chronological(Array.isArray(career.top5) ? career.top5 : full.filter(r => {
+    const f = Number(r?.finish ?? r?.rank ?? r?.sira);
+    return f >= 1 && f <= 5;
+  }));
+  const prep = chronological(Array.isArray(career.preparationPath) ? career.preparationPath : top5);
   return {
     ok:Boolean(career.ok),
     error:career?.ok ? null : (career?.error || 'Kariyer alınamadı.'),
     cutoffExclusive:career.before || null,
+    fullPathBefore:full,
+    historyBefore:full,
+    roadmapBefore:full,
+    fullPathBeforeCount:full.length,
     winsBefore:wins,
     winsBeforeCount:wins.length,
     top5Before:top5,
     top5BeforeCount:top5.length,
     preparationPathBefore:prep,
     preparationPathBeforeCount:prep.length,
-    analysisMode:career.analysisMode || null,
+    analysisMode:career.analysisMode || (wins.length ? 'WIN_PATH' : full.length ? 'PREPARATION_PATH' : 'DEBUT'),
     audit:career.audit || null,
-    version:career.version || null
+    version:career.version || null,
+    pathRule:'Tarihsel atın referans yarıştan önceki TÜM yarışları; yalnız galibiyet satırlarına daraltılmaz.'
   };
 }
-
 async function buildHistoricalHorse(baseUrl, horse, date) {
-  const result = { ...horse, career:{ ok:false, winsBefore:[], top5Before:[], preparationPathBefore:[] } };
+  const result = { ...horse, career:{ ok:false, fullPathBefore:[], historyBefore:[], winsBefore:[], top5Before:[], preparationPathBefore:[] } };
   if (!horse.horseId) {
     result.career.error = 'At ID bulunamadı.';
     return result;
@@ -125,7 +197,6 @@ async function buildHistoricalHorse(baseUrl, horse, date) {
     return result;
   }
 }
-
 function normalizeCandidate(raw = {}, year = null) {
   const type = normalizeType(raw.referenceType);
   return {
@@ -141,67 +212,135 @@ function normalizeCandidate(raw = {}, year = null) {
     transferabilityTier:raw.transferabilityTier || null,
     transferabilityColor:raw.transferabilityColor || null,
     explanation:raw.explanation || '',
-    distance:Number(raw.distance || 0) || null,
-    track:raw.track || '',
-    class:raw.class || '',
-    ageGroup:raw.ageGroup || ''
+    distance:normalizeDistance(raw.distance),
+    track:clean(raw.track || ''),
+    class:clean(raw.authoritativeClass || raw.class || ''),
+    ageGroup:clean(raw.ageGroup || ''),
+    _history:raw._history || null
   };
 }
-
-async function buildHistoricalRace(baseUrl, candidate) {
-  const output = {
-    ...candidate,
-    ok:false,
-    top3:[]
+async function fetchHistoricalSnapshot(baseUrl, candidate, cache) {
+  const key = candidateKey(candidate);
+  if (cache.has(key)) return cache.get(key);
+  const promise = (async () => {
+    const url = new URL('/api/tjk-history', baseUrl);
+    url.searchParams.set('date', candidate.date);
+    url.searchParams.set('city', candidate.city);
+    url.searchParams.set('raceNo', String(candidate.raceNo));
+    return fetchJson(url.toString(), 45000, INTERNAL_RETRIES);
+  })();
+  cache.set(key, promise);
+  try { return await promise; }
+  catch (e) { cache.delete(key); throw e; }
+}
+function verifyCandidate(target, candidate, history) {
+  const authoritativeClass = clean(history?.class || '');
+  const authoritativeAge = clean(history?.ageGroup || candidate.ageGroup || '');
+  const authoritativeDistance = normalizeDistance(history?.distance || candidate.distance);
+  const authoritativeTrack = clean(history?.track || candidate.track || '');
+  const fullClassMatch = Boolean(authoritativeClass) && classCoreKey(target.class) === classCoreKey(authoritativeClass);
+  const ageMatch = ageKey(target.ageGroup) === ageKey(authoritativeAge);
+  const cityMatch = normalizeCity(target.city) === normalizeCity(candidate.city);
+  const distanceMatch = Number(target.distance) === Number(authoritativeDistance);
+  const trackMatch = normalizeTrack(target.track) === normalizeTrack(authoritativeTrack);
+  const type = normalizeType(candidate.referenceType);
+  const structuralMatch = type === 'EXACT'
+    ? cityMatch && distanceMatch && trackMatch
+    : type === 'RACE_FAMILY'
+      ? cityMatch
+      : type === 'CONDITION_TWIN'
+        ? distanceMatch && trackMatch
+        : false;
+  return {
+    ok:fullClassMatch && ageMatch && structuralMatch,
+    fullClassMatch, ageMatch, cityMatch, distanceMatch, trackMatch,
+    authoritativeClass, authoritativeAge, authoritativeDistance, authoritativeTrack,
+    targetFullClassKey:classCoreKey(target.class), historyFullClassKey:classCoreKey(authoritativeClass)
   };
+}
+async function verifyOne(baseUrl, target, candidate, historyCache) {
   try {
-    const historyUrl = new URL('/api/tjk-history', baseUrl);
-    historyUrl.searchParams.set('date', candidate.date);
-    historyUrl.searchParams.set('city', candidate.city);
-    historyUrl.searchParams.set('raceNo', String(candidate.raceNo));
-    const history = await fetchJson(historyUrl.toString(), 45000, INTERNAL_RETRIES);
-    if (!history?.ok) throw new Error(history?.error || 'Geçmiş yarış sonucu okunamadı.');
-
+    const history = candidate._history || await fetchHistoricalSnapshot(baseUrl, candidate, historyCache);
+    if (!history?.ok) return null;
+    const verification = verifyCandidate(target, candidate, history);
+    if (!verification.ok) return null;
+    return {
+      ...candidate,
+      class:verification.authoritativeClass,
+      ageGroup:verification.authoritativeAge,
+      distance:verification.authoritativeDistance,
+      track:verification.authoritativeTrack,
+      authoritativeClass:verification.authoritativeClass,
+      fullClassVerified:true,
+      verification,
+      _history:history
+    };
+  } catch {
+    return null;
+  }
+}
+function candidatesForType(yearResult, type) {
+  const pool = [];
+  if (yearResult?.best) pool.push(yearResult.best);
+  for (const m of Array.isArray(yearResult?.matches) ? yearResult.matches : []) pool.push(m);
+  const seen = new Set();
+  return pool
+    .map(x => normalizeCandidate(x, yearResult?.year))
+    .filter(x => x.referenceType === type && x.date && x.city && x.raceNo)
+    .filter(x => {
+      const k = candidateKey(x);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .sort((a,b) =>
+      Number(b.transferabilityScore || 0) - Number(a.transferabilityScore || 0) ||
+      Number(a.calendarDayDifference || 999) - Number(b.calendarDayDifference || 999) ||
+      String(b.date).localeCompare(String(a.date))
+    );
+}
+async function findVerifiedForType(baseUrl, target, yearResult, type, historyCache) {
+  for (const candidate of candidatesForType(yearResult, type)) {
+    const verified = await verifyOne(baseUrl, target, candidate, historyCache);
+    if (verified) return verified;
+  }
+  return null;
+}
+async function buildHistoricalRace(baseUrl, target, candidate, historyCache) {
+  const output = { ...candidate, ok:false, top3:[] };
+  try {
+    const verified = candidate.fullClassVerified
+      ? candidate
+      : await verifyOne(baseUrl, target, candidate, historyCache);
+    if (!verified) throw new Error('Tarihsel aday TJK sonuç sayfasındaki tam sınıfla doğrulanamadı.');
+    const history = verified._history || await fetchHistoricalSnapshot(baseUrl, verified, historyCache);
+    output.classVerification = 'TJK_HISTORY_FULL_CLASS';
+    output.authoritativeClass = verified.authoritativeClass || history.class || null;
     output.condition = {
-      class:history.class || candidate.class || '',
-      ageGroup:history.ageGroup || candidate.ageGroup || '',
-      distance:history.distance || candidate.distance || '',
-      track:history.track || candidate.track || '',
+      class:history.class || verified.class || '',
+      ageGroup:history.ageGroup || verified.ageGroup || '',
+      distance:history.distance || verified.distance || '',
+      track:history.track || verified.track || '',
       raw:history.conditionRaw || null
     };
-
     const top3 = (Array.isArray(history.top3) ? history.top3 : [])
       .map(normalizeHorse)
       .filter(h => h.finish >= 1 && h.finish <= 3)
       .sort((a,b) => a.finish - b.finish)
       .slice(0,3);
-    if (!top3.length) throw new Error('Tarihsel yarışın ilk 3 verisi bulunamadı.');
-
-    output.top3 = await mapLimit(top3, CAREER_CONCURRENCY, h => buildHistoricalHorse(baseUrl, h, candidate.date));
+    if (!top3.length) throw new Error('Tarihsel yarışın gerçek ilk 3 verisi bulunamadı.');
+    output.top3 = await mapLimit(top3, CAREER_CONCURRENCY, h => buildHistoricalHorse(baseUrl, h, verified.date));
     output.top3Count = output.top3.length;
     output.ok = true;
+    output.fullClassVerified = true;
+    output.pathRule = 'İlk 3 atın referans yarıştan önceki tüm yarış geçmişi dondurularak kullanılır.';
+    delete output._history;
     return output;
   } catch (e) {
     output.error = e?.message || 'Model tarihsel yarışı hazırlanamadı.';
+    delete output._history;
     return output;
   }
-}
-
-function chooseBestPerType(yearResult = {}) {
-  const matches = Array.isArray(yearResult.matches) ? yearResult.matches : [];
-  const out = {};
-  for (const type of MODEL_TYPES) {
-    const candidates = matches
-      .map(x => normalizeCandidate(x, yearResult.year))
-      .filter(x => x.referenceType === type && x.date && x.city && x.raceNo)
-      .sort((a,b) =>
-        Number(b.transferabilityScore || 0) - Number(a.transferabilityScore || 0) ||
-        Number(a.calendarDayDifference || 999) - Number(b.calendarDayDifference || 999) ||
-        String(b.date).localeCompare(String(a.date))
-      );
-    if (candidates.length) out[type] = candidates[0];
-  }
-  return out;
 }
 
 export default async function handler(req, res) {
@@ -214,76 +353,81 @@ export default async function handler(req, res) {
       if (value) sourceUrl.searchParams.set(key, value);
     }
     sourceUrl.searchParams.set('t', String(Date.now()));
-
     const source = await fetchJson(sourceUrl.toString(), 120000, 1);
     if (!source?.ok) throw new Error(source?.error || 'V10.2 tarihsel tarama alınamadı.');
 
-    const prebuilt = new Map();
-    for (const race of Array.isArray(source.historicalRaces) ? source.historicalRaces : []) {
-      prebuilt.set(candidateKey(race), race);
+    const target = {
+      date:clean(source?.target?.date || req.query?.date || ''),
+      city:clean(source?.target?.city || req.query?.city || ''),
+      class:clean(source?.target?.class || req.query?.class || ''),
+      ageGroup:clean(source?.target?.ageGroup || req.query?.ageGroup || ''),
+      track:clean(source?.target?.track || req.query?.track || ''),
+      distance:normalizeDistance(source?.target?.distance || req.query?.distance)
+    };
+    const historyCache = new Map();
+    const selected = new Map();
+
+    // Önce V10.2'nin TJK sonuç sayfasında zaten doğruladığı yarışları koru.
+    for (const raw of Array.isArray(source.historicalRaces) ? source.historicalRaces : []) {
+      if (raw?.ok === false) continue;
+      const c = normalizeCandidate(raw, raw?.sourceYear);
+      if (!c.referenceType || !c.date || !c.city || !c.raceNo) continue;
+      const verified = await verifyOne(baseUrl, target, c, historyCache);
+      if (verified) selected.set(candidateModelKey(verified), verified);
     }
 
-    const candidates = [];
-    for (const yr of Array.isArray(source.yearResults) ? source.yearResults : []) {
-      const best = chooseBestPerType(yr);
-      for (const type of MODEL_TYPES) if (best[type]) candidates.push(best[type]);
-    }
-
-    const unique = [];
-    const seen = new Set();
-    for (const c of candidates) {
-      const key = `${candidateKey(c)}|${c.referenceType}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      unique.push(c);
-    }
-
-    const built = await mapLimit(unique, RACE_CONCURRENCY, async candidate => {
-      const existing = prebuilt.get(candidateKey(candidate));
-      if (existing && normalizeType(existing.referenceType) === candidate.referenceType && Array.isArray(existing.top3)) {
-        return {
-          ...existing,
-          referenceType:candidate.referenceType,
-          referenceLabel:candidate.referenceLabel,
-          transferabilityScore:candidate.transferabilityScore,
-          sourceYear:candidate.sourceYear,
-          calendarDayDifference:candidate.calendarDayDifference
-        };
+    // Her yıl ve her model tipi için ilk görülen satıra saplanma: tam sınıf tutmazsa sıradaki adayı dene.
+    const yearResults = Array.isArray(source.yearResults) ? source.yearResults : [];
+    const perYear = await mapLimit(yearResults, VERIFY_CONCURRENCY, async yr => {
+      const found = [];
+      for (const type of MODEL_TYPES) {
+        const already = [...selected.values()].some(c => Number(c.sourceYear) === Number(yr.year) && c.referenceType === type);
+        if (already) continue;
+        const verified = await findVerifiedForType(baseUrl, target, yr, type, historyCache);
+        if (verified) found.push(verified);
       }
-      return buildHistoricalRace(baseUrl, candidate);
+      return found;
     });
+    for (const list of perYear) for (const c of list || []) selected.set(candidateModelKey(c), c);
 
+    const unique = [...selected.values()];
+    const built = await mapLimit(unique, RACE_CONCURRENCY, c => buildHistoricalRace(baseUrl, target, c, historyCache));
     const models = { EXACT:[], CONDITION_TWIN:[], RACE_FAMILY:[] };
     for (const race of built) {
-      const type = normalizeType(race?.referenceType);
+      if (!race?.ok) continue;
+      const type = normalizeType(race.referenceType);
       if (type && models[type]) models[type].push(race);
     }
     for (const type of MODEL_TYPES) {
       models[type].sort((a,b) => Number(b.sourceYear || 0) - Number(a.sourceYear || 0));
     }
 
-    res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=1800');
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     return res.status(200).json({
       ok:true,
       version:VERSION,
       sourceVersion:source.version || null,
-      target:source.target || null,
-      classAlias:source.classAlias || null,
+      target,
+      classIdentity:{ strategy:'FULL_CLASS_IDENTITY', fullClassKey:classCoreKey(target.class), decoratorsPreserved:true },
       rules:{
         yearWindow:'target month/day ±45 days, every historical year separately',
         independentModels:true,
         modelTypes:MODEL_TYPES,
-        candidateRule:'best candidate of each reference type per year among V10.2 accepted matches',
-        top3CareerFreeze:'historical horse career only before historical race date'
+        candidateRule:'Her yıl/model tipinde adaylar sırayla TJK gerçek sonuç sayfasında tam sınıfla doğrulanır; ilk yanlış varyant yılı düşürmez.',
+        top3CareerFreeze:'historical horse career only before historical race date',
+        pathComparison:'FULL_PRE_RACE_HISTORY',
+        pathNote:'Kazanan/ikinci/üçüncünün yalnız eski galibiyetleri değil, referans yarıştan önceki bütün yarış yolu kullanılır.'
       },
       models,
       counts:Object.fromEntries(MODEL_TYPES.map(type => [type, models[type].length])),
       diagnostics:{
-        sourceYears:Array.isArray(source.yearResults) ? source.yearResults.length : 0,
-        candidateCount:unique.length,
-        builtCount:built.length,
+        sourceYears:yearResults.length,
+        sourceVerifiedRaces:Array.isArray(source.historicalRaces) ? source.historicalRaces.length : 0,
+        verifiedCandidateCount:unique.length,
+        builtCount:built.filter(x => x?.ok).length,
+        failedBuildCount:built.filter(x => !x?.ok).length,
         durationMs:Date.now()-startedAt,
-        warning:'V10.2 yearResults each year exposes its strongest accepted candidates; missing model type is reported as no data, never converted to zero.'
+        warning:unique.length ? '' : 'Tam sınıfı doğrulanmış tarihsel aday üretilemedi.'
       }
     });
   } catch (e) {
