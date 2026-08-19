@@ -1,0 +1,80 @@
+/* AT AI Mobil — V11.13 compact/mobile UI fixes */
+
+/* Kariyer ekraninda ustteki select yeterli; ikinci Tumu/Kosu satiri gizlenir. */
+#analysisContent .career-race-pills{display:none!important}
+
+/* Kosu sinifi / yas / mesafe mobilde kesilmesin. */
+.career-model-race-v112>summary,
+.podium-race-v115>summary,
+.career-race-summary-v104{align-items:flex-start!important}
+.career-model-race-v112>summary div,
+.podium-race-v115>summary div,
+.career-race-summary-v104>div>div:first-child{min-width:0!important}
+.career-model-race-v112>summary small,
+.podium-race-v115>summary small,
+.career-full-meta-v1113{
+  display:block!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  max-width:none!important;
+  overflow-wrap:anywhere;
+  word-break:normal;
+  line-height:1.38;
+}
+.career-full-meta-v1113{font-size:12px;opacity:.72;margin-top:3px;padding-right:4px}
+
+/* Veri alinamadi = debut degil. */
+.data-error-path-v1113{
+  border:1px solid rgba(255,173,102,.22);
+  border-radius:10px;
+  overflow:hidden;
+  margin-top:9px;
+  background:rgba(255,173,102,.045)
+}
+.data-error-path-v1113 .career-mode-head-v104{background:rgba(255,173,102,.07)}
+
+/* Bahis turu secme butonu: daha buyuk dokunma alani + belirgin ikon. */
+.manual-bet-type-v117{
+  min-height:78px;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.manual-bet-type-v117:active{background:rgba(114,213,255,.055)}
+.manual-bet-type-v117>div{min-width:0;flex:1}
+.manual-bet-type-v117 .manual-bet-chevron-v1113{
+  flex:0 0 44px;
+  width:44px;
+  height:44px;
+  display:grid;
+  place-items:center;
+  border-radius:13px;
+  border:1px solid rgba(114,213,255,.32);
+  background:rgba(114,213,255,.10);
+  font-size:29px;
+  line-height:1;
+  font-weight:800;
+  opacity:1;
+}
+
+/* Acilan bahis listesinde satirlar telefonda daha rahat dokunulsun. */
+.manual-sheet-row-v117{min-height:62px}
+.manual-sheet-empty-v117 small{display:inline-block;margin-top:5px;opacity:.65;line-height:1.45}
+
+/* 1/2/3 ozetinde uzun aciklama tek satirda gereksiz kesilmesin. */
+.podium-finish-leader-v115,
+.podium-model-leader-v115{
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  line-height:1.3;
+}
+
+@media(max-width:520px){
+  .career-model-race-v112>summary small,
+  .podium-race-v115>summary small{max-width:none!important}
+  .career-model-race-v112>summary>span,
+  .podium-race-v115>summary>span{flex:0 0 auto;margin-left:5px}
+  .manual-bet-type-v117{padding:12px 10px 12px 12px}
+  .manual-bet-type-v117 .manual-bet-chevron-v1113{flex-basis:46px;width:46px;height:46px;font-size:30px}
+}
