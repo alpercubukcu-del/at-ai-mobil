@@ -25,6 +25,39 @@
   font-weight:800;
   opacity:.9;
 }
+.podium-races-v115{padding:8px}
+.podium-race-v115{
+  margin-top:8px;
+  border:1px solid rgba(255,255,255,.11);
+  border-radius:10px;
+  overflow:hidden;
+  background:rgba(255,255,255,.022);
+}
+.podium-race-v115:first-child{margin-top:0}
+.podium-race-v115>summary{
+  list-style:none;
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:center;
+  padding:10px;
+  cursor:pointer;
+}
+.podium-race-v115>summary::-webkit-details-marker{display:none}
+.podium-race-v115>summary div{min-width:0}
+.podium-race-v115>summary b{display:block;font-size:12px}
+.podium-race-v115>summary small{
+  display:block;
+  margin-top:3px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:9px;
+  opacity:.64;
+}
+.podium-race-v115>summary>span{flex:0 0 auto;font-size:10px;font-weight:800;opacity:.68}
+.podium-race-v115[open]>summary{background:rgba(114,213,255,.045)}
+.podium-loading-v115{padding:10px;font-size:10px;line-height:1.4;opacity:.65}
 .podium-note-v115{
   padding:8px 11px;
   border-top:1px solid rgba(255,255,255,.06);
