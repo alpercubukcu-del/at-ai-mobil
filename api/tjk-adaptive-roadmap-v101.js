@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-ADAPTIVE-ROADMAP-V10.1';
+const VERSION = 'TJK-ADAPTIVE-ROADMAP-V10.1.1';
 const TJK = 'https://www.tjk.org';
 const PAGE_URL = `${TJK}/TR/YarisSever/Query/Page/KosuSorgulama`;
 const DATA_URL = `${TJK}/TR/YarisSever/Query/Data/KosuSorgulama`;
@@ -58,7 +58,7 @@ function parseRaceFamily(v = '') {
   let m = t.match(/HANDIKAP\s*(\d+)/); if (m) return { family:'HANDIKAP', level:Number(m[1]) };
   m = t.match(/SARTLI\s*(\d+)/); if (m) return { family:'SARTLI', level:Number(m[1]) };
   m = t.match(/\bKV[- ]*(\d+)\b/); if (m) return { family:'KV', level:Number(m[1]) };
-  m = t.match(/\bG([123])\b/); if (m) return { family:'GROUP', level:Number(m[1]) };
+  m = t.match(/\b(?:G|GRUP)\s*-?\s*([123])\b/); if (m) return { family:'GROUP', level:Number(m[1]) };
   if (t.includes('MAIDEN')) return { family:'MAIDEN', level:0 };
   if (t.includes('SATIS')) return { family:'SATIS', level:0 };
   return { family:t.split('/')[0], level:null };
@@ -421,7 +421,7 @@ function getRules(minYear) {
     exactReference:'same city + class core + age/breed + distance + track',
     raceFamilyReference:'same city + class core + age/breed; distance/track may differ',
     conditionTwinReference:'different city + same class core + age/breed + distance + track',
-    classCoreNote:'Y-1/Y-2 gibi jokey alt şartları yarış ailesi çekirdeğinden çıkarılır',
+    classCoreNote:'G1/G 1/G-1/GRUP 1 (aynı şekilde G2/G3) eşdeğer; Y-1/Y-2 gibi jokey alt şartları yarış ailesi çekirdeğinden çıkarılır',
     transferability:'distance + track + city + calendar penalties',
     careerWinPath:'finish=1',
     preparationPath:'finish 1..5; no-win horses use preparation path',
@@ -480,7 +480,7 @@ export default async function handler(req, res) {
       warning:selected.length ? '' : '±45 gün içinde tam eşleşme, aynı yarış ailesi veya koşul ikizi bulunamadı.'
     });
   } catch (e) {
-    console.error('adaptive roadmap V10.1:', e);
+    console.error('adaptive roadmap V10.1.1:', e);
     return res.status(500).json({ ok:false, version:VERSION, error:e?.message || 'Uyarlanabilir tarihsel yol oluşturulamadı.' });
   }
 }
