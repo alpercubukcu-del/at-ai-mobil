@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-BET-STARTS-V11.4-AGF';
+const VERSION = 'TJK-BET-STARTS-V11.8-OFFICIAL';
 const BASE_URL = 'https://www.tjk.org/TR/YarisSever/Info/Sehir/GunlukYarisProgrami';
 const AGF_ROOT = 'https://www.tjk.org/AGFv2';
 const TIMEOUT_MS = 25000;
@@ -34,16 +34,30 @@ function raceNoFromText(text = '') {
 
 function normalizeBetLabel(text = '') {
   const raw = clean(text);
-  if (!/Bu\s+koşudan\s+başlar/i.test(raw)) return null;
-  const before = clean(raw.split(/Bu\s+koşudan\s+başlar/i)[0]);
+  if (!raw) return null;
+
+  /*
+    TJK iki farklı gösterim kullanıyor:
+    1) "1. 6'LI GANYAN Bu koşudan başlar"
+    2) Yarışın bahis satırında bağımsız "4'LÜ GANYAN"
+
+    İkinci biçim de o yarıştan başlayan resmi çok-ayaklı bahistir.
+    Eski parser yalnız 1. biçimi kabul ettiği için 4'lü gibi bahisleri kaçırıp
+    ön yüzde yanlışlıkla 1. koşudan tahmin ediyordu.
+  */
+  const marker = /Bu\s+koşudan\s+başlar/i;
+  const before = marker.test(raw) ? clean(raw.split(marker)[0]) : raw;
   const normalized = upper(before);
-  if (!/(?:3|4|5|6|7)\s*['’]?\s*L[IU]/.test(normalized)) return null;
+
+  const legMatch = normalized.match(/(?:^|\s|,)([34567])\s*['’]?\s*L[IU](?:\s|,|$)/);
+  if (!legMatch) return null;
   if (!/(GANYAN|PLASE)/.test(normalized)) return null;
 
-  const ordinal = before.match(/^\s*([12])\s*\./)?.[1] || '';
-  const leg = normalized.match(/([34567])\s*['’]?\s*L[IU]/)?.[1] || '';
+  const leg = legMatch[1];
   const kind = /PLASE/.test(normalized) ? 'PLASE' : 'GANYAN';
-  if (!leg) return null;
+
+  // Varyant yalnız bahis adının başında gerçekten varsa korunur (1. / 2. 6'lı gibi).
+  const ordinal = before.match(/^\s*([12])\s*\.\s*(?=[34567]\s*['’]?\s*[Ll])/i)?.[1] || '';
   const suffix = ['3','4'].includes(leg) ? "'LÜ" : "'Lİ";
   return `${ordinal ? `${ordinal}. ` : ''}${leg}${suffix} ${kind}`;
 }
