@@ -1,4 +1,4 @@
-const VERSION = 'TJK-MODEL-ROADMAP-V11.10';
+const VERSION = 'TJK-MODEL-ROADMAP-V11.11';
 const INTERNAL_RETRIES = 2;
 const RACE_CONCURRENCY = 2;
 const CAREER_CONCURRENCY = 3;
@@ -74,7 +74,7 @@ function parseRaceFamily(v = '') {
   m = t.match(/\bSARTLI\s*(\d+)\b/); if (m) return { family:'SARTLI', level:Number(m[1]) };
   m = t.match(/\bKV[- ]*(\d+)\b/); if (m) return { family:'KV', level:Number(m[1]) };
   m = t.match(/\b(?:G|GRUP)\s*-?\s*([123])\b/); if (m) return { family:'GROUP', level:Number(m[1]) };
-  m = t.match(/^SATIS\s*(\d+)\b/); if (m) return { family:'SATIS', level:Number(m[1]) };
+  m = t.match(/^SATIS\s*-?\s*(\d+)\b/); if (m) return { family:'SATIS', level:Number(m[1]) };
   if (/^OPSIYONEL\s+SATIS\b/.test(t)) return { family:'OPSIYONEL_SATIS', level:null };
   if (/^MAIDEN\b/.test(t)) return { family:'MAIDEN', level:0 };
   if (/^SATIS\b/.test(t)) return { family:'SATIS', level:null };
