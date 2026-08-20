@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-ADAPTIVE-ROADMAP-V10.1.5';
+const VERSION = 'TJK-ADAPTIVE-ROADMAP-V10.1.6';
 const TJK = 'https://www.tjk.org';
 const PAGE_URL = `${TJK}/TR/YarisSever/Query/Page/KosuSorgulama`;
 const DATA_URL = `${TJK}/TR/YarisSever/Query/Data/KosuSorgulama`;
@@ -68,7 +68,7 @@ function parseRaceFamily(v = '') {
   m = t.match(/\bSARTLI\s*(\d+)\b/); if (m) return { family:'SARTLI', level:Number(m[1]) };
   m = t.match(/\bKV[- ]*(\d+)\b/); if (m) return { family:'KV', level:Number(m[1]) };
   m = t.match(/\b(?:G|GRUP)\s*-?\s*([123])\b/); if (m) return { family:'GROUP', level:Number(m[1]) };
-  m = t.match(/^SATIS\s*(\d+)\b/); if (m) return { family:'SATIS', level:Number(m[1]) };
+  m = t.match(/^SATIS\s*-?\s*(\d+)\b/); if (m) return { family:'SATIS', level:Number(m[1]) };
   if (/^OPSIYONEL\s+SATIS\b/.test(t)) return { family:'OPSIYONEL_SATIS', level:null };
   if (/^MAIDEN\b/.test(t)) return { family:'MAIDEN', level:0 };
   if (/^SATIS\b/.test(t)) return { family:'SATIS', level:null };
@@ -529,7 +529,7 @@ export default async function handler(req, res) {
       warning:verifiedHistoricalRaces.length ? '' : '±45 gün içinde tam sınıfı TJK sonuç sayfasında doğrulanmış benzer yarış bulunamadı.'
     });
   } catch (e) {
-    console.error('adaptive roadmap V10.1.5:', e);
+    console.error('adaptive roadmap V10.1.6:', e);
     return res.status(500).json({ ok:false, version:VERSION, error:e?.message || 'Uyarlanabilir tarihsel yol oluşturulamadı.' });
   }
 }
