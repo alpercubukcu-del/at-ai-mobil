@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-EXACT-HISTORY-V7.1.2';
+const VERSION = 'TJK-EXACT-HISTORY-V7.1.3';
 const TJK = 'https://www.tjk.org';
 const PAGE_URL = `${TJK}/TR/YarisSever/Query/Page/KosuSorgulama`;
 const DATA_URL = `${TJK}/TR/YarisSever/Query/Data/KosuSorgulama`;
@@ -117,7 +117,7 @@ function parseRaceFamily(v = '') {
   if (m) return { family:'KV', level:Number(m[1]) };
   m = t.match(/\b(?:G|GRUP)\s*-?\s*([123])\b/);
   if (m) return { family:'GROUP', level:Number(m[1]) };
-  m = t.match(/^SATIS\s*(\d+)\b/);
+  m = t.match(/^SATIS\s*-?\s*(\d+)\b/);
   if (m) return { family:'SATIS', level:Number(m[1]) };
   if (/^OPSIYONEL\s+SATIS\b/.test(t)) return { family:'OPSIYONEL_SATIS', level:null };
   if (/^MAIDEN\b/.test(t)) return { family:'MAIDEN', level:0 };
@@ -440,7 +440,7 @@ export default async function handler(req, res) {
       source:'TJK_KOSU_SORGULAMA_EXACT_YEAR_WINDOW'
     });
   } catch (e) {
-    console.error('tjk-similar exact V7.1.2:', e);
+    console.error('tjk-similar exact V7.1.3:', e);
     return res.status(500).json({ ok:false, version:VERSION, error:e?.message || 'Tam tarihsel eşleşme hesaplanamadı.' });
   }
 }
