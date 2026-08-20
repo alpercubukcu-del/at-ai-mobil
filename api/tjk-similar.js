@@ -1,19 +1,22 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-EXACT-HISTORY-V7.1.4';
+const VERSION = 'TJK-EXACT-HISTORY-V7.2.0';
 const TJK = 'https://www.tjk.org';
 const PAGE_URL = `${TJK}/TR/YarisSever/Query/Page/KosuSorgulama`;
 const DATA_URL = `${TJK}/TR/YarisSever/Query/Data/KosuSorgulama`;
 const ROWS_URL = `${TJK}/TR/YarisSever/Query/DataRows/KosuSorgulama`;
+const RESULT_INDEX_URL = `${TJK}/TR/YarisSever/Info/Page/GunlukYarisSonuclari`;
 const SORT = 'Tarih desc, Sehir asc, KosuSirasi asc';
 const DAY_WINDOW = 45;
 const DEFAULT_MIN_YEAR = 2000;
+const VERIFY_CONCURRENCY = 2;
 
 const HEADERS = {
-  'user-agent':'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/138 Safari/537.36',
+  'user-agent':'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/150 Safari/537.36',
   accept:'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
   'accept-language':'tr-TR,tr;q=0.9,en;q=0.7',
-  referer:PAGE_URL
+  referer:PAGE_URL,
+  'cache-control':'no-cache'
 };
 
 function clean(v = '') {
@@ -44,6 +47,14 @@ function normalizeTrack(v = '') {
   if (t.includes('CIM')) return 'CIM';
   if (t.includes('KUM')) return 'KUM';
   return t;
+}
+
+function displayTrack(v = '') {
+  const t = normalizeTrack(v);
+  if (t === 'SENTETIK') return 'Sentetik';
+  if (t === 'CIM') return 'Çim';
+  if (t === 'KUM') return 'Kum';
+  return clean(v);
 }
 
 function parseAge(v = '') {
@@ -83,9 +94,9 @@ function parseIso(v = '') {
   return m ? { year:Number(m[1]), month:Number(m[2]), day:Number(m[3]) } : null;
 }
 
-function isoToDisplay(iso = '') {
+function isoToDisplay(iso = '', separator = '.') {
   const p = parseIso(iso);
-  return p ? `${String(p.day).padStart(2,'0')}.${String(p.month).padStart(2,'0')}.${p.year}` : '';
+  return p ? `${String(p.day).padStart(2,'0')}${separator}${String(p.month).padStart(2,'0')}${separator}${p.year}` : '';
 }
 
 function daysInMonth(year, month) {
@@ -151,6 +162,17 @@ function classCoreKey(v = '') {
   return `${family.family}:${family.level ?? ''}|${classTokens(v).join('/')}`;
 }
 
+/*
+  TJK Koşu Sorgulama tablosu Y-0/Y-1/Y-2/Y-3 bilgisini bazı satırlarda
+  Koşu Cinsi sütunundan düşürüyor. Bu anahtar yalnız ADAY bulmak içindir.
+  Nihai kabul tam sonuç sayfasındaki koşu başlığıyla yapılır.
+*/
+function queryClassKey(v = '') {
+  const family = parseRaceFamily(v);
+  const tokens = classTokens(v).filter(x => !/^Y\d+$/.test(x));
+  return `${family.family}:${family.level ?? ''}|${tokens.join('/')}`;
+}
+
 function optionList($, selector) {
   return $(selector).find('option').map((_, option) => ({
     value:clean($(option).attr('value') || ''),
@@ -164,6 +186,32 @@ function findClassOption(options, targetClass) {
     const f = parseRaceFamily(x.text);
     return f.family === target.family && f.level === target.level;
   }) || null;
+}
+
+async function fetchText(url, options = {}, timeoutMs = 18000, attempts = 2) {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers:{ ...HEADERS, ...(options.headers || {}) },
+        redirect:'follow',
+        signal:controller.signal
+      });
+      if (!response.ok) throw new Error(`TJK HTTP ${response.status}`);
+      return await response.text();
+    } catch (e) {
+      lastError = e?.name === 'AbortError' ? new Error('TJK doğrulama isteği zaman aşımına uğradı.') : e;
+      if (attempt < attempts) await new Promise(resolve => setTimeout(resolve, 250 * attempt));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  throw lastError || new Error('TJK doğrulama isteği başarısız.');
 }
 
 async function resolveFilters(target) {
@@ -257,15 +305,119 @@ function parseRowsFragment(html) {
 }
 
 function rowKey(r) {
-  return [r.isoDate, normalizeCity(r.city), r.raceNo, classCoreKey(r.class), ageKey(r.ageGroup), r.distance, normalizeTrack(r.track)].join('|');
+  return [r.isoDate, normalizeCity(r.city), r.raceNo, queryClassKey(r.class), ageKey(r.ageGroup), r.distance, normalizeTrack(r.track)].join('|');
 }
 
-function exactCondition(target, row) {
+function queryCondition(target, row) {
   return normalizeCity(target.city) === normalizeCity(row.city) &&
-    classCoreKey(target.class) === classCoreKey(row.class) &&
+    queryClassKey(target.class) === queryClassKey(row.class) &&
     ageKey(target.ageGroup) === ageKey(row.ageGroup) &&
     Number(target.distance) === Number(row.distance) &&
     normalizeTrack(target.track) === normalizeTrack(row.track);
+}
+
+function exactCondition(target, condition) {
+  return classCoreKey(target.class) === classCoreKey(condition.class) &&
+    ageKey(target.ageGroup) === ageKey(condition.ageGroup) &&
+    Number(target.distance) === Number(condition.distance) &&
+    normalizeTrack(target.track) === normalizeTrack(condition.track);
+}
+
+function parseCondition(value = '') {
+  const text = clean(value);
+  const parts = text.split(',').map(clean).filter(Boolean);
+  const dm = text.match(/\b(\d{3,4})\s+(?:Çim|Kum|Sentetik)\b/i);
+  return {
+    class:parts[0] || '',
+    ageGroup:parts[1] || '',
+    distance:dm ? Number(dm[1]) : 0,
+    track:displayTrack(text),
+    raw:text
+  };
+}
+
+function parseRaceConditionFromResult(html, requestedRaceNo) {
+  const $ = cheerio.load(html);
+  let activeRaceNo = null;
+  let activeCondition = '';
+  let result = null;
+
+  $('h3, table').each((_, el) => {
+    if (result) return;
+    const tag = String(el.tagName || el.name || '').toLowerCase();
+    if (tag === 'h3') {
+      const text = clean($(el).text());
+      const rm = text.match(/^(\d+)\.\s*Koşu\b/i);
+      if (rm) {
+        activeRaceNo = Number(rm[1]);
+        activeCondition = '';
+        return;
+      }
+      if (activeRaceNo && !activeCondition && /(?:Kum|Çim|Sentetik)/i.test(text)) activeCondition = text;
+      return;
+    }
+    if (tag === 'table' && Number(activeRaceNo) === Number(requestedRaceNo) && activeCondition) {
+      result = parseCondition(activeCondition);
+    }
+  });
+
+  return result;
+}
+
+async function findCityResultUrl(dateIso, cityName, indexCache) {
+  let promise = indexCache.get(dateIso);
+  if (!promise) {
+    const url = `${RESULT_INDEX_URL}?QueryParameter_Tarih=${encodeURIComponent(isoToDisplay(dateIso, '/'))}`;
+    promise = fetchText(url, {}, 18000, 2);
+    indexCache.set(dateIso, promise);
+  }
+
+  const html = await promise;
+  const $ = cheerio.load(html);
+  const target = upper(cityName);
+  let found = '';
+
+  $('a').each((_, a) => {
+    if (found) return;
+    const text = upper($(a).text());
+    const href = String($(a).attr('href') || '');
+    if (href.includes('GunlukYarisSonuclari') && text.startsWith(target)) {
+      found = new URL(href, TJK).toString();
+    }
+  });
+
+  if (!found) throw new Error(`${cityName} için ${dateIso} tarihli TJK sonuç sayfası bulunamadı.`);
+  return found;
+}
+
+async function verifyCandidate(target, row, indexCache) {
+  const resultUrl = await findCityResultUrl(row.isoDate, row.city, indexCache);
+  const html = await fetchText(resultUrl, {}, 18000, 2);
+  const condition = parseRaceConditionFromResult(html, row.raceNo);
+  if (!condition) throw new Error(`${row.isoDate} ${row.city} ${row.raceNo}. koşu şartı sonuç sayfasından okunamadı.`);
+  return {
+    ok:exactCondition(target, condition),
+    condition,
+    resultUrl,
+    fullClassKey:classCoreKey(condition.class)
+  };
+}
+
+async function mapLimit(items, limit, worker) {
+  const list = Array.isArray(items) ? items : [];
+  const output = new Array(list.length);
+  let cursor = 0;
+
+  async function run() {
+    while (true) {
+      const index = cursor++;
+      if (index >= list.length) return;
+      output[index] = await worker(list[index], index);
+    }
+  }
+
+  await Promise.all(Array.from({ length:Math.min(Math.max(1, limit), list.length || 1) }, () => run()));
+  return output;
 }
 
 function sourceYearFor(targetDate, historicalIso, minYear) {
@@ -353,29 +505,55 @@ export default async function handler(req, res) {
     if (!filters.track) throw new Error(`TJK Pist filtresi bulunamadı: ${track}`);
 
     const scan = await fetchExactCandidateRows(target, filters, minYear, maxPages);
-    const exactMatches = [];
+    const coarseCandidates = [];
 
     for (const row of scan.rows) {
       if (row.isoDate >= target.date) continue;
-      if (!exactCondition(target, row)) continue;
+      if (!queryCondition(target, row)) continue;
       const annual = sourceYearFor(target.date, row.isoDate, minYear);
       if (!annual) continue;
+      coarseCandidates.push({ row, annual });
+    }
+
+    const indexCache = new Map();
+    const verificationResults = await mapLimit(
+      coarseCandidates,
+      VERIFY_CONCURRENCY,
+      async candidate => {
+        try {
+          const verification = await verifyCandidate(target, candidate.row, indexCache);
+          return { ...candidate, verification, error:null };
+        } catch (e) {
+          return { ...candidate, verification:null, error:e?.message || String(e) };
+        }
+      }
+    );
+
+    const exactMatches = [];
+    for (const item of verificationResults) {
+      if (!item.verification?.ok) continue;
+      const row = item.row;
+      const annual = item.annual;
+      const condition = item.verification.condition;
       exactMatches.push({
         date:row.isoDate,
         dateDisplay:row.date,
         city:row.city,
         raceNo:row.raceNo,
-        class:row.class,
-        ageGroup:row.ageGroup,
-        distance:row.distance,
-        track:row.track,
+        class:condition.class,
+        ageGroup:condition.ageGroup,
+        distance:condition.distance,
+        track:condition.track,
         sourceYear:annual.sourceYear,
         anchorDate:annual.anchorDate,
         calendarDayDifference:annual.dayDifference,
         similarity:100,
         raceConditionSimilarity:100,
         exact:true,
-        exactFields:{ city:true, class:true, ageGroup:true, distance:true, track:true }
+        exactFields:{ city:true, class:true, ageGroup:true, distance:true, track:true },
+        queryClass:row.class,
+        resultUrl:item.verification.resultUrl,
+        verificationSource:'TJK_GUNLUK_YARIS_SONUCLARI'
       });
     }
 
@@ -403,28 +581,43 @@ export default async function handler(req, res) {
       track:row.track,
       normalizedClass:normalizeClass(row.class),
       classKey:classCoreKey(row.class),
+      queryClassKey:queryClassKey(row.class),
       normalizedAge:ageKey(row.ageGroup),
       checks:{
         city:normalizeCity(target.city) === normalizeCity(row.city),
-        class:classCoreKey(target.class) === classCoreKey(row.class),
+        queryClass:queryClassKey(target.class) === queryClassKey(row.class),
+        fullClassFromQuery:classCoreKey(target.class) === classCoreKey(row.class),
         ageGroup:ageKey(target.ageGroup) === ageKey(row.ageGroup),
         distance:Number(target.distance) === Number(row.distance),
         track:normalizeTrack(target.track) === normalizeTrack(row.track)
       }
     }));
 
+    const verificationDiagnostics = verificationResults.map(item => ({
+      date:item.row.isoDate,
+      city:item.row.city,
+      raceNo:item.row.raceNo,
+      queryClass:item.row.class,
+      verified:item.verification?.ok === true,
+      authoritativeClass:item.verification?.condition?.class || null,
+      authoritativeClassKey:item.verification?.fullClassKey || null,
+      error:item.error || null
+    }));
+
     res.setHeader('Cache-Control', 'no-store, max-age=0');
     return res.status(200).json({
       ok:true,
       version:VERSION,
-      target:{ ...target, classKey:classCoreKey(target.class) },
+      target:{ ...target, classKey:classCoreKey(target.class), queryClassKey:queryClassKey(target.class) },
       rules:{
-        mode:'EXACT_ONLY',
+        mode:'EXACT_ONLY_WITH_AUTHORITATIVE_CLASS_VERIFY',
         pastDateOnly:true,
         yearByYear:true,
         calendarWindowDays:DAY_WINDOW,
         exactFields:['city','class','ageGroup','distance','track'],
-        classIdentity:'family + level + canonical decorators; token order ignored; D=DİŞİ, Y-1=Y1, H-2=H2; numbered sales are distinct; trailing empty slash ignored',
+        classIdentity:'family + level + canonical decorators; token order ignored; D=DİŞİ, Y-1=Y1, H-2=H2',
+        queryTablePolicy:'Koşu Sorgulama Y-* tokenını düşürebildiği için Y-* yalnız aday bulmada opsiyoneldir; nihai sınıf TJK günlük sonuç sayfasından doğrulanır.',
+        authoritativeVerification:'TJK Günlük Yarış Sonuçları tam koşu başlığı',
         partialConditionScores:false,
         conditionSimilarityForAcceptedRace:100,
         minYear
@@ -434,9 +627,13 @@ export default async function handler(req, res) {
         scanned:scan.rows.length,
         pagesRead:scan.diagnostics.length,
         pageDiagnostics:scan.diagnostics,
+        coarseCandidateCount:coarseCandidates.length,
+        verifiedCandidateCount:verificationResults.filter(x => x.verification?.ok).length,
+        verificationErrorCount:verificationResults.filter(x => x.error).length,
         exactMatchCount:exactMatches.length,
-        targetNormalized:{ class:normalizeClass(target.class), classKey:classCoreKey(target.class), ageGroup:ageKey(target.ageGroup), city:normalizeCity(target.city), track:normalizeTrack(target.track), distance:Number(target.distance) },
-        sampleRows
+        targetNormalized:{ class:normalizeClass(target.class), classKey:classCoreKey(target.class), queryClassKey:queryClassKey(target.class), ageGroup:ageKey(target.ageGroup), city:normalizeCity(target.city), track:normalizeTrack(target.track), distance:Number(target.distance) },
+        sampleRows,
+        verificationDiagnostics
       },
       searchedYears:{ from:targetParts.year - 1, to:minYear, count:Math.max(0, targetParts.year - minYear) },
       yearResults,
@@ -444,10 +641,10 @@ export default async function handler(req, res) {
       matchCount:exactMatches.length,
       returned:exactMatches.length,
       matches:exactMatches,
-      source:'TJK_KOSU_SORGULAMA_EXACT_YEAR_WINDOW'
+      source:'TJK_KOSU_SORGULAMA_CANDIDATE_PLUS_RESULT_PAGE_EXACT_VERIFY'
     });
   } catch (e) {
-    console.error('tjk-similar exact V7.1.4:', e);
+    console.error('tjk-similar exact V7.2.0:', e);
     return res.status(500).json({ ok:false, version:VERSION, error:e?.message || 'Tam tarihsel eşleşme hesaplanamadı.' });
   }
 }
