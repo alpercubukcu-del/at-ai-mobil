@@ -1,22 +1,24 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-ADAPTIVE-ROADMAP-V10.2.6-FULL-CLASS';
+const VERSION = 'TJK-ADAPTIVE-ROADMAP-V10.2.7-FULL-CLASS';
 const TJK = 'https://www.tjk.org';
 const PAGE_URL = `${TJK}/TR/YarisSever/Query/Page/KosuSorgulama`;
 const DATA_URL = `${TJK}/TR/YarisSever/Query/Data/KosuSorgulama`;
+const RESULT_INDEX_URL = `${TJK}/TR/YarisSever/Info/Page/GunlukYarisSonuclari`;
 const SORT = 'Tarih desc, Sehir asc, KosuSirasi asc';
 const DAY_WINDOW = 45;
 const DEFAULT_MIN_YEAR = 2000;
 const INTERNAL_RETRIES = 3;
+const YEAR_CONCURRENCY = 2;
 const QUERY_CONCURRENCY = 2;
-const VERIFY_CONCURRENCY = 2;
 const MODEL_TYPES = ['EXACT', 'RACE_FAMILY', 'CONDITION_TWIN'];
 
 const HEADERS = {
   'user-agent':'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/150 Mobile Safari/537.36',
   accept:'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
   'accept-language':'tr-TR,tr;q=0.9,en;q=0.7',
-  referer:PAGE_URL
+  referer:'https://www.tjk.org/',
+  'cache-control':'no-cache'
 };
 
 function clean(v = '') {
@@ -31,19 +33,23 @@ function upper(v = '') {
 }
 
 /*
- * Yarış sınıfı kimliği:
- * - ana sınıf / dekoratör ayrıştırması YOK
- * - token sıralama YOK
- * - ek silme YOK
- * - sondaki / silme YOK
- * - D -> Dişi gibi alias YOK
- * Yalnızca karakter/boşluk gösterim farkları normalize edilir.
+ * TAM YARIŞ SINIFI KİMLİĞİ
+ * ------------------------
+ * Program sayfasında yarış grubundan önce ne yazıyorsa sınıf odur.
+ * Aile/seviye ayrıştırması, ek silme, token sıralama, alias ve kısaltma yoktur.
+ * Yalnız Unicode/büyük-küçük harf, genel boşluk ve '/' çevresindeki boşluk
+ * gösterim farkları karşılaştırma anahtarında normalize edilir.
  */
 function fullClassKey(v = '') {
   return upper(v)
     .replace(/\s*\/\s*/g, '/')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/* TJK sorgu tablosundaki sınıf yalnız arama ÖNCELİĞİ için ipucudur. Kabul/eleme yapmaz. */
+function queryHeadKey(v = '') {
+  return fullClassKey(v).split('/')[0].trim();
 }
 
 function normalizeCity(v = '') {
@@ -56,6 +62,14 @@ function normalizeTrack(v = '') {
   if (t.includes('CIM')) return 'CIM';
   if (t.includes('KUM')) return 'KUM';
   return t;
+}
+
+function displayTrack(v = '') {
+  const t = normalizeTrack(v);
+  if (t === 'SENTETIK') return 'Sentetik';
+  if (t === 'CIM') return 'Çim';
+  if (t === 'KUM') return 'Kum';
+  return clean(v);
 }
 
 function normalizeDistance(v) {
@@ -98,9 +112,9 @@ function parseDisplayDate(v = '') {
   return { display:`${dd}.${mm}.${m[3]}`, iso:`${m[3]}-${mm}-${dd}` };
 }
 
-function isoToDisplay(iso = '') {
+function isoToDisplay(iso = '', separator = '.') {
   const p = parseIso(iso);
-  return p ? `${String(p.day).padStart(2,'0')}.${String(p.month).padStart(2,'0')}.${p.year}` : '';
+  return p ? `${String(p.day).padStart(2,'0')}${separator}${String(p.month).padStart(2,'0')}${separator}${p.year}` : '';
 }
 
 function isoFromDate(d) {
@@ -132,12 +146,6 @@ function daysBetween(a, b) {
   ) / 86400000);
 }
 
-function getBaseUrl(req) {
-  const host = clean(req.headers?.['x-forwarded-host']) || clean(req.headers?.host) || 'at-ai-mobil.vercel.app';
-  const protocol = clean(req.headers?.['x-forwarded-proto']) || (host.includes('localhost') ? 'http' : 'https');
-  return `${protocol}://${host}`;
-}
-
 function optionList($, selector) {
   return $(selector).find('option').map((_, option) => ({
     value:clean($(option).attr('value') || ''),
@@ -145,10 +153,33 @@ function optionList($, selector) {
   })).get();
 }
 
+async function fetchText(url, options = {}, timeoutMs = 25000) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= INTERNAL_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers:{ ...HEADERS, ...(options.headers || {}) },
+        redirect:'follow',
+        signal:controller.signal
+      });
+      if (!response.ok) throw new Error(`TJK HTTP ${response.status}`);
+      return await response.text();
+    } catch (e) {
+      lastError = e?.name === 'AbortError' ? new Error('TJK isteği zaman aşımına uğradı.') : e;
+      if (attempt < INTERNAL_RETRIES) await new Promise(r => setTimeout(r, 250 * attempt));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastError || new Error('TJK isteği başarısız.');
+}
+
 async function resolveFilters(target) {
-  const response = await fetch(PAGE_URL, { headers:HEADERS, redirect:'follow' });
-  if (!response.ok) throw new Error(`TJK GET HTTP ${response.status}`);
-  const $ = cheerio.load(await response.text());
+  const html = await fetchText(PAGE_URL);
+  const $ = cheerio.load(html);
   return {
     raceClass:null,
     city:optionList($, '#QueryParameter_SehirId').find(x => normalizeCity(x.text) === normalizeCity(target.city)) || null,
@@ -157,77 +188,18 @@ async function resolveFilters(target) {
   };
 }
 
-async function postForm(data) {
+async function postQueryForm(data) {
   const body = new URLSearchParams();
   for (const [key, value] of Object.entries(data)) body.set(key, String(value ?? ''));
-  let lastError = null;
-
-  for (let attempt = 1; attempt <= INTERNAL_RETRIES; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 25000);
-    try {
-      const response = await fetch(DATA_URL, {
-        method:'POST',
-        headers:{
-          ...HEADERS,
-          'content-type':'application/x-www-form-urlencoded; charset=UTF-8',
-          'x-requested-with':'XMLHttpRequest'
-        },
-        body:body.toString(),
-        redirect:'follow',
-        signal:controller.signal
-      });
-      if (!response.ok) throw new Error(`TJK POST HTTP ${response.status}`);
-      return await response.text();
-    } catch (e) {
-      lastError = e?.name === 'AbortError' ? new Error('TJK Koşu Sorgulama zaman aşımına uğradı.') : e;
-      if (attempt < INTERNAL_RETRIES) await new Promise(r => setTimeout(r, 250 * attempt));
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-  throw lastError || new Error('TJK sorgusu başarısız.');
-}
-
-async function fetchJson(url, timeoutMs = 35000) {
-  let lastError = null;
-  for (let attempt = 1; attempt <= INTERNAL_RETRIES; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const response = await fetch(url, {
-        headers:{ Accept:'application/json, text/plain, */*', 'Cache-Control':'no-cache' },
-        signal:controller.signal
-      });
-      const text = await response.text();
-      let data = {};
-      try { data = text ? JSON.parse(text) : {}; }
-      catch { throw new Error(`JSON olmayan cevap (${response.status}): ${text.slice(0,160)}`); }
-      if (!response.ok) throw new Error(data?.error || `HTTP ${response.status}`);
-      return data;
-    } catch (e) {
-      lastError = e?.name === 'AbortError' ? new Error('TJK sonuç doğrulaması zaman aşımına uğradı.') : e;
-      if (attempt < INTERNAL_RETRIES) await new Promise(r => setTimeout(r, 250 * attempt));
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-  throw lastError || new Error('TJK sonuç doğrulaması başarısız.');
-}
-
-async function mapLimit(items, limit, worker) {
-  const list = Array.isArray(items) ? items : [];
-  const out = new Array(list.length);
-  let cursor = 0;
-  async function run() {
-    while (true) {
-      const i = cursor++;
-      if (i >= list.length) return;
-      out[i] = await worker(list[i], i);
-    }
-  }
-  await Promise.all(Array.from({ length:Math.min(Math.max(1, limit), list.length || 1) }, () => run()));
-  return out;
+  return fetchText(DATA_URL, {
+    method:'POST',
+    headers:{
+      'content-type':'application/x-www-form-urlencoded; charset=UTF-8',
+      'x-requested-with':'XMLHttpRequest',
+      referer:PAGE_URL
+    },
+    body:body.toString()
+  });
 }
 
 function parseQueryTable(html) {
@@ -272,6 +244,7 @@ function baseForm(target, filters, mode, startIso, endIso) {
     QueryParameter_SehirId:mode === 'SAME_CITY' ? filters.city.value : '',
     QueryParameter_IrkId:'',
     QueryParameter_GrupId:filters.group.value,
+    /* Yarış sınıfı TJK sorgusunda BİLEREK boş: eksik/kısaltılmış sınıf filtresi veri kaybettirmesin. */
     QueryParameter_KosuCinsiId:'',
     QueryParameter_Cinsiyet:'',
     QueryParameter_APRANTIKODU:'',
@@ -285,7 +258,7 @@ function baseForm(target, filters, mode, startIso, endIso) {
 }
 
 async function fetchRange(target, filters, mode, startIso, endIso, depth = 0) {
-  const rows = parseQueryTable(await postForm(baseForm(target, filters, mode, startIso, endIso)));
+  const rows = parseQueryTable(await postQueryForm(baseForm(target, filters, mode, startIso, endIso)));
   const diagnostics = [{ mode, start:startIso, end:endIso, rows:rows.length, splitDepth:depth }];
   if (rows.length < 50 || depth >= 5 || startIso >= endIso) return { rows, diagnostics };
 
@@ -304,8 +277,90 @@ async function fetchRange(target, filters, mode, startIso, endIso, depth = 0) {
   return { rows:[...seen.values()], diagnostics:[...diagnostics, ...left.diagnostics, ...right.diagnostics] };
 }
 
-function calendarPenalty(days) {
-  return days <= 7 ? 0 : days <= 21 ? 3 : 5;
+function parseCondition(value = '') {
+  const text = clean(value);
+  const parts = text.split(',').map(clean).filter(Boolean);
+  const dm = text.match(/\b(\d{3,4})\s+(?:Çim|Kum|Sentetik)\b/i);
+  return {
+    class:parts[0] || '',
+    ageGroup:parts[1] || '',
+    distance:dm ? Number(dm[1]) : 0,
+    track:displayTrack(text),
+    raw:text
+  };
+}
+
+function parseRaceConditionFromResult(html, requestedRaceNo) {
+  const $ = cheerio.load(html);
+  let activeRaceNo = null;
+  let activeCondition = '';
+  let result = null;
+
+  $('h3, table').each((_, el) => {
+    if (result) return;
+    const tag = String(el.tagName || el.name || '').toLowerCase();
+    if (tag === 'h3') {
+      const text = clean($(el).text());
+      const rm = text.match(/^(\d+)\.\s*Koşu\b/i);
+      if (rm) {
+        activeRaceNo = Number(rm[1]);
+        activeCondition = '';
+        return;
+      }
+      if (activeRaceNo && !activeCondition && /(?:Kum|Çim|Sentetik)/i.test(text)) activeCondition = text;
+      return;
+    }
+    if (tag === 'table' && Number(activeRaceNo) === Number(requestedRaceNo) && activeCondition) {
+      result = parseCondition(activeCondition);
+    }
+  });
+  return result;
+}
+
+async function findCityResultUrl(dateIso, cityName, indexCache) {
+  const cacheKey = dateIso;
+  let promise = indexCache.get(cacheKey);
+  if (!promise) {
+    promise = fetchText(`${RESULT_INDEX_URL}?QueryParameter_Tarih=${encodeURIComponent(isoToDisplay(dateIso, '/'))}`, {}, 18000);
+    indexCache.set(cacheKey, promise);
+  }
+  const html = await promise;
+  const $ = cheerio.load(html);
+  const target = upper(cityName);
+  let found = '';
+  $('a').each((_, a) => {
+    if (found) return;
+    const text = upper($(a).text());
+    const href = String($(a).attr('href') || '');
+    if (href.includes('GunlukYarisSonuclari') && text.startsWith(target)) found = new URL(href, TJK).toString();
+  });
+  if (!found) throw new Error(`${cityName} için ${dateIso} tarihli TJK yarış sonucu bulunamadı.`);
+  return found;
+}
+
+async function fetchAuthoritativeCondition(row, caches) {
+  const raceKey = rowKey(row);
+  if (caches.race.has(raceKey)) return caches.race.get(raceKey);
+
+  const promise = (async () => {
+    const dayCityKey = `${row.isoDate}|${normalizeCity(row.city)}`;
+    let htmlPromise = caches.dayCity.get(dayCityKey);
+    if (!htmlPromise) {
+      htmlPromise = (async () => {
+        const resultUrl = await findCityResultUrl(row.isoDate, row.city, caches.index);
+        return { resultUrl, html:await fetchText(resultUrl, {}, 18000) };
+      })();
+      caches.dayCity.set(dayCityKey, htmlPromise);
+    }
+    const { resultUrl, html } = await htmlPromise;
+    const condition = parseRaceConditionFromResult(html, row.raceNo);
+    if (!condition?.class) throw new Error('TJK sonuç sayfasında yarış sınıfı okunamadı.');
+    return { ...condition, resultUrl };
+  })();
+
+  caches.race.set(raceKey, promise);
+  try { return await promise; }
+  catch (e) { caches.race.delete(raceKey); throw e; }
 }
 
 function structuralType(target, row) {
@@ -317,6 +372,10 @@ function structuralType(target, row) {
   if (city) return 'RACE_FAMILY';
   if (distance && track) return 'CONDITION_TWIN';
   return null;
+}
+
+function calendarPenalty(days) {
+  return days <= 7 ? 0 : days <= 21 ? 3 : 5;
 }
 
 function transferability(target, row, type, calendarDayDifference) {
@@ -337,53 +396,33 @@ function transferability(target, row, type, calendarDayDifference) {
   return { score, tier, color, label, city, distance, track, distanceDiff, distanceDiffPct:Math.round(distanceDiffPct) };
 }
 
-async function fetchHistory(baseUrl, row, cache) {
-  const key = rowKey(row);
-  if (cache.has(key)) return cache.get(key);
-  const promise = (async () => {
-    const url = new URL('/api/tjk-history', baseUrl);
-    url.searchParams.set('date', row.isoDate);
-    url.searchParams.set('city', row.city);
-    url.searchParams.set('raceNo', String(row.raceNo));
-    return fetchJson(url.toString(), 35000);
-  })();
-  cache.set(key, promise);
-  try { return await promise; }
-  catch (e) { cache.delete(key); throw e; }
-}
-
-async function verifyCandidate(baseUrl, target, row, sourceYear, anchorDate, historyCache) {
+async function verifyCandidate(target, row, sourceYear, anchorDate, caches) {
   try {
-    const history = await fetchHistory(baseUrl, row, historyCache);
-    if (!history?.ok) return { accepted:null, reason:'HISTORY_NOT_OK' };
+    const authoritative = await fetchAuthoritativeCondition(row, caches);
+    const classMatch = fullClassKey(target.class) === fullClassKey(authoritative.class);
+    const ageMatch = ageKey(target.ageGroup) === ageKey(authoritative.ageGroup);
 
-    const authoritativeClass = clean(history.class || '');
-    const authoritativeAge = clean(history.ageGroup || row.ageGroup || '');
-    const authoritativeDistance = normalizeDistance(history.distance || row.distance);
-    const authoritativeTrack = clean(history.track || row.track || '');
-    const classMatch = Boolean(authoritativeClass) && fullClassKey(target.class) === fullClassKey(authoritativeClass);
-    const ageMatch = ageKey(target.ageGroup) === ageKey(authoritativeAge);
     if (!classMatch || !ageMatch) {
       return {
         accepted:null,
         reason:!classMatch ? 'FULL_CLASS_MISMATCH' : 'AGE_MISMATCH',
-        authoritativeClass,
-        authoritativeClassKey:fullClassKey(authoritativeClass)
+        authoritativeClass:authoritative.class,
+        authoritativeClassKey:fullClassKey(authoritative.class)
       };
     }
 
     const authoritativeRow = {
       ...row,
-      ageGroup:authoritativeAge,
-      distance:authoritativeDistance,
-      track:authoritativeTrack
+      ageGroup:authoritative.ageGroup,
+      distance:normalizeDistance(authoritative.distance || row.distance),
+      track:authoritative.track || row.track
     };
     const type = structuralType(target, authoritativeRow);
-    if (!type) return { accepted:null, reason:'STRUCTURE_MISMATCH', authoritativeClass };
+    if (!type) return { accepted:null, reason:'STRUCTURE_MISMATCH', authoritativeClass:authoritative.class };
 
     const calendarDayDifference = daysBetween(anchorDate, row.isoDate);
     if (calendarDayDifference === null || calendarDayDifference > DAY_WINDOW) {
-      return { accepted:null, reason:'CALENDAR_WINDOW_MISMATCH', authoritativeClass };
+      return { accepted:null, reason:'CALENDAR_WINDOW_MISMATCH', authoritativeClass:authoritative.class };
     }
 
     const tr = transferability(target, authoritativeRow, type, calendarDayDifference);
@@ -401,57 +440,63 @@ async function verifyCandidate(baseUrl, target, row, sourceYear, anchorDate, his
         transferabilityScore:tr.score,
         transferabilityTier:tr.tier,
         transferabilityColor:tr.color,
-        explanation:`${tr.label} · tam sınıf sonuç sayfasından doğrulandı`,
+        explanation:`${tr.label} · tam sınıf TJK sonuç sayfasından doğrulandı`,
         exact:type === 'EXACT',
         exactConditionMatch:type === 'EXACT',
-        class:authoritativeClass,
-        authoritativeClass,
+        class:authoritative.class,
+        authoritativeClass:authoritative.class,
         fullClassVerified:true,
-        ageGroup:authoritativeAge,
-        distance:authoritativeDistance,
-        track:authoritativeTrack,
+        ageGroup:authoritative.ageGroup,
+        distance:authoritativeRow.distance,
+        track:authoritativeRow.track,
         queryClass:row.queryClass || null,
         exactFields:{ city:tr.city, class:true, ageGroup:true, distance:tr.distance, track:tr.track },
         distanceDifference:tr.distanceDiff,
         distanceDifferencePct:tr.distanceDiffPct,
         classVerification:{
-          strategy:'PROGRAM_TO_RESULT_FULL_TEXT',
+          strategy:'PROGRAM_TO_TJK_RESULT_FULL_TEXT',
           target:clean(target.class),
           targetKey:fullClassKey(target.class),
-          result:authoritativeClass,
-          resultKey:fullClassKey(authoritativeClass),
+          result:authoritative.class,
+          resultKey:fullClassKey(authoritative.class),
           queryTableClass:row.queryClass || null,
-          queryTableClassUsedForAcceptance:false
+          queryTableClassUsedForAcceptance:false,
+          resultUrl:authoritative.resultUrl
         }
       },
       reason:'ACCEPTED'
     };
   } catch (e) {
-    return { accepted:null, reason:'HISTORY_FETCH_FAILED', error:e?.message || 'Doğrulama başarısız.' };
+    return { accepted:null, reason:'RESULT_FETCH_FAILED', error:e?.message || String(e) };
   }
 }
 
-async function scanYear({ baseUrl, target, filters, year, historyCache }) {
+function candidatePriority(target, anchorDate, row) {
+  const headHint = queryHeadKey(row.queryClass) === queryHeadKey(target.class) ? 0 : 1;
+  const day = daysBetween(anchorDate, row.isoDate) ?? 999;
+  return { headHint, day };
+}
+
+async function scanYear({ target, filters, year, caches }) {
   const anchorDate = anchorIso(target.date, year);
   const startIso = addDays(anchorDate, -DAY_WINDOW);
   const endIso = addDays(anchorDate, DAY_WINDOW);
   const modes = ['SAME_CITY', 'CONDITION_TWIN'];
 
-  const scans = await mapLimit(modes, QUERY_CONCURRENCY, mode => fetchRange(target, filters, mode, startIso, endIso));
+  const scans = await Promise.all(modes.map(mode => fetchRange(target, filters, mode, startIso, endIso)));
   const seen = new Map();
   for (const scan of scans) {
     for (const row of scan.rows) {
       if (!row.isoDate || row.isoDate >= target.date || !row.raceNo) continue;
-      const type = structuralType(target, row);
-      if (!type) continue;
+      if (!structuralType(target, row)) continue;
       seen.set(rowKey(row), row);
     }
   }
 
   const rows = [...seen.values()].sort((a,b) => {
-    const da = daysBetween(anchorDate, a.isoDate) ?? 999;
-    const db = daysBetween(anchorDate, b.isoDate) ?? 999;
-    return da - db || b.isoDate.localeCompare(a.isoDate) || a.raceNo - b.raceNo;
+    const pa = candidatePriority(target, anchorDate, a);
+    const pb = candidatePriority(target, anchorDate, b);
+    return pa.headHint - pb.headHint || pa.day - pb.day || b.isoDate.localeCompare(a.isoDate) || a.raceNo - b.raceNo;
   });
 
   const accepted = [];
@@ -461,13 +506,14 @@ async function scanYear({ baseUrl, target, filters, year, historyCache }) {
   for (const row of rows) {
     const preliminaryType = structuralType(target, row);
     if (!preliminaryType || foundTypes.has(preliminaryType)) continue;
-    const result = await verifyCandidate(baseUrl, target, row, year, anchorDate, historyCache);
+    const result = await verifyCandidate(target, row, year, anchorDate, caches);
     attempts.push({
       date:row.isoDate,
       city:row.city,
       raceNo:row.raceNo,
       preliminaryType,
       queryClass:row.queryClass || null,
+      queryClassUsedForAcceptance:false,
       reason:result.reason,
       authoritativeClass:result.authoritativeClass || null,
       error:result.error || null
@@ -499,6 +545,21 @@ async function scanYear({ baseUrl, target, filters, year, historyCache }) {
   };
 }
 
+async function mapLimit(items, limit, worker) {
+  const list = Array.isArray(items) ? items : [];
+  const out = new Array(list.length);
+  let cursor = 0;
+  async function run() {
+    while (true) {
+      const i = cursor++;
+      if (i >= list.length) return;
+      out[i] = await worker(list[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length:Math.min(Math.max(1, limit), list.length || 1) }, () => run()));
+  return out;
+}
+
 function getRules(minYear) {
   return {
     pastDateOnly:true,
@@ -506,7 +567,10 @@ function getRules(minYear) {
     calendarWindowDays:DAY_WINDOW,
     classFilterInTjkQuery:false,
     classFromProgramPreserved:true,
+    authoritativeClassSource:'TJK_GUNLUK_YARIS_SONUCLARI',
     fullClassVerificationFromResultPage:true,
+    queryTableClassForPriorityOnly:true,
+    queryTableClassUsedForAcceptance:false,
     classIdentity:'Programdaki yarış grubundan önce yazan sınıfın TAM metni; ek/token silme veya aileye indirgeme yok.',
     harmlessNormalizationOnly:['Unicode büyük/küçük harf','boşluk','/ çevresindeki boşluk'],
     forbiddenClassTransforms:['family/level reduction','decorator removal','token sorting','D=Dişi alias','trailing slash removal','SATIŞ/Handikap/Şartlı kısaltma'],
@@ -543,15 +607,14 @@ export default async function handler(req, res) {
     if (!filters.group) throw new Error(`TJK Yaş grubu filtresi bulunamadı: ${ageGroup}`);
     if (!filters.track) throw new Error(`TJK Pist filtresi bulunamadı: ${track}`);
 
-    const baseUrl = getBaseUrl(req);
-    const historyCache = new Map();
     const years = [];
     for (let year = targetParts.year - 1; year >= minYear; year--) years.push(year);
+    const caches = { index:new Map(), dayCity:new Map(), race:new Map() };
 
     const yearResults = await mapLimit(
       years,
-      VERIFY_CONCURRENCY,
-      year => scanYear({ baseUrl, target, filters, year, historyCache })
+      YEAR_CONCURRENCY,
+      year => scanYear({ target, filters, year, caches })
     );
 
     const verifiedHistoricalRaces = yearResults.flatMap(y => y.matches || []);
@@ -593,7 +656,7 @@ export default async function handler(req, res) {
         authoritativeClass:r.authoritativeClass,
         fullClassVerified:true
       })),
-      warning:verifiedHistoricalRaces.length ? '' : '±45 gün içinde program sınıfının tam metni TJK sonuç sayfasında doğrulanmış tarihsel aday bulunamadı.'
+      warning:verifiedHistoricalRaces.length ? '' : '±45 gün içinde programdaki tam sınıfı TJK sonuç sayfasında doğrulanmış tarihsel aday bulunamadı.'
     });
   } catch (e) {
     return res.status(500).json({
@@ -601,10 +664,11 @@ export default async function handler(req, res) {
       version:VERSION,
       error:e?.message || 'Tam yarış sınıfı tarihsel taraması başarısız.',
       classMatching:{
-        strategy:'PROGRAM_TO_RESULT_FULL_TEXT',
+        strategy:'PROGRAM_TO_TJK_RESULT_FULL_TEXT',
         classFilterInTjkQuery:false,
         shortening:false,
-        decoratorsRemoved:false
+        decoratorsRemoved:false,
+        queryTableClassUsedForAcceptance:false
       }
     });
   }
