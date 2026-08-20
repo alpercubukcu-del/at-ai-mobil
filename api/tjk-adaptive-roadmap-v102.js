@@ -1,6 +1,6 @@
 import roadmapV101 from './tjk-adaptive-roadmap-v101.js';
 
-const VERSION = 'TJK-ADAPTIVE-ROADMAP-V10.2.3';
+const VERSION = 'TJK-ADAPTIVE-ROADMAP-V10.2.4';
 
 function clean(v = '') {
   return String(v ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
@@ -16,26 +16,20 @@ function upper(v = '') {
 function lexicalClass(v = '') {
   return upper(v)
     .replace(/\s*\/\s*/g, '/')
+    .replace(/\/{2,}/g, '/')
+    .replace(/\/+$/g, '')
     .replace(/\s*-\s*/g, '-')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 /*
- * V11.12 SINIF KURALI
- * ------------------
- * Yarış sınıfı ana sınıf + bütün /ekleri ile TEK KİMLİKTİR.
- * Hiçbir dekoratör/şart düşürülmez.
- *
- * Örnek:
- *   Handikap 14 /DHÖW/H3 === Handikap 14 /DHÖW/H3
- *   Handikap 14 /DHÖW/H3 !== Handikap 14 /DHÖW
- *   Handikap 14 /DHÖW/H3 !== Handikap 14 /DHÖW/H3/D
- *   G2 /DHT === G 2 /DHT === G-2 /DHT  (başlık yazım farkı)
- *   G2 /DHT !== G2
- *
- * Önceki V10.2.2'de bulunan DHÖW/DHÖ/HÖW/DHT/DH kaldıran
- * canonical fallback tamamen kaldırılmıştır.
+ * V12.5 SINIF KİMLİĞİ
+ * -------------------
+ * Yarış sınıfı ana aile + seviye + anlamlı /ekler ile tek kimliktir.
+ * SATIŞ numarası kaybolmaz: SATIŞ 1, SATIŞ 2, SATIŞ 4 farklıdır.
+ * Opsiyonel Satış ayrı sınıftır. Boş sondaki / yalnız yazım farkıdır.
+ * D ve Dişi aynı dekoratör olarak ele alınır; diğer ekler korunur.
  */
 async function runV101(req, classValue) {
   const originalClass = req?.query?.class;
@@ -65,18 +59,23 @@ function decorate(payload, originalClass) {
     classIdentity:{
       input:originalClass || null,
       lexical:lexicalClass(originalClass) || null,
-      strategy:'FULL_CLASS_IDENTITY',
+      strategy:'FULL_CLASS_IDENTITY_V12_5',
       decoratorsPreserved:true,
+      numberedSalesPreserved:true,
+      optionalSaleSeparated:true,
+      trailingEmptySlashIgnored:true,
       fallbackRemoved:true,
-      rule:'Ana sınıf ve tüm /ekler birlikte eşleşir; DHÖW, DHÖ, HÖW, DHT, DH, H1/H2/H3, D, Y-1/Y-2 vb. hiçbir ek silinmez.'
+      rule:'Ana sınıf + seviye + anlamlı /ekler birlikte eşleşir. SATIŞ numarası korunur; Opsiyonel Satış farklı sınıftır; boş sondaki / yalnız yazım farkıdır.'
     },
     classMatching:{
-      strategy:'FULL_CLASS_IDENTITY',
+      strategy:'FULL_CLASS_IDENTITY_V12_5',
       generic:true,
       originalClassOnly:true,
       canonicalFallback:false,
       decoratorsPreserved:true,
-      appliesTo:['GROUP','KV','HANDIKAP','SARTLI','MAIDEN','SATIS','OTHER']
+      numberedSalesPreserved:true,
+      optionalSaleSeparated:true,
+      appliesTo:['GROUP','KV','HANDIKAP','SARTLI','MAIDEN','SATIS','OPSIYONEL_SATIS','OTHER']
     }
   };
 
@@ -92,14 +91,14 @@ function decorate(payload, originalClass) {
       ...payload.rules,
       fullClassIdentity:true,
       classAliasNormalization:false,
-      classMatchingVersion:'TJK_FULL_CLASS_IDENTITY_V11.12',
-      classMatchingStrategy:'FULL_CLASS_IDENTITY'
+      classMatchingVersion:'TJK_FULL_CLASS_IDENTITY_V12_5',
+      classMatchingStrategy:'FULL_CLASS_IDENTITY_V12_5'
     };
   }
   if (payload?.diagnostics && typeof payload.diagnostics === 'object') {
     next.diagnostics = {
       ...payload.diagnostics,
-      classMatchingStrategy:'FULL_CLASS_IDENTITY'
+      classMatchingStrategy:'FULL_CLASS_IDENTITY_V12_5'
     };
   }
   return next;
@@ -122,8 +121,11 @@ export default async function handler(req, res) {
       classIdentity:{
         input:originalClass || null,
         lexical:lexicalClass(originalClass) || null,
-        strategy:'FULL_CLASS_IDENTITY',
+        strategy:'FULL_CLASS_IDENTITY_V12_5',
         decoratorsPreserved:true,
+        numberedSalesPreserved:true,
+        optionalSaleSeparated:true,
+        trailingEmptySlashIgnored:true,
         fallbackRemoved:true
       },
       classMatching:{
