@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-EXACT-HISTORY-V7.1.1';
+const VERSION = 'TJK-EXACT-HISTORY-V7.1.2';
 const TJK = 'https://www.tjk.org';
 const PAGE_URL = `${TJK}/TR/YarisSever/Query/Page/KosuSorgulama`;
 const DATA_URL = `${TJK}/TR/YarisSever/Query/Data/KosuSorgulama`;
@@ -25,7 +25,13 @@ function upper(v = '') {
 }
 
 function normalizeClass(v = '') {
-  return upper(v).replace(/\s*\/\s*/g, '/').replace(/\s*-\s*/g, '-').replace(/\s+/g, ' ').trim();
+  return upper(v)
+    .replace(/\s*\/\s*/g, '/')
+    .replace(/\/{2,}/g, '/')
+    .replace(/\/+$/g, '')
+    .replace(/\s*-\s*/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function normalizeCity(v = '') {
@@ -103,17 +109,39 @@ function daysBetween(a, b) {
 
 function parseRaceFamily(v = '') {
   const t = normalizeClass(v);
-  let m = t.match(/HANDIKAP\s*(\d+)/);
+  let m = t.match(/\bHANDIKAP\s*(\d+)\b/);
   if (m) return { family:'HANDIKAP', level:Number(m[1]) };
-  m = t.match(/SARTLI\s*(\d+)/);
+  m = t.match(/\bSARTLI\s*(\d+)\b/);
   if (m) return { family:'SARTLI', level:Number(m[1]) };
   m = t.match(/\bKV[- ]*(\d+)\b/);
   if (m) return { family:'KV', level:Number(m[1]) };
-  m = t.match(/\bG([123])\b/);
+  m = t.match(/\b(?:G|GRUP)\s*-?\s*([123])\b/);
   if (m) return { family:'GROUP', level:Number(m[1]) };
-  if (t.includes('MAIDEN')) return { family:'MAIDEN', level:0 };
-  if (t.includes('SATIS')) return { family:'SATIS', level:0 };
+  m = t.match(/^SATIS\s*(\d+)\b/);
+  if (m) return { family:'SATIS', level:Number(m[1]) };
+  if (/^OPSIYONEL\s+SATIS\b/.test(t)) return { family:'OPSIYONEL_SATIS', level:null };
+  if (/^MAIDEN\b/.test(t)) return { family:'MAIDEN', level:0 };
+  if (/^SATIS\b/.test(t)) return { family:'SATIS', level:null };
   return { family:t.split('/')[0], level:null };
+}
+
+function canonicalDecoratorToken(v = '') {
+  const t = upper(v).replace(/\s+/g, '');
+  if (t === 'D' || t === 'DISI') return 'DISI';
+  return t;
+}
+
+function classTokens(v = '') {
+  return normalizeClass(v).split('/').slice(1)
+    .map(canonicalDecoratorToken)
+    .filter(Boolean)
+    .filter((x, i, a) => a.indexOf(x) === i)
+    .sort();
+}
+
+function classCoreKey(v = '') {
+  const family = parseRaceFamily(v);
+  return `${family.family}:${family.level ?? ''}|${classTokens(v).join('/')}`;
 }
 
 function optionList($, selector) {
@@ -222,12 +250,12 @@ function parseRowsFragment(html) {
 }
 
 function rowKey(r) {
-  return [r.isoDate, normalizeCity(r.city), r.raceNo, normalizeClass(r.class), ageKey(r.ageGroup), r.distance, normalizeTrack(r.track)].join('|');
+  return [r.isoDate, normalizeCity(r.city), r.raceNo, classCoreKey(r.class), ageKey(r.ageGroup), r.distance, normalizeTrack(r.track)].join('|');
 }
 
 function exactCondition(target, row) {
   return normalizeCity(target.city) === normalizeCity(row.city) &&
-    normalizeClass(target.class) === normalizeClass(row.class) &&
+    classCoreKey(target.class) === classCoreKey(row.class) &&
     ageKey(target.ageGroup) === ageKey(row.ageGroup) &&
     Number(target.distance) === Number(row.distance) &&
     normalizeTrack(target.track) === normalizeTrack(row.track);
@@ -367,10 +395,11 @@ export default async function handler(req, res) {
       distance:row.distance,
       track:row.track,
       normalizedClass:normalizeClass(row.class),
+      classKey:classCoreKey(row.class),
       normalizedAge:ageKey(row.ageGroup),
       checks:{
         city:normalizeCity(target.city) === normalizeCity(row.city),
-        class:normalizeClass(target.class) === normalizeClass(row.class),
+        class:classCoreKey(target.class) === classCoreKey(row.class),
         ageGroup:ageKey(target.ageGroup) === ageKey(row.ageGroup),
         distance:Number(target.distance) === Number(row.distance),
         track:normalizeTrack(target.track) === normalizeTrack(row.track)
@@ -381,13 +410,14 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ok:true,
       version:VERSION,
-      target,
+      target:{ ...target, classKey:classCoreKey(target.class) },
       rules:{
         mode:'EXACT_ONLY',
         pastDateOnly:true,
         yearByYear:true,
         calendarWindowDays:DAY_WINDOW,
         exactFields:['city','class','ageGroup','distance','track'],
+        classIdentity:'family + level + decorators; numbered sales are distinct; trailing empty slash ignored',
         partialConditionScores:false,
         conditionSimilarityForAcceptedRace:100,
         minYear
@@ -398,7 +428,7 @@ export default async function handler(req, res) {
         pagesRead:scan.diagnostics.length,
         pageDiagnostics:scan.diagnostics,
         exactMatchCount:exactMatches.length,
-        targetNormalized:{ class:normalizeClass(target.class), ageGroup:ageKey(target.ageGroup), city:normalizeCity(target.city), track:normalizeTrack(target.track), distance:Number(target.distance) },
+        targetNormalized:{ class:normalizeClass(target.class), classKey:classCoreKey(target.class), ageGroup:ageKey(target.ageGroup), city:normalizeCity(target.city), track:normalizeTrack(target.track), distance:Number(target.distance) },
         sampleRows
       },
       searchedYears:{ from:targetParts.year - 1, to:minYear, count:Math.max(0, targetParts.year - minYear) },
@@ -410,7 +440,7 @@ export default async function handler(req, res) {
       source:'TJK_KOSU_SORGULAMA_EXACT_YEAR_WINDOW'
     });
   } catch (e) {
-    console.error('tjk-similar exact V7.1.1:', e);
+    console.error('tjk-similar exact V7.1.2:', e);
     return res.status(500).json({ ok:false, version:VERSION, error:e?.message || 'Tam tarihsel eşleşme hesaplanamadı.' });
   }
 }
