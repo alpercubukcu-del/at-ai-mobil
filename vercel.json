@@ -4,6 +4,10 @@
     {
       "source": "/api/tjk-margin-enrich-v122",
       "destination": "/api/tjk-history"
+    },
+    {
+      "source": "/api/tjk-career",
+      "destination": "/api/tjk-career-v10"
     }
   ],
   "headers": [
