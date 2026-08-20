@@ -1,5 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/api/tjk-margin-enrich-v122",
+      "destination": "/api/tjk-history"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
