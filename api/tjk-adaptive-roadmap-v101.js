@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-ADAPTIVE-ROADMAP-V10.1.4';
+const VERSION = 'TJK-ADAPTIVE-ROADMAP-V10.1.5';
 const TJK = 'https://www.tjk.org';
 const PAGE_URL = `${TJK}/TR/YarisSever/Query/Page/KosuSorgulama`;
 const DATA_URL = `${TJK}/TR/YarisSever/Query/Data/KosuSorgulama`;
@@ -22,7 +22,15 @@ const HEADERS = {
 
 function clean(v = '') { return String(v ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim(); }
 function upper(v = '') { return clean(v).toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g, ''); }
-function normalizeClass(v = '') { return upper(v).replace(/\s*\/\s*/g, '/').replace(/\s*-\s*/g, '-').replace(/\s+/g, ' ').trim(); }
+function normalizeClass(v = '') {
+  return upper(v)
+    .replace(/\s*\/\s*/g, '/')
+    .replace(/\/{2,}/g, '/')
+    .replace(/\/+$/g, '')
+    .replace(/\s*-\s*/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 function normalizeCity(v = '') { return upper(v).replace(/[^A-Z0-9]/g, ''); }
 function normalizeTrack(v = '') {
   const t = upper(v);
@@ -56,16 +64,18 @@ function ageKey(v = '') {
 }
 function parseRaceFamily(v = '') {
   const t = normalizeClass(v);
-  let m = t.match(/HANDIKAP\s*(\d+)/); if (m) return { family:'HANDIKAP', level:Number(m[1]) };
-  m = t.match(/SARTLI\s*(\d+)/); if (m) return { family:'SARTLI', level:Number(m[1]) };
+  let m = t.match(/\bHANDIKAP\s*(\d+)\b/); if (m) return { family:'HANDIKAP', level:Number(m[1]) };
+  m = t.match(/\bSARTLI\s*(\d+)\b/); if (m) return { family:'SARTLI', level:Number(m[1]) };
   m = t.match(/\bKV[- ]*(\d+)\b/); if (m) return { family:'KV', level:Number(m[1]) };
   m = t.match(/\b(?:G|GRUP)\s*-?\s*([123])\b/); if (m) return { family:'GROUP', level:Number(m[1]) };
-  if (t.includes('MAIDEN')) return { family:'MAIDEN', level:0 };
-  if (t.includes('SATIS')) return { family:'SATIS', level:0 };
+  m = t.match(/^SATIS\s*(\d+)\b/); if (m) return { family:'SATIS', level:Number(m[1]) };
+  if (/^OPSIYONEL\s+SATIS\b/.test(t)) return { family:'OPSIYONEL_SATIS', level:null };
+  if (/^MAIDEN\b/.test(t)) return { family:'MAIDEN', level:0 };
+  if (/^SATIS\b/.test(t)) return { family:'SATIS', level:null };
   return { family:t.split('/')[0], level:null };
 }
 function canonicalDecoratorToken(v = '') {
-  const t = clean(v).replace(/\s+/g, '');
+  const t = upper(v).replace(/\s+/g, '');
   if (t === 'D' || t === 'DISI') return 'DISI';
   return t;
 }
@@ -454,7 +464,7 @@ function getRules(minYear) {
     exactReference:'same city + authoritative full class identity + age/breed + distance + track',
     raceFamilyReference:'same city + authoritative full class identity + age/breed; distance/track may differ',
     conditionTwinReference:'different city + authoritative full class identity + age/breed + distance + track',
-    classCoreNote:'Koşu Sorgulama DHÖW/DHT gibi bazı ekleri göstermediği için önce görünür sınıf izdüşümüyle aday bulunur; her yıl adaylar sırayla TJK sonuç sayfasında doğrulanır. G2/G 2/G-2/GRUP 2 yalnız başlık yazım eşdeğeridir; /DHT, /DHÖW, /H1-/H3, /D, /Y-1 vb. tam kimliğin parçasıdır.',
+    classCoreNote:'Koşu sınıfında ana aile + seviye + anlamlı /ekler tek kimliktir. SATIŞ numarası korunur (SATIŞ 1 ≠ SATIŞ 2 ≠ SATIŞ 4); Opsiyonel Satış ayrı sınıftır. Boş sondaki / yalnız yazım farkıdır. Koşu Sorgulama DHÖW/DHT gibi bazı ekleri göstermediği için önce görünür sınıf izdüşümüyle aday bulunur, ardından TJK sonuç sayfasında tam kimlik doğrulanır.',
     classVerification:'YEAR_CANDIDATE_FALLBACK_THEN_AUTHORITATIVE_FULL_CLASS',
     classFallbackRule:'Aynı yılda ilk aday tam sınıfı tutmazsa sıradaki aday denenir; doğru tam sınıf bulunduğunda yıl korunur.',
     transferability:'distance + track + city + calendar penalties', careerWinPath:'finish=1', preparationPath:'finish 1..5; no-win horses use preparation path', minYear
@@ -509,6 +519,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ok:true, version:VERSION,
       target:{ ...target, fullClassKey:classCoreKey(target.class), queryClassKey:queryClassKey(target.class) },
+      resolvedFilters:{ raceClass:filters.raceClass, city:filters.city, group:filters.group, track:filters.track },
       rules:getRules(minYear),
       diagnostics:{ scannedYearCount:years.length, yearsWithCandidates:yearsWithCandidates.length, selectedYearCount:selected.length, verifiedYearCount:verifiedHistoricalRaces.length, acceptedCandidateCount:scanned.reduce((s,y)=>s+y.matchCount,0), classVerificationAttempts:yearResults.reduce((s,y)=>s+y.classVerificationAttempts.length,0), queryDiagnostics:scanned.flatMap(y=>y.diagnostics.map(d=>({ year:y.year, ...d }))) },
       yearResults,
@@ -518,7 +529,7 @@ export default async function handler(req, res) {
       warning:verifiedHistoricalRaces.length ? '' : '±45 gün içinde tam sınıfı TJK sonuç sayfasında doğrulanmış benzer yarış bulunamadı.'
     });
   } catch (e) {
-    console.error('adaptive roadmap V10.1.4:', e);
+    console.error('adaptive roadmap V10.1.5:', e);
     return res.status(500).json({ ok:false, version:VERSION, error:e?.message || 'Uyarlanabilir tarihsel yol oluşturulamadı.' });
   }
 }
