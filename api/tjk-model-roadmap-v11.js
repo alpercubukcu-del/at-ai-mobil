@@ -1,4 +1,4 @@
-const VERSION = 'TJK-MODEL-ROADMAP-V11.9';
+const VERSION = 'TJK-MODEL-ROADMAP-V11.10';
 const INTERNAL_RETRIES = 2;
 const RACE_CONCURRENCY = 2;
 const CAREER_CONCURRENCY = 3;
@@ -62,22 +62,26 @@ function ageKey(v = '') {
 function normalizeClass(v = '') {
   return upper(v)
     .replace(/\s*\/\s*/g, '/')
+    .replace(/\/{2,}/g, '/')
+    .replace(/\/+$/g, '')
     .replace(/\s*-\s*/g, '-')
     .replace(/\s+/g, ' ')
     .trim();
 }
 function parseRaceFamily(v = '') {
   const t = normalizeClass(v);
-  let m = t.match(/HANDIKAP\s*(\d+)/); if (m) return { family:'HANDIKAP', level:Number(m[1]) };
-  m = t.match(/SARTLI\s*(\d+)/); if (m) return { family:'SARTLI', level:Number(m[1]) };
+  let m = t.match(/\bHANDIKAP\s*(\d+)\b/); if (m) return { family:'HANDIKAP', level:Number(m[1]) };
+  m = t.match(/\bSARTLI\s*(\d+)\b/); if (m) return { family:'SARTLI', level:Number(m[1]) };
   m = t.match(/\bKV[- ]*(\d+)\b/); if (m) return { family:'KV', level:Number(m[1]) };
   m = t.match(/\b(?:G|GRUP)\s*-?\s*([123])\b/); if (m) return { family:'GROUP', level:Number(m[1]) };
-  if (t.includes('MAIDEN')) return { family:'MAIDEN', level:0 };
-  if (t.includes('SATIS')) return { family:'SATIS', level:0 };
+  m = t.match(/^SATIS\s*(\d+)\b/); if (m) return { family:'SATIS', level:Number(m[1]) };
+  if (/^OPSIYONEL\s+SATIS\b/.test(t)) return { family:'OPSIYONEL_SATIS', level:null };
+  if (/^MAIDEN\b/.test(t)) return { family:'MAIDEN', level:0 };
+  if (/^SATIS\b/.test(t)) return { family:'SATIS', level:null };
   return { family:t.split('/')[0], level:null };
 }
 function canonicalDecoratorToken(v = '') {
-  const t = clean(v).replace(/\s+/g, '');
+  const t = upper(v).replace(/\s+/g, '');
   if (t === 'D' || t === 'DISI') return 'DISI';
   return t;
 }
@@ -367,7 +371,6 @@ export default async function handler(req, res) {
     const historyCache = new Map();
     const selected = new Map();
 
-    // Önce V10.2'nin TJK sonuç sayfasında zaten doğruladığı yarışları koru.
     for (const raw of Array.isArray(source.historicalRaces) ? source.historicalRaces : []) {
       if (raw?.ok === false) continue;
       const c = normalizeCandidate(raw, raw?.sourceYear);
@@ -376,7 +379,6 @@ export default async function handler(req, res) {
       if (verified) selected.set(candidateModelKey(verified), verified);
     }
 
-    // Her yıl ve her model tipi için ilk görülen satıra saplanma: tam sınıf tutmazsa sıradaki adayı dene.
     const yearResults = Array.isArray(source.yearResults) ? source.yearResults : [];
     const perYear = await mapLimit(yearResults, VERIFY_CONCURRENCY, async yr => {
       const found = [];
@@ -408,7 +410,7 @@ export default async function handler(req, res) {
       version:VERSION,
       sourceVersion:source.version || null,
       target,
-      classIdentity:{ strategy:'FULL_CLASS_IDENTITY', fullClassKey:classCoreKey(target.class), decoratorsPreserved:true },
+      classIdentity:{ strategy:'FULL_CLASS_IDENTITY', fullClassKey:classCoreKey(target.class), decoratorsPreserved:true, numberedSalesPreserved:true, optionalSaleSeparated:true },
       rules:{
         yearWindow:'target month/day ±45 days, every historical year separately',
         independentModels:true,
