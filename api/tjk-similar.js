@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-EXACT-HISTORY-V7.1.3';
+const VERSION = 'TJK-EXACT-HISTORY-V7.1.4';
 const TJK = 'https://www.tjk.org';
 const PAGE_URL = `${TJK}/TR/YarisSever/Query/Page/KosuSorgulama`;
 const DATA_URL = `${TJK}/TR/YarisSever/Query/Data/KosuSorgulama`;
@@ -128,6 +128,13 @@ function parseRaceFamily(v = '') {
 function canonicalDecoratorToken(v = '') {
   const t = upper(v).replace(/\s+/g, '');
   if (t === 'D' || t === 'DISI') return 'DISI';
+
+  const y = t.match(/^Y-?(\d+)$/);
+  if (y) return `Y${Number(y[1])}`;
+
+  const h = t.match(/^H-?(\d+)$/);
+  if (h) return `H${Number(h[1])}`;
+
   return t;
 }
 
@@ -417,7 +424,7 @@ export default async function handler(req, res) {
         yearByYear:true,
         calendarWindowDays:DAY_WINDOW,
         exactFields:['city','class','ageGroup','distance','track'],
-        classIdentity:'family + level + decorators; numbered sales are distinct; trailing empty slash ignored',
+        classIdentity:'family + level + canonical decorators; token order ignored; D=DİŞİ, Y-1=Y1, H-2=H2; numbered sales are distinct; trailing empty slash ignored',
         partialConditionScores:false,
         conditionSimilarityForAcceptedRace:100,
         minYear
@@ -440,7 +447,7 @@ export default async function handler(req, res) {
       source:'TJK_KOSU_SORGULAMA_EXACT_YEAR_WINDOW'
     });
   } catch (e) {
-    console.error('tjk-similar exact V7.1.3:', e);
+    console.error('tjk-similar exact V7.1.4:', e);
     return res.status(500).json({ ok:false, version:VERSION, error:e?.message || 'Tam tarihsel eşleşme hesaplanamadı.' });
   }
 }
