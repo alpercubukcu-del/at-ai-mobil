@@ -1,4 +1,6 @@
-/* AT AI Mobil — MANUEL KUPON OLUŞTURUCU V11.7 */
+/* AT AI Mobil — MANUEL KUPON OLUŞTURUCU V11.7 (compact source)
+   V14.10: eski paralel-sınırsız prepareManualTicketV117 gövdesi kaldırıldı.
+   Son prepareManualTicketV117 uygulaması V11.11 compact loop-guard katmanından gelir. */
 const MANUAL_TICKET_V117 = 'MANUAL-TICKET-V11.7';
 const manualTicketV117 = { betType:'', modelId:'composite', plan:null, raceDataMap:new Map(), systemTicket:null, selections:new Map(), activeLeg:0, busy:false, prepToken:0 };
 
@@ -93,40 +95,7 @@ function manualBudgetV117(){ return Math.max(1,numberValue($('budget')?.value,50
 function manualUnitV117(){ return Math.max(.01,numberValue($('unitPrice')?.value,1)); }
 function manualSinglesV117(){ return Math.max(0,Math.min(7,Math.floor(numberValue($('singleCount')?.value,1)))); }
 
-async function prepareManualTicketV117(resetSelections=false) {
-  const root = ensureManualRootV117();
-  if (!root || !manualTicketV117.betType || manualTicketV117.busy) return;
-  const plan = resolveBetStartV11(manualTicketV117.betType);
-  if (!plan?.ok) { $('manualPlanV117').innerHTML=`<div class="manual-error-v117">⚠ ${escapeHtml(plan?.error||'Bahis başlangıcı kurulamadı.')}</div>`; return; }
-
-  const token=++manualTicketV117.prepToken;
-  manualTicketV117.busy=true; manualTicketV117.plan=plan; manualTicketV117.activeLeg=0;
-  $('manualBetTypeLabelV117').textContent=manualTicketV117.betType;
-  $('manualBetStartLabelV117').textContent=`${plan.startRace}. koşudan başlar · Ayaklar ${legRangeTextV117(plan)}`;
-  $('manualPlanV117').classList.remove('empty');
-  $('manualPlanV117').innerHTML=`<div class="manual-loading-v117">${escapeHtml(modelV117().label)} modeli hazırlanıyor…</div>`;
-  status(`${manualTicketV117.betType}: sistem seçimleri hesaplanıyor…`);
-
-  try {
-    const pairs=await Promise.all(plan.legs.map(async race=>[String(race.no),await prepareRaceModelsV11(race,msg=>status(msg))]));
-    if(token!==manualTicketV117.prepToken) return;
-    manualTicketV117.raceDataMap=new Map(pairs);
-    const ticket=buildOneTicketV11(plan,modelV117(),manualTicketV117.raceDataMap,manualBudgetV117(),manualUnitV117(),manualSinglesV117());
-    manualTicketV117.systemTicket=ticket;
-    if(resetSelections||!manualTicketV117.selections.size){
-      manualTicketV117.selections=new Map();
-      for(const race of plan.legs){
-        const leg=(ticket?.legs||[]).find(x=>String(x.raceNo)===String(race.no));
-        manualTicketV117.selections.set(String(race.no),new Set((leg?.selections||[]).map(x=>String(x.no))));
-      }
-    }
-    renderManualPlanV117();
-    status(`${manualTicketV117.betType} hazır · ${plan.startRace}. koşudan başlar.`);
-  } catch(e){
-    $('manualPlanV117').innerHTML=`<div class="manual-error-v117">⚠ ${escapeHtml(e?.message||'Sistem seçimleri hazırlanamadı.')}</div>`;
-    status(`Manuel kupon hazırlanamadı: ${e?.message||'Bilinmeyen hata'}`);
-  } finally { manualTicketV117.busy=false; }
-}
+/* prepareManualTicketV117 is intentionally supplied later by V11.11 loop-guard compact. */
 
 function rankingForLegV117(raceNo){ const data=manualTicketV117.raceDataMap.get(String(raceNo)); return typeof rankRaceForModelV11==='function'?rankRaceForModelV11(data,manualTicketV117.modelId):[]; }
 function selectedSetV117(raceNo){ const k=String(raceNo); if(!manualTicketV117.selections.has(k)) manualTicketV117.selections.set(k,new Set()); return manualTicketV117.selections.get(k); }
@@ -170,4 +139,4 @@ const changeCityBeforeManualV117=changeCity;
 changeCity=async function(cityId){const out=await changeCityBeforeManualV117(cityId);resetManualForProgramV117();ensureManualRootV117();return out;};
 if($('citySelect'))$('citySelect').onchange=e=>changeCity(e.target.value);
 ensureManualRootV117();
-console.info('[AT AI]',MANUAL_TICKET_V117,'aktif');
+console.info('[AT AI]',MANUAL_TICKET_V117,'compact aktif');
