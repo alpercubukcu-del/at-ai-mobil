@@ -3,9 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "scripts": {
-    "vercel-build": "node build-runtime-v140.cjs"
-  },
   "dependencies": {
     "cheerio": "^1.0.0"
   }
