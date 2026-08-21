@@ -111,6 +111,17 @@
   <script src="/five-model-fullpath-fallback-v126.js?v=1260"></script>
   <script src="/resumable-career-v127.js?v=1270"></script>
   <script src="/auto-resume-v128.js?v=1280"></script>
-  <script src="/tjk-annual-archive-v13.js?v=1300"></script>
+  <script>
+    (() => {
+      const nativeParse = DOMParser.prototype.parseFromString;
+      DOMParser.prototype.parseFromString = function(source, type) {
+        if (type === 'text/html' && typeof source === 'string' && /^\s*<tbody\b/i.test(source) && source.includes('YillikYarisProgramiCoklu')) {
+          source = `<table>${source}</table>`;
+        }
+        return nativeParse.call(this, source, type);
+      };
+    })();
+  </script>
+  <script src="/tjk-annual-archive-v13.js?v=1310"></script>
 </body>
 </html>
