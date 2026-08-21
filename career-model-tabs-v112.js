@@ -3,13 +3,12 @@
    - Seçilen modele göre at sıralaması
    - Kariyer tablosunda Irk / Kilo Şartı / Sıklet / HP görünürlüğü
    - Hesaplama motoru kupon V11 ile aynıdır; ikinci bir puan formülü üretilmez.
+   - V13.9 nihai lazy renderer'i kullandığı için eski eager render/hydrate gövdesi çıkarılmıştır.
 */
 
-const CAREER_MODEL_TABS_VERSION = 'CAREER-MODEL-TABS-V11.2';
+const CAREER_MODEL_TABS_VERSION = 'CAREER-MODEL-TABS-V11.2-COMPACT';
 const careerModelCacheV112 = new Map();
 let careerModelRenderTokenV112 = 0;
-
-const renderCareerAnalysisBaseV112 = renderCareerAnalysis;
 
 function breedLabelV112(row = {}) {
   if (typeof breedValueV112 === 'function') return breedValueV112(row) || '-';
@@ -172,7 +171,9 @@ function modelPanelV112(data, id, active) {
 
 function bindCareerModelTabsV112(root) {
   if (!root) return;
-  root.querySelectorAll('.career-model-body-v112').forEach(group => {
+  const groups = root.querySelectorAll('.career-model-body-v112');
+  const targets = groups.length ? groups : [root];
+  targets.forEach(group => {
     group.querySelectorAll('[data-career-model-tab]').forEach(btn => {
       btn.addEventListener('click', () => {
         const model = btn.getAttribute('data-career-model-tab');
@@ -185,60 +186,4 @@ function bindCareerModelTabsV112(root) {
   });
 }
 
-function raceModelShellV112(race, open) {
-  return `<details class="career-model-race-v112" data-career-model-race="${escapeHtml(race.no)}" ${open?'open':''}>
-    <summary><div><b>${escapeHtml(race.no)}. Koşu</b><small>${escapeHtml(race.class || '')} · ${escapeHtml(race.ageGroup || '')} · ${escapeHtml(race.distance || '')} ${escapeHtml(race.track || '')}</small></div><span>5 model ▾</span></summary>
-    <div class="career-model-loading-v112">Tam / İkiz / Aile / Kariyer puanları hazırlanıyor…</div>
-  </details>`;
-}
-
-async function hydrateCareerModelTabsV112(races, token) {
-  for (const race of races) {
-    if (token !== careerModelRenderTokenV112) return;
-    const selector = `[data-career-model-race="${String(race.no).replace(/"/g, '\\"')}"]`;
-    const shell = document.querySelector(selector);
-    if (!shell) continue;
-    try {
-      const data = await getCareerRaceModelsV112(race);
-      if (token !== careerModelRenderTokenV112) return;
-      const modelIds = ['composite','exact','twin','family','career'];
-      shell.innerHTML = `<summary><div><b>${escapeHtml(race.no)}. Koşu</b><small>${escapeHtml(race.class || '')} · ${escapeHtml(race.ageGroup || '')} · ${escapeHtml(race.distance || '')} ${escapeHtml(race.track || '')}</small></div><span>5 model ▾</span></summary>
-        <div class="career-model-body-v112">
-          ${careerCriteriaNoteV112()}
-          <div class="career-model-tabs-v112">${modelIds.map((id,i) => `<button class="career-model-tab-v112 ${i===0?'active':''}" data-career-model-tab="${escapeHtml(id)}">${escapeHtml(modelDefinitionV112(id).short)}</button>`).join('')}</div>
-          ${modelIds.map((id,i) => modelPanelV112(data,id,i===0)).join('')}
-        </div>`;
-      bindCareerModelTabsV112(shell);
-    } catch (e) {
-      shell.innerHTML = `<summary><div><b>${escapeHtml(race.no)}. Koşu</b></div><span>5 model ▾</span></summary><div class="career-model-empty-v112">⚠ ${escapeHtml(e?.message || '5 model verisi hazırlanamadı.')}</div>`;
-    }
-  }
-}
-
-renderCareerAnalysis = function(result, raceFilter = null) {
-  renderCareerAnalysisBaseV112(result, raceFilter);
-  const content = $('analysisContent');
-  if (!content) return;
-
-  const filter = raceFilter || $('analysisRace')?.value || 'all';
-  const races = filter === 'all'
-    ? (Array.isArray(state.races) ? state.races : [])
-    : (Array.isArray(state.races) ? state.races.filter(r => String(r.no) === String(filter)) : []);
-  if (!races.length) return;
-
-  const old = $('careerFiveModelV112');
-  if (old) old.remove();
-
-  const section = document.createElement('section');
-  section.id = 'careerFiveModelV112';
-  section.className = 'career-five-model-v112';
-  section.innerHTML = `<div class="career-five-model-head-v112"><div><b>5 MODEL KARİYER SIRALAMASI</b><small>Kupon motoruyla aynı puanlar</small></div><span>V11.2</span></div>
-    ${races.map((race,i) => raceModelShellV112(race, races.length === 1 || i === 0)).join('')}
-    <div class="career-detail-title-v112">DETAYLI KARİYER / YOL HARİTASI</div>`;
-  content.prepend(section);
-
-  const token = ++careerModelRenderTokenV112;
-  hydrateCareerModelTabsV112(races, token);
-};
-
-console.info('[AT AI]', CAREER_MODEL_TABS_VERSION, 'aktif');
+console.info('[AT AI]', CAREER_MODEL_TABS_VERSION, 'aktif — V13.9 lazy renderer ile');
