@@ -15,7 +15,39 @@ function replaceOnce(source, needle, replacement, label) {
   return source.slice(0, first) + replacement + source.slice(first + needle.length);
 }
 
-const modeAwareCompat = String.raw`const modeAwareCompat = \`/* V11 mode-aware compact compatibility.\n   V11.9 later replaces applyModeAwareScoresV11 with RAW_FULL_HISTORICAL_PATH logic. */\nconst TICKET_MODE_AWARE_VERSION = 'TICKET-MODE-AWARE-V11.0-COMPACT';\nconst prepareRaceModelsBaseV11 = prepareRaceModelsV11;\nconst buildOneTicketBaseV11 = buildOneTicketV11;\nfunction rawSortV11(a,b,modelId){\n  const sa=a?.scores?.[modelId]||{},sb=b?.scores?.[modelId]||{};\n  const av=finiteV11(sa.score)??-1,bv=finiteV11(sb.score)??-1;\n  return bv-av||Number(sb.strongYears||0)-Number(sa.strongYears||0)||Number(sb.supportYears||0)-Number(sa.supportYears||0)||(finiteV11(sb.latestScore)??-1)-(finiteV11(sa.latestScore)??-1)||Number(a?.horse?.no||999)-Number(b?.horse?.no||999);\n}\nfunction decisionScoreFromModeRankV11(index,size,coverageYears){\n  const rankBase=size<=1?100:100-(index/Math.max(1,size-1))*40;\n  const coverage=Math.max(0,Number(coverageYears)||0);\n  return Math.round(rankBase*(0.75+0.25*Math.min(1,coverage/3)));\n}\nfunction applyModeAwareScoresV11(horses){return Array.isArray(horses)?horses:[];}\nprepareRaceModelsV11=async function(race,progress){\n  const result=await prepareRaceModelsBaseV11(race,progress);\n  result.horses=applyModeAwareScoresV11(result.horses);\n  result.modeAwareVersion=TICKET_MODE_AWARE_VERSION;\n  return result;\n};\nbuildOneTicketV11=function(plan,model,raceDataMap,budget,unitPrice,requestedSingles){\n  const ticket=buildOneTicketBaseV11(plan,model,raceDataMap,budget,unitPrice,requestedSingles);\n  ticket.modeAware=true;\n  ticket.modeAwareVersion=TICKET_MODE_AWARE_VERSION;\n  ticket.scoreRule='Ham tam-kariyer benzerliği ana skordur; mod sırası yalnız tanı bilgisidir.';\n  return ticket;\n};\nconsole.info('[AT AI]',TICKET_MODE_AWARE_VERSION,'aktif — eski karar-skoru katmanı ayıklandı');\n\`;\n\n`;
+const modeAwareRuntimeCode = `/* V11 mode-aware compact compatibility.
+   V11.9 later replaces applyModeAwareScoresV11 with RAW_FULL_HISTORICAL_PATH logic. */
+const TICKET_MODE_AWARE_VERSION = 'TICKET-MODE-AWARE-V11.0-COMPACT';
+const prepareRaceModelsBaseV11 = prepareRaceModelsV11;
+const buildOneTicketBaseV11 = buildOneTicketV11;
+function rawSortV11(a,b,modelId){
+  const sa=a?.scores?.[modelId]||{},sb=b?.scores?.[modelId]||{};
+  const av=finiteV11(sa.score)??-1,bv=finiteV11(sb.score)??-1;
+  return bv-av||Number(sb.strongYears||0)-Number(sa.strongYears||0)||Number(sb.supportYears||0)-Number(sa.supportYears||0)||(finiteV11(sb.latestScore)??-1)-(finiteV11(sa.latestScore)??-1)||Number(a?.horse?.no||999)-Number(b?.horse?.no||999);
+}
+function decisionScoreFromModeRankV11(index,size,coverageYears){
+  const rankBase=size<=1?100:100-(index/Math.max(1,size-1))*40;
+  const coverage=Math.max(0,Number(coverageYears)||0);
+  return Math.round(rankBase*(0.75+0.25*Math.min(1,coverage/3)));
+}
+function applyModeAwareScoresV11(horses){return Array.isArray(horses)?horses:[];}
+prepareRaceModelsV11=async function(race,progress){
+  const result=await prepareRaceModelsBaseV11(race,progress);
+  result.horses=applyModeAwareScoresV11(result.horses);
+  result.modeAwareVersion=TICKET_MODE_AWARE_VERSION;
+  return result;
+};
+buildOneTicketV11=function(plan,model,raceDataMap,budget,unitPrice,requestedSingles){
+  const ticket=buildOneTicketBaseV11(plan,model,raceDataMap,budget,unitPrice,requestedSingles);
+  ticket.modeAware=true;
+  ticket.modeAwareVersion=TICKET_MODE_AWARE_VERSION;
+  ticket.scoreRule='Ham tam-kariyer benzerliği ana skordur; mod sırası yalnız tanı bilgisidir.';
+  return ticket;
+};
+console.info('[AT AI]',TICKET_MODE_AWARE_VERSION,'aktif — eski karar-skoru katmanı ayıklandı');`;
+
+const modeAwareCompatDeclaration =
+  `const modeAwareCompat = ${JSON.stringify(modeAwareRuntimeCode)};\n\n`;
 
 let source = fs.readFileSync(BASE, 'utf8');
 
@@ -29,7 +61,7 @@ source = replaceOnce(
 source = replaceOnce(
   source,
   'const historicalReferenceV125Compat = `',
-  modeAwareCompat + 'const historicalReferenceV125Compat = `',
+  modeAwareCompatDeclaration + 'const historicalReferenceV125Compat = `',
   'compact katman bildirimi'
 );
 
