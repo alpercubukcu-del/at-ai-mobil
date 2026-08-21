@@ -2,11 +2,10 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = __dirname;
-const OUT = path.join(ROOT, 'at-ai-runtime-v140.js');
+const PUBLIC = path.join(ROOT, 'public');
+const OUT = path.join(PUBLIC, 'at-ai-runtime-v140.js');
 
-// app.js is intentionally kept separate as the base application kernel.
-// Everything below preserves the exact current production execution order.
-const files = [
+const runtimeFiles = [
   'exact-history-v9.js',
   'adaptive-history-v10.js',
   'adaptive-history-v101.js',
@@ -47,13 +46,25 @@ const files = [
 
 const parserBridge = `(() => {\n  const nativeParse = DOMParser.prototype.parseFromString;\n  DOMParser.prototype.parseFromString = function(source, type) {\n    if (type === 'text/html' && typeof source === 'string' && /^\\s*<tbody\\b/i.test(source) && source.includes('YillikYarisProgramiCoklu')) {\n      source = \`<table>\${source}</table>\`;\n    }\n    return nativeParse.call(this, source, type);\n  };\n})();`;
 
+fs.rmSync(PUBLIC, { recursive: true, force: true });
+fs.mkdirSync(PUBLIC, { recursive: true });
+
+// Copy all top-level browser assets so the deployed static surface stays identical.
+for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
+  if (!entry.isFile()) continue;
+  const name = entry.name;
+  if (!/\.(?:html|css|js|json|ico|png|jpg|jpeg|webp|svg|txt)$/i.test(name)) continue;
+  if (name === 'package.json' || name === 'package-lock.json' || name === 'vercel.json') continue;
+  fs.copyFileSync(path.join(ROOT, name), path.join(PUBLIC, name));
+}
+
 const chunks = [
   '/* AT AI SYSTEM — CONSOLIDATED RUNTIME V14.0 */',
-  `/* Generated at ${new Date().toISOString()} from ${files.length - 1} active modules. */`,
+  `/* Generated at ${new Date().toISOString()} from ${runtimeFiles.length - 1} active modules. */`,
   'window.__AT_RUNTIME_BUNDLE_V140__ = true;'
 ];
 
-for (const file of files) {
+for (const file of runtimeFiles) {
   if (file === '__ANNUAL_DOMPARSER_BRIDGE__') {
     chunks.push('\n/* annual DOMParser compatibility bridge */\n' + parserBridge);
     continue;
@@ -66,4 +77,4 @@ for (const file of files) {
 const bundle = chunks.join('\n;\n') + '\n';
 new Function(bundle);
 fs.writeFileSync(OUT, bundle, 'utf8');
-console.log(`[AT AI] Runtime V14.0 generated: ${path.basename(OUT)} (${files.length - 1} modules, ${Buffer.byteLength(bundle)} bytes)`);
+console.log(`[AT AI] Runtime V14.0 generated: public/${path.basename(OUT)} (${runtimeFiles.length - 1} modules, ${Buffer.byteLength(bundle)} bytes)`);
