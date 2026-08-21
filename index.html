@@ -82,51 +82,6 @@
     <div id="analysisContent" class="analysis-content empty">Analiz seçilmedi.</div>
   </dialog>
   <script src="/app.js"></script>
-  <script src="/exact-history-v9.js"></script>
-  <script src="/adaptive-history-v10.js"></script>
-  <script src="/adaptive-history-v101.js"></script>
-  <script src="/adaptive-history-v102.js"></script>
-  <script src="/ticket-models-v11.js"></script>
-  <script src="/ticket-models-v11-weight.js"></script>
-  <script src="/ticket-models-v11-mode-aware.js"></script>
-  <script src="/ticket-bet-starts-v11.js"></script>
-  <script src="/career-model-tabs-v112.js"></script>
-  <script src="/home-race-cards-v113.js"></script>
-  <script src="/foreign-program-v114.js"></script>
-  <script src="/podium-similarity-v115.js"></script>
-  <script src="/calibration-v116.js"></script>
-  <script src="/manual-ticket-v117.js"></script>
-  <script src="/bet-start-strict-v118.js"></script>
-  <script src="/at-ai-loop-guard-v1111.js"></script>
-  <script src="/class-match-v1112.js"></script>
-  <script src="/ui-career-fixes-v1113.js"></script>
-  <script src="/calibration-fixes-v117.js"></script>
-  <script src="/historical-path-v119.js"></script>
-  <script src="/model-roadmap-recovery-v120.js"></script>
-  <script src="/career-export-v121.js?v=1210"></script>
-  <script src="/career-margin-v124.js?v=1240"></script>
-  <script src="/historical-reference-fullpath-v125.js?v=1250"></script>
-  <script src="/historical-reference-exact-v1251.js?v=1251"></script>
-  <script src="/five-model-fullpath-fallback-v126.js?v=1260"></script>
-  <script src="/resumable-career-v127.js?v=1270"></script>
-  <script src="/auto-resume-v128.js?v=1280"></script>
-  <script>
-    (() => {
-      const nativeParse = DOMParser.prototype.parseFromString;
-      DOMParser.prototype.parseFromString = function(source, type) {
-        if (type === 'text/html' && typeof source === 'string' && /^\s*<tbody\b/i.test(source) && source.includes('YillikYarisProgramiCoklu')) {
-          source = `<table>${source}</table>`;
-        }
-        return nativeParse.call(this, source, type);
-      };
-    })();
-  </script>
-  <script src="/annual-selected-set-hook-v134.js?v=1340"></script>
-  <script src="/tjk-annual-archive-v13.js?v=1310"></script>
-  <script src="/annual-current-race-v133.js?v=1330"></script>
-  <script src="/annual-top3-cache-v137.js?v=1370"></script>
-  <script src="/annual-archive-guard-v136.js?v=1360"></script>
-  <script src="/annual-career-five-model-v138.js?v=1380"></script>
-  <script src="/analysis-navigation-performance-v139.js?v=1390"></script>
+  <script src="/at-ai-runtime-v140.js?v=1400"></script>
 </body>
 </html>
