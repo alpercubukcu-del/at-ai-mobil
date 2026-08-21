@@ -3,7 +3,8 @@ const path = require('path');
 
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
-const OUT = path.join(PUBLIC, 'at-ai-runtime-v140.js');
+const RUNTIME_OUT = path.join(PUBLIC, 'at-ai-runtime-v140.js');
+const STYLE_OUT = path.join(PUBLIC, 'at-ai-styles-v141.css');
 
 const runtimeFiles = [
   'exact-history-v9.js',
@@ -44,15 +45,34 @@ const runtimeFiles = [
   'analysis-navigation-performance-v139.js'
 ];
 
+const styleFiles = [
+  'styles.css',
+  'adaptive-history-v10.css',
+  'ticket-models-v11.css',
+  'career-model-tabs-v112.css',
+  'home-race-cards-v113.css',
+  'podium-similarity-v115.css',
+  'calibration-v116.css',
+  'manual-ticket-v117.css',
+  'ui-career-fixes-v1113.css',
+  'tjk-annual-archive-v13.css'
+];
+
 const parserBridge = `(() => {\n  const nativeParse = DOMParser.prototype.parseFromString;\n  DOMParser.prototype.parseFromString = function(source, type) {\n    if (type === 'text/html' && typeof source === 'string' && /^\\s*<tbody\\b/i.test(source) && source.includes('YillikYarisProgramiCoklu')) {\n      source = \`<table>\${source}</table>\`;\n    }\n    return nativeParse.call(this, source, type);\n  };\n})();`;
 
 fs.rmSync(PUBLIC, { recursive: true, force: true });
 fs.mkdirSync(PUBLIC, { recursive: true });
 
-// Copy all top-level browser assets so the deployed static surface stays identical.
+const runtimeSourceSet = new Set(runtimeFiles.filter(file => file !== '__ANNUAL_DOMPARSER_BRIDGE__'));
+const styleSourceSet = new Set(styleFiles);
+
+// Deploy only files the browser can actually request. Runtime JS and linked CSS
+// sources stay in the repository for maintenance, but are emitted only as bundles.
 for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
   if (!entry.isFile()) continue;
   const name = entry.name;
+  if (runtimeSourceSet.has(name) || styleSourceSet.has(name)) continue;
+  if (/\.js$/i.test(name) && name !== 'app.js') continue;
   if (!/\.(?:html|css|js|json|ico|png|jpg|jpeg|webp|svg|txt)$/i.test(name)) continue;
   if (name === 'package.json' || name === 'package-lock.json' || name === 'vercel.json') continue;
   fs.copyFileSync(path.join(ROOT, name), path.join(PUBLIC, name));
@@ -76,5 +96,17 @@ for (const file of runtimeFiles) {
 
 const bundle = chunks.join('\n;\n') + '\n';
 new Function(bundle);
-fs.writeFileSync(OUT, bundle, 'utf8');
-console.log(`[AT AI] Runtime V14.0 generated: public/${path.basename(OUT)} (${runtimeFiles.length - 1} modules, ${Buffer.byteLength(bundle)} bytes)`);
+fs.writeFileSync(RUNTIME_OUT, bundle, 'utf8');
+
+const styleChunks = ['/* AT AI SYSTEM — CONSOLIDATED STYLES V14.1 */'];
+for (const file of styleFiles) {
+  const full = path.join(ROOT, file);
+  if (!fs.existsSync(full)) throw new Error(`Missing style source: ${file}`);
+  styleChunks.push(`\n/* ===== ${file} ===== */\n` + fs.readFileSync(full, 'utf8'));
+}
+const styles = styleChunks.join('\n') + '\n';
+fs.writeFileSync(STYLE_OUT, styles, 'utf8');
+
+console.log(`[AT AI] Runtime V14.0 generated: public/${path.basename(RUNTIME_OUT)} (${runtimeFiles.length - 1} modules, ${Buffer.byteLength(bundle)} bytes)`);
+console.log(`[AT AI] Styles V14.1 generated: public/${path.basename(STYLE_OUT)} (${styleFiles.length} stylesheets, ${Buffer.byteLength(styles)} bytes)`);
+console.log('[AT AI] Public output pruned: bundled JS/CSS source files are not deployed separately.');
