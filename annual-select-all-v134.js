@@ -9,6 +9,7 @@
 
   const $ = id => document.getElementById(id);
   let busy = false;
+  let refreshTimer = 0;
 
   function parseFoundCount() {
     const text = $('aaResultCount')?.textContent || '';
@@ -35,7 +36,7 @@
       controls.style.margin = '8px 0';
       controls.innerHTML = `
         <button type="button" class="aa-btn secondary" id="aaSelectAllVisible">Tümünü Seç</button>
-        <button type="button" class="aa-btn secondary" id="aaClearVisibleSelection">Seçimi Temizle</button>
+        <button type="button" class="aa-btn secondary" id="aaClearVisibleSelection">Listedeki Seçimi Temizle</button>
         <span class="aa-status" id="aaBulkSelectStatus" style="margin:0"></span>`;
       head.insertAdjacentElement('afterend', controls);
 
@@ -46,6 +47,7 @@
   }
 
   function refreshLabels() {
+    if (busy) return;
     const found = parseFoundCount();
     const shown = document.querySelectorAll('#aaResults [data-select]').length;
     const selected = parseSelectedCount();
@@ -53,12 +55,20 @@
     const clearBtn = $('aaClearVisibleSelection');
     const status = $('aaBulkSelectStatus');
     if (allBtn) allBtn.textContent = found && found <= shown ? `Tümünü Seç (${found})` : `Gösterilenleri Seç (${shown})`;
-    if (clearBtn) clearBtn.textContent = 'Seçimi Temizle';
-    if (status && !busy) {
+    if (clearBtn) clearBtn.textContent = 'Listedeki Seçimi Temizle';
+    if (status) {
       status.textContent = found > shown
         ? `${found} eşleşmenin ilk ${shown} tanesi ekranda. Filtreyi daraltırsan kalanları da topluca seçebilirsin.`
         : `${selected}/${found || shown} seçili`;
     }
+  }
+
+  function scheduleRefresh(delay = 40) {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => {
+      ensureControls();
+      refreshLabels();
+    }, delay);
   }
 
   async function bulkSet(checked) {
@@ -92,16 +102,13 @@
       busy = false;
       if (allBtn) allBtn.disabled = false;
       if (clearBtn) clearBtn.disabled = false;
-      refreshLabels();
+      scheduleRefresh(0);
     }
   }
 
-  const observer = new MutationObserver(() => {
-    ensureControls();
-    refreshLabels();
-  });
-
-  observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
-  document.addEventListener('click', () => setTimeout(ensureControls, 0), true);
-  ensureControls();
+  for (const type of ['click', 'change', 'input']) {
+    document.addEventListener(type, () => scheduleRefresh(type === 'input' ? 120 : 40), true);
+  }
+  window.addEventListener('load', () => scheduleRefresh(80));
+  scheduleRefresh(0);
 })();
