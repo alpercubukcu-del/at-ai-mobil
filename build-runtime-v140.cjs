@@ -10,7 +10,6 @@ const STYLE_OUT = path.join(PUBLIC, 'at-ai-styles-v141.css');
 const runtimeFiles = [
   'exact-history-v9.js',
   'adaptive-history-v10.js',
-  'adaptive-history-v101.js',
   'adaptive-history-v102.js',
   'ticket-models-v11.js',
   'ticket-models-v11-weight.js',
@@ -61,6 +60,11 @@ const styleFiles = [
 
 const parserBridge = `(() => {\n  const nativeParse = DOMParser.prototype.parseFromString;\n  DOMParser.prototype.parseFromString = function(source, type) {\n    if (type === 'text/html' && typeof source === 'string' && /^\\s*<tbody\\b/i.test(source) && source.includes('YillikYarisProgramiCoklu')) {\n      source = \`<table>\${source}</table>\`;\n    }\n    return nativeParse.call(this, source, type);\n  };\n})();`;
 
+// V10.1 was only a bridge from V10 to V10.2. V10.2 already owns the final roadmap
+// endpoint and cache validator, so we keep the single legacy cache bit without shipping
+// the complete V10.1 patch module.
+const adaptiveV101Compat = `(() => {\n  if (typeof runCareerAnalysis !== 'function') return;\n  const base = runCareerAnalysis;\n  runCareerAnalysis = async function(...args) {\n    const result = await base.apply(this, args);\n    try {\n      if (typeof state === 'object' && state?.analyses?.career) {\n        state.analyses.career.adaptiveHistoryV101 = true;\n        if (typeof save === 'function') save();\n      }\n    } catch {}\n    return result;\n  };\n})();`;
+
 function humanBytes(n) {
   const value = Number(n) || 0;
   if (value < 1024) return `${value} B`;
@@ -73,6 +77,7 @@ async function main() {
   fs.mkdirSync(PUBLIC, { recursive: true });
 
   const runtimeSourceSet = new Set(runtimeFiles.filter(file => file !== '__ANNUAL_DOMPARSER_BRIDGE__'));
+  runtimeSourceSet.add('adaptive-history-v101.js');
   const styleSourceSet = new Set(styleFiles);
 
   // Deploy only assets that remain independent browser requests. All application JS
@@ -87,10 +92,11 @@ async function main() {
     fs.copyFileSync(path.join(ROOT, name), path.join(PUBLIC, name));
   }
 
+  const activeModuleCount = runtimeFiles.filter(file => file !== '__ANNUAL_DOMPARSER_BRIDGE__').length;
   const runtimeChunks = [
-    '/* AT AI SYSTEM — CONSOLIDATED RUNTIME V14.0 */',
-    `/* Generated at ${new Date().toISOString()} from ${runtimeFiles.length - 1} active modules. */`,
-    'window.__AT_RUNTIME_BUNDLE_V140__ = true;'
+    '/* AT AI SYSTEM — CONSOLIDATED RUNTIME V14.3 */',
+    `/* Generated at ${new Date().toISOString()} from ${activeModuleCount} active modules. */`,
+    'window.__AT_RUNTIME_BUNDLE_V143__ = true;'
   ];
 
   for (const file of runtimeFiles) {
@@ -102,20 +108,21 @@ async function main() {
     if (!fs.existsSync(full)) throw new Error(`Missing runtime source: ${file}`);
     runtimeChunks.push(`\n/* ===== ${file} ===== */\n` + fs.readFileSync(full, 'utf8'));
   }
+  runtimeChunks.push('\n/* adaptive-history-v101 compatibility only; source module intentionally pruned */\n' + adaptiveV101Compat);
 
   const runtimeBundle = runtimeChunks.join('\n;\n') + '\n';
   const kernelPath = path.join(ROOT, 'app.js');
   if (!fs.existsSync(kernelPath)) throw new Error('Missing application kernel: app.js');
   const kernel = fs.readFileSync(kernelPath, 'utf8');
   const appBundle = [
-    '/* AT AI SYSTEM — SINGLE APPLICATION BUNDLE V14.2 */',
-    `/* app.js kernel + ${runtimeFiles.length - 1} active runtime modules */`,
+    '/* AT AI SYSTEM — SINGLE APPLICATION BUNDLE V14.3 */',
+    `/* app.js kernel + ${activeModuleCount} active runtime modules */`,
     '\n/* ===== app.js KERNEL ===== */\n' + kernel,
     '\n/* ===== CONSOLIDATED RUNTIME ===== */\n' + runtimeBundle
   ].join('\n;\n') + '\n';
 
   // First parse the exact source bundle. Then compact it without compression or name
-  // mangling so classic-script globals and patch order remain byte-for-byte semantic.
+  // mangling so classic-script globals and patch order remain semantic-equivalent.
   new Function(appBundle);
   const minified = await minify(appBundle, {
     ecma: 2020,
@@ -140,7 +147,8 @@ async function main() {
   const rawBytes = Buffer.byteLength(appBundle);
   const minBytes = Buffer.byteLength(minified.code);
   const savedPct = rawBytes ? ((rawBytes - minBytes) / rawBytes * 100).toFixed(1) : '0.0';
-  console.log(`[AT AI] App V14.2 generated: public/${path.basename(APP_OUT)} (kernel + ${runtimeFiles.length - 1} modules)`);
+  console.log(`[AT AI] App V14.3 generated: public/${path.basename(APP_OUT)} (kernel + ${activeModuleCount} modules)`);
+  console.log('[AT AI] Pruned runtime module: adaptive-history-v101.js (V10.2 + compatibility bit retained).');
   console.log(`[AT AI] JS compacted safely: ${humanBytes(rawBytes)} -> ${humanBytes(minBytes)} (-${savedPct}%)`);
   console.log(`[AT AI] Styles V14.1 generated: public/${path.basename(STYLE_OUT)} (${styleFiles.length} stylesheets, ${Buffer.byteLength(styles)} bytes)`);
   console.log('[AT AI] Public output pruned: source JS/CSS files are not deployed separately.');
