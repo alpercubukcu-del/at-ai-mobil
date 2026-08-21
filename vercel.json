@@ -8,6 +8,10 @@
     {
       "source": "/api/tjk-career",
       "destination": "/api/tjk-career-v10"
+    },
+    {
+      "source": "/tjk-annual-source",
+      "destination": "https://www.tjk.org/TR/YarisSever/Query/DataRows/YillikYarisProgramiCoklu"
     }
   ],
   "headers": [
