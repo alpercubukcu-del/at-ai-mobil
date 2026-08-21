@@ -3,7 +3,7 @@ const path = require('path');
 
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
-const RUNTIME_OUT = path.join(PUBLIC, 'at-ai-runtime-v140.js');
+const APP_OUT = path.join(PUBLIC, 'at-ai-app-v142.js');
 const STYLE_OUT = path.join(PUBLIC, 'at-ai-styles-v141.css');
 
 const runtimeFiles = [
@@ -66,19 +66,19 @@ fs.mkdirSync(PUBLIC, { recursive: true });
 const runtimeSourceSet = new Set(runtimeFiles.filter(file => file !== '__ANNUAL_DOMPARSER_BRIDGE__'));
 const styleSourceSet = new Set(styleFiles);
 
-// Deploy only files the browser can actually request. Runtime JS and linked CSS
-// sources stay in the repository for maintenance, but are emitted only as bundles.
+// Deploy only assets that remain independent browser requests. All application JS
+// and linked CSS sources stay in the repository for maintenance and are bundled below.
 for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
   if (!entry.isFile()) continue;
   const name = entry.name;
-  if (runtimeSourceSet.has(name) || styleSourceSet.has(name)) continue;
-  if (/\.js$/i.test(name) && name !== 'app.js') continue;
-  if (!/\.(?:html|css|js|json|ico|png|jpg|jpeg|webp|svg|txt)$/i.test(name)) continue;
+  if (runtimeSourceSet.has(name) || styleSourceSet.has(name) || name === 'app.js') continue;
+  if (/\.js$/i.test(name)) continue;
+  if (!/\.(?:html|css|json|ico|png|jpg|jpeg|webp|svg|txt)$/i.test(name)) continue;
   if (name === 'package.json' || name === 'package-lock.json' || name === 'vercel.json') continue;
   fs.copyFileSync(path.join(ROOT, name), path.join(PUBLIC, name));
 }
 
-const chunks = [
+const runtimeChunks = [
   '/* AT AI SYSTEM — CONSOLIDATED RUNTIME V14.0 */',
   `/* Generated at ${new Date().toISOString()} from ${runtimeFiles.length - 1} active modules. */`,
   'window.__AT_RUNTIME_BUNDLE_V140__ = true;'
@@ -86,17 +86,28 @@ const chunks = [
 
 for (const file of runtimeFiles) {
   if (file === '__ANNUAL_DOMPARSER_BRIDGE__') {
-    chunks.push('\n/* annual DOMParser compatibility bridge */\n' + parserBridge);
+    runtimeChunks.push('\n/* annual DOMParser compatibility bridge */\n' + parserBridge);
     continue;
   }
   const full = path.join(ROOT, file);
   if (!fs.existsSync(full)) throw new Error(`Missing runtime source: ${file}`);
-  chunks.push(`\n/* ===== ${file} ===== */\n` + fs.readFileSync(full, 'utf8'));
+  runtimeChunks.push(`\n/* ===== ${file} ===== */\n` + fs.readFileSync(full, 'utf8'));
 }
 
-const bundle = chunks.join('\n;\n') + '\n';
-new Function(bundle);
-fs.writeFileSync(RUNTIME_OUT, bundle, 'utf8');
+const runtimeBundle = runtimeChunks.join('\n;\n') + '\n';
+const kernelPath = path.join(ROOT, 'app.js');
+if (!fs.existsSync(kernelPath)) throw new Error('Missing application kernel: app.js');
+const kernel = fs.readFileSync(kernelPath, 'utf8');
+const appBundle = [
+  '/* AT AI SYSTEM — SINGLE APPLICATION BUNDLE V14.2 */',
+  `/* app.js kernel + ${runtimeFiles.length - 1} active runtime modules */`,
+  '\n/* ===== app.js KERNEL ===== */\n' + kernel,
+  '\n/* ===== CONSOLIDATED RUNTIME ===== */\n' + runtimeBundle
+].join('\n;\n') + '\n';
+
+// Fail the Vercel build before deployment if consolidation creates a syntax collision.
+new Function(appBundle);
+fs.writeFileSync(APP_OUT, appBundle, 'utf8');
 
 const styleChunks = ['/* AT AI SYSTEM — CONSOLIDATED STYLES V14.1 */'];
 for (const file of styleFiles) {
@@ -107,6 +118,6 @@ for (const file of styleFiles) {
 const styles = styleChunks.join('\n') + '\n';
 fs.writeFileSync(STYLE_OUT, styles, 'utf8');
 
-console.log(`[AT AI] Runtime V14.0 generated: public/${path.basename(RUNTIME_OUT)} (${runtimeFiles.length - 1} modules, ${Buffer.byteLength(bundle)} bytes)`);
+console.log(`[AT AI] App V14.2 generated: public/${path.basename(APP_OUT)} (kernel + ${runtimeFiles.length - 1} modules, ${Buffer.byteLength(appBundle)} bytes)`);
 console.log(`[AT AI] Styles V14.1 generated: public/${path.basename(STYLE_OUT)} (${styleFiles.length} stylesheets, ${Buffer.byteLength(styles)} bytes)`);
-console.log('[AT AI] Public output pruned: bundled JS/CSS source files are not deployed separately.');
+console.log('[AT AI] Public output pruned: source JS/CSS files are not deployed separately.');
