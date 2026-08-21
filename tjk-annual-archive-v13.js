@@ -7,7 +7,7 @@
 if (window.__AT_TJK_ANNUAL_ARCHIVE_V13__) return;
 window.__AT_TJK_ANNUAL_ARCHIVE_V13__ = true;
 
-const VERSION='TJK-ANNUAL-ARCHIVE-V13.0';
+const VERSION='TJK-ANNUAL-ARCHIVE-V13.10';
 const DB_NAME='at_ai_tjk_annual_archive_v13';
 const DB_VERSION=1;
 const STORE_RACES='races';
@@ -24,6 +24,8 @@ let currentRows=[];
 let tokenUniverse=[];
 let activeUpdate=false;
 let activeAnalysis=false;
+let archiveRowsCache=null;
+let archiveRowsPromise=null;
 
 const $=id=>document.getElementById(id);
 const clean=v=>String(v??'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim();
@@ -71,9 +73,17 @@ function openDb(){
 }
 async function dbGet(store,key){const db=await openDb();if(!db)return null;return new Promise(resolve=>{try{const q=db.transaction(store,'readonly').objectStore(store).get(key);q.onsuccess=()=>resolve(q.result?.value??null);q.onerror=()=>resolve(null)}catch{resolve(null)}})}
 async function dbGetAll(store){const db=await openDb();if(!db)return[];return new Promise(resolve=>{try{const q=db.transaction(store,'readonly').objectStore(store).getAll();q.onsuccess=()=>resolve((q.result||[]).map(x=>x.value));q.onerror=()=>resolve([])}catch{resolve([])}})}
+async function archiveRows(force=false){
+  if(force){archiveRowsCache=null;archiveRowsPromise=null}
+  if(Array.isArray(archiveRowsCache))return archiveRowsCache;
+  if(archiveRowsPromise)return archiveRowsPromise;
+  archiveRowsPromise=dbGetAll(STORE_RACES).then(rows=>{archiveRowsCache=Array.isArray(rows)?rows:[];archiveRowsPromise=null;return archiveRowsCache},()=>{archiveRowsPromise=null;return[]});
+  return archiveRowsPromise;
+}
+function invalidateArchiveRows(){archiveRowsCache=null;archiveRowsPromise=null}
 async function dbPut(store,key,value){const db=await openDb();if(!db)return false;return new Promise(resolve=>{try{const tx=db.transaction(store,'readwrite');tx.objectStore(store).put({key,value,updatedAt:Date.now()});tx.oncomplete=()=>resolve(true);tx.onerror=()=>resolve(false);tx.onabort=()=>resolve(false)}catch{resolve(false)}})}
 async function dbDeleteKeys(store,keys){const db=await openDb();if(!db)return;return new Promise(resolve=>{try{const tx=db.transaction(store,'readwrite'),os=tx.objectStore(store);for(const k of keys)os.delete(k);tx.oncomplete=()=>resolve();tx.onerror=()=>resolve();tx.onabort=()=>resolve()}catch{resolve()}})}
-async function replaceYear(year,rows){const all=await dbGetAll(STORE_RACES),keys=all.filter(x=>Number(x.year)===Number(year)).map(x=>x.id);await dbDeleteKeys(STORE_RACES,keys);const db=await openDb();if(!db)return false;return new Promise(resolve=>{try{const tx=db.transaction(STORE_RACES,'readwrite'),os=tx.objectStore(STORE_RACES);for(const row of rows)os.put({key:row.id,value:row,updatedAt:Date.now()});tx.oncomplete=()=>resolve(true);tx.onerror=()=>resolve(false);tx.onabort=()=>resolve(false)}catch{resolve(false)}})}
+async function replaceYear(year,rows){const all=await archiveRows(),keys=all.filter(x=>Number(x.year)===Number(year)).map(x=>x.id);await dbDeleteKeys(STORE_RACES,keys);const db=await openDb();if(!db)return false;const ok=await new Promise(resolve=>{try{const tx=db.transaction(STORE_RACES,'readwrite'),os=tx.objectStore(STORE_RACES);for(const row of rows)os.put({key:row.id,value:row,updatedAt:Date.now()});tx.oncomplete=()=>resolve(true);tx.onerror=()=>resolve(false);tx.onabort=()=>resolve(false)}catch{resolve(false)}});if(ok)invalidateArchiveRows();return ok}
 async function mapLimit(items,limit,worker){const list=Array.isArray(items)?items:[],out=new Array(list.length);let cursor=0;async function run(){while(true){const i=cursor++;if(i>=list.length)return;out[i]=await worker(list[i],i)}}await Promise.all(Array.from({length:Math.min(Math.max(1,limit),list.length||1)},run));return out}
 async function fetchText(url,retries=2){let last;for(let i=0;i<=retries;i++){const c=new AbortController(),t=setTimeout(()=>c.abort(),30000);try{const r=await fetch(url,{cache:'no-store',signal:c.signal});if(!r.ok)throw new Error(`HTTP ${r.status}`);return await r.text()}catch(e){last=e;if(!navigator.onLine)throw new Error('İnternet bağlantısı kesildi.');if(i<retries)await new Promise(x=>setTimeout(x,800*(i+1)))}finally{clearTimeout(t)}}throw last||new Error('Veri alınamadı')}
 async function fetchJson(url,retries=1){let last;for(let i=0;i<=retries;i++){const c=new AbortController(),t=setTimeout(()=>c.abort(),35000);try{const r=await fetch(url,{cache:'no-store',signal:c.signal});const d=await r.json();if(!r.ok||d?.ok===false)throw new Error(d?.error||`HTTP ${r.status}`);return d}catch(e){last=e;if(!navigator.onLine)throw new Error('İnternet bağlantısı kesildi.');if(i<retries)await new Promise(x=>setTimeout(x,700*(i+1)))}finally{clearTimeout(t)}}throw last||new Error('API yanıtı alınamadı')}
@@ -120,17 +130,17 @@ async function updateYear(year){
     await refreshArchiveUi(true);
   }catch(e){await dbPut(STORE_META,`year:${year}`,{year,status:'error',error:e?.message||String(e),updatedAt:new Date().toISOString()});setUpdateStatus(`${year} güncellenemedi: ${e?.message||e}`,0)}finally{activeUpdate=false;if(btn)btn.disabled=false}
 }
-async function yearRows(year){return (await dbGetAll(STORE_RACES)).filter(x=>Number(x.year)===Number(year))}
+async function yearRows(year){return (await archiveRows()).filter(x=>Number(x.year)===Number(year))}
 async function allCompleteMeta(){return (await dbGetAll(STORE_META)).filter(x=>x?.status==='complete'&&Number(x.year)).sort((a,b)=>a.year-b.year)}
 function unique(rows,field){return [...new Set(rows.map(x=>clean(x[field])).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'tr',{numeric:true}))}
 function fillSelect(id,values,allLabel='Tümü'){const el=$(id);if(!el)return;const cur=el.value;el.innerHTML=`<option value="">${esc(allLabel)}</option>`+values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');if(values.includes(cur))el.value=cur}
 async function refreshArchiveUi(preserve=false){
-  const rows=await dbGetAll(STORE_RACES),metas=await allCompleteMeta();
+  const [rows,metas]=await Promise.all([archiveRows(),allCompleteMeta()]);
   const yp=$('aaYearPills');if(yp)yp.innerHTML=metas.length?metas.map(m=>`<span class="aa-pill"><b>${m.year}</b> · ${m.recordCount} yarış</span>`).join(''):'<span class="aa-pill">Henüz yıllık arşiv yok</span>';
   const years=metas.map(m=>String(m.year));fillSelect('aaYearFrom',years,'İlk yıl');fillSelect('aaYearTo',years,'Son yıl');
   if(!preserve&&years.length){$('aaYearFrom').value=years[0];$('aaYearTo').value=years[years.length-1]}
   fillSelect('aaCity',unique(rows,'city'));fillSelect('aaGroup',unique(rows,'groupRaw'));fillSelect('aaClassBase',unique(rows,'classBase'));fillSelect('aaDistance',unique(rows,'distance').map(String));fillSelect('aaTrack',unique(rows,'track'));
-  tokenUniverse=[...new Set(rows.flatMap(x=>x.extraTokens||[]))].sort((a,b)=>a.localeCompare(b,'tr',{numeric:true}));renderTokenPills();if(!preserve)prefillCurrentRace();searchArchive();
+  tokenUniverse=[...new Set(rows.flatMap(x=>x.extraTokens||[]))].sort((a,b)=>a.localeCompare(b,'tr',{numeric:true}));renderTokenPills();if(!preserve)prefillCurrentRace(false);await searchArchive(rows);
 }
 function renderTokenPills(selected=[]){const box=$('aaTokens');if(!box)return;const sel=new Set(selected);box.innerHTML=tokenUniverse.map(t=>`<label class="aa-token"><input type="checkbox" value="${esc(t)}" ${sel.has(t)?'checked':''}>${esc(tokenLabel(t))}</label>`).join('')||'<span class="aa-pill">Ek şart yok</span>';box.querySelectorAll('input').forEach(x=>x.addEventListener('change',searchArchive))}
 function currentRaceContext(){
@@ -140,10 +150,10 @@ function currentRaceContext(){
     const horses=Array.isArray(race.horses)?race.horses:[];return{race,meta,raceNo:race.no??race.raceNo,city:typeof window.getCityName==='function'?window.getCityName():clean(window.state?.city),date:clean(window.state?.date),horses};
   }catch{return null}
 }
-function prefillCurrentRace(){const c=currentRaceContext();if(!c?.meta?.ok)return;const ci=parseClass(c.meta.class||'');const setters=[['aaCity',c.city],['aaGroup',clean(c.meta.ageGroup)],['aaClassBase',ci.base],['aaDistance',String(c.meta.distance||'')],['aaTrack',clean(c.meta.track)]];for(const[id,v]of setters){const el=$(id);if(el&&[...el.options].some(o=>o.value===v))el.value=v}renderTokenPills(ci.tokens);const yf=$('aaYearFrom'),yt=$('aaYearTo');if(yt&&[...yt.options].length>1){const vals=[...yt.options].map(o=>Number(o.value)).filter(Boolean).filter(y=>y<Number(c.date.slice(0,4)||CURRENT_YEAR));if(vals.length)yt.value=String(Math.max(...vals))}searchArchive()}
+function prefillCurrentRace(runSearch=true){const c=currentRaceContext();if(!c?.meta?.ok)return;const ci=parseClass(c.meta.class||'');const setters=[['aaCity',c.city],['aaGroup',clean(c.meta.ageGroup)],['aaClassBase',ci.base],['aaDistance',String(c.meta.distance||'')],['aaTrack',clean(c.meta.track)]];for(const[id,v]of setters){const el=$(id);if(el&&[...el.options].some(o=>o.value===v))el.value=v}renderTokenPills(ci.tokens);const yf=$('aaYearFrom'),yt=$('aaYearTo');if(yt&&[...yt.options].length>1){const vals=[...yt.options].map(o=>Number(o.value)).filter(Boolean).filter(y=>y<Number(c.date.slice(0,4)||CURRENT_YEAR));if(vals.length)yt.value=String(Math.max(...vals))}if(runSearch)searchArchive()}
 function selectedTokens(){return [...document.querySelectorAll('#aaTokens input:checked')].map(x=>x.value)}
-async function searchArchive(){
-  const all=await dbGetAll(STORE_RACES);const yf=Number($('aaYearFrom')?.value||0),yt=Number($('aaYearTo')?.value||9999),city=clean($('aaCity')?.value),group=clean($('aaGroup')?.value),base=clean($('aaClassBase')?.value),dist=Number($('aaDistance')?.value||0),track=clean($('aaTrack')?.value),name=norm($('aaRaceName')?.value),tokens=selectedTokens();
+async function searchArchive(sourceRows=null){
+  const all=Array.isArray(sourceRows)?sourceRows:await archiveRows();const yf=Number($('aaYearFrom')?.value||0),yt=Number($('aaYearTo')?.value||9999),city=clean($('aaCity')?.value),group=clean($('aaGroup')?.value),base=clean($('aaClassBase')?.value),dist=Number($('aaDistance')?.value||0),track=clean($('aaTrack')?.value),name=norm($('aaRaceName')?.value),tokens=selectedTokens();
   currentRows=all.filter(r=>Number(r.year)>=yf&&Number(r.year)<=yt&&(!city||r.city===city)&&(!group||r.groupRaw===group)&&(!base||r.classBase===base)&&(!dist||Number(r.distance)===dist)&&(!track||r.track===track)&&(!name||norm(r.raceName).includes(name))&&tokens.every(t=>(r.extraTokens||[]).includes(t))).sort((a,b)=>b.date.localeCompare(a.date)||a.city.localeCompare(b.city,'tr')||a.rowIndex-b.rowIndex);
   renderResults();
 }
@@ -152,7 +162,7 @@ function renderResults(){const box=$('aaResults'),count=$('aaResultCount');if(co
   return`<div class="aa-row"><input type="checkbox" data-select="${esc(r.id)}" ${checked}><div class="aa-row-main"><div class="aa-row-title">${esc(displayDate(r.date))} · ${esc(r.city)} · ${esc(r.classRaw)} · ${esc(r.distance)} ${esc(r.track)}</div><div class="aa-row-sub">${esc(r.groupRaw)}${r.raceName?` · ${esc(r.raceName)}`:''} · ${esc(r.prizeRaw)}<br>Kanonik: ${esc(r.classBase)}${r.extraTokens?.length?' · '+r.extraTokens.map(tokenLabel).map(esc).join(' · '):''}</div></div><div>${status}</div></div>`
 }).join(''):'<div class="aa-note">Bu filtrelerle yerel arşivde yarış bulunamadı.</div>';
   box.querySelectorAll('[data-select]').forEach(x=>x.addEventListener('change',()=>{x.checked?selectedIds.add(x.dataset.select):selectedIds.delete(x.dataset.select);renderResults()}));
-  box.querySelectorAll('[data-candidate]').forEach(x=>x.addEventListener('change',async()=>{const id=x.dataset.candidate,n=Number(x.value||0);if(!id||!n)return;const row=(await dbGetAll(STORE_RACES)).find(r=>r.id===id);if(!row)return;row.raceNo=n;row.permanentKey=`${row.date}|${row.cityId}|${n}`;row.resolutionMethod='MANUAL_CANDIDATE';row.candidateRaceNos=[];await dbPut(STORE_RACES,row.id,row);await searchArchive()}));
+  box.querySelectorAll('[data-candidate]').forEach(x=>x.addEventListener('change',async()=>{const id=x.dataset.candidate,n=Number(x.value||0);if(!id||!n)return;const row=await dbGet(STORE_RACES,id);if(!row)return;row.raceNo=n;row.permanentKey=`${row.date}|${row.cityId}|${n}`;row.resolutionMethod='MANUAL_CANDIDATE';row.candidateRaceNos=[];await dbPut(STORE_RACES,row.id,row);invalidateArchiveRows();await searchArchive()}));
 }
 async function dayProgram(row){const key=`${row.date}|${row.cityId}|${row.city}`;const cached=await dbGet(STORE_DAY,key);if(cached)return cached;const q=`/api/tjk-race-meta?date=${encodeURIComponent(row.date)}&cityId=${encodeURIComponent(row.cityId)}&cityName=${encodeURIComponent(row.city)}`;const d=await fetchJson(q);await dbPut(STORE_DAY,key,d);return d}
 function matchRaceCandidates(row,day){return (Array.isArray(day?.races)?day.races:[]).filter(r=>{const ci=parseClass(r.class||r.yaradi1||'');return ci.key===row.classKey&&ageKey(r.ageGroup||r.yaradi2||'')===ageKey(row.groupRaw)&&Number(r.distance||r.mesafe||0)===Number(row.distance)&&trackKey(r.track||r.pist||'')===row.trackKey}).map(r=>Number(r.no)).filter(Boolean).sort((a,b)=>a-b)}
@@ -160,7 +170,7 @@ async function resolveRows(rows){
   const unresolved=rows.filter(r=>!r.raceNo);if(!unresolved.length)return rows;let done=0;setUpdateStatus(`${unresolved.length} yarışın Koşu No'su çözülüyor…`,null);
   await mapLimit(unresolved,3,async row=>{try{const day=await dayProgram(row),cands=matchRaceCandidates(row,day);row.candidateRaceNos=cands;if(cands.length===1){row.raceNo=cands[0];row.permanentKey=`${row.date}|${row.cityId}|${row.raceNo}`;row.resolutionMethod='EXACT_DAILY_PROGRAM'}else if(cands.length>1){const same=currentRows.filter(x=>x.date===row.date&&x.cityId===row.cityId&&x.classKey===row.classKey&&ageKey(x.groupRaw)===ageKey(row.groupRaw)&&Number(x.distance)===Number(row.distance)&&x.trackKey===row.trackKey).sort((a,b)=>a.occurrenceIndex-b.occurrenceIndex);const idx=Math.max(0,same.findIndex(x=>x.id===row.id));if(cands[idx]){row.raceNo=cands[idx];row.permanentKey=`${row.date}|${row.cityId}|${row.raceNo}`;row.resolutionMethod='EXACT_OCCURRENCE_INDEX';row.candidateRaceNos=cands}}
       await dbPut(STORE_RACES,row.id,row)}catch(e){row.resolveError=e?.message||String(e);await dbPut(STORE_RACES,row.id,row)}finally{done++;setUpdateStatus(`Koşu No çözümleme: ${done}/${unresolved.length}`,null)}});
-  await searchArchive();return (await dbGetAll(STORE_RACES)).filter(r=>rows.some(x=>x.id===r.id));
+  invalidateArchiveRows();await searchArchive();return rows;
 }
 function conditionScore(current,row){try{const cm=current?.meta||{},classS=typeof window.classSimilarity==='function'?window.classSimilarity(cm.class||'',row.classRaw):parseClass(cm.class||'').key===row.classKey?1:.5,ageS=typeof window.ageGroupSimilarity==='function'?window.ageGroupSimilarity(cm.ageGroup||'',row.groupRaw):ageKey(cm.ageGroup||'')===ageKey(row.groupRaw)?1:.4,distS=typeof window.distanceSimilarity==='function'?window.distanceSimilarity(cm.distance,row.distance):Math.max(0,1-Math.abs(Number(cm.distance||0)-Number(row.distance))/800),trackS=typeof window.trackSimilarity==='function'?window.trackSimilarity(cm.track||'',row.track):trackKey(cm.track||'')===row.trackKey?1:.15,cityS=typeof window.citySimilarity==='function'?window.citySimilarity(current.city,row.city):normKey(current.city)===normKey(row.city)?1:.5;return Math.round(Math.max(0,Math.min(1,classS*.30+ageS*.25+distS*.18+trackS*.17+cityS*.10))*100)}catch{return 50}}
 function fullEnvelope(data,before){const full=Array.isArray(data?.history)?data.history:[],wins=Array.isArray(data?.wins)?data.wins:full.filter(x=>Number(x.finish)===1),top5=Array.isArray(data?.top5)?data.top5:full.filter(x=>Number(x.finish)>=1&&Number(x.finish)<=5);return{ok:data?.ok!==false,cutoffExclusive:before,fullPathBefore:full,historyBefore:full,roadmapBefore:full,comparisonPathBefore:full,fullPathBeforeCount:full.length,winsBefore:wins,top5Before:top5,preparationPathBefore:top5,analysisMode:full.length?'FULL_PATH':'DEBUT'}}
@@ -169,7 +179,7 @@ function fallbackSimilarity(currentPath,historicalRaces){let best=null;for(const
 async function runSelectedAnalysis(){
   if(activeAnalysis)return;activeAnalysis=true;const out=$('aaAnalysis');out.innerHTML='<div class="aa-note">Seçilen yarışlar hazırlanıyor…</div>';
   try{
-    let rows=(await dbGetAll(STORE_RACES)).filter(r=>selectedIds.has(r.id));if(!rows.length)throw new Error('Önce en az bir tarihsel yarış seçin.');rows=await resolveRows(rows);const unresolved=rows.filter(r=>!r.raceNo);if(unresolved.length)throw new Error(`${unresolved.length} seçili yarışın Koşu No'su kesinleştirilemedi. Aday varsa listeden seçin.`);
+    let rows=(await archiveRows()).filter(r=>selectedIds.has(r.id));if(!rows.length)throw new Error('Önce en az bir tarihsel yarış seçin.');rows=await resolveRows(rows);const unresolved=rows.filter(r=>!r.raceNo);if(unresolved.length)throw new Error(`${unresolved.length} seçili yarışın Koşu No'su kesinleştirilemedi. Aday varsa listeden seçin.`);
     const current=currentRaceContext();if(!current?.meta?.ok)throw new Error('Bugünkü programdan bir koşu seçili olmalı.');const horses=current.horses.filter(h=>h?.id);if(!horses.length)throw new Error('Seçili güncel koşuda TJK At ID bulunamadı.');
     out.innerHTML=`<div class="aa-note">${rows.length} tarihsel yarışın ilk 3'ü ve yarış öncesi tam kariyer yolları hazırlanıyor…</div>`;
     let hrDone=0;const historicalRaces=await mapLimit(rows,2,async r=>{const v=await historicalReference(current,r);hrDone++;out.innerHTML=`<div class="aa-note">Tarihsel referans: ${hrDone}/${rows.length} · sonra ${horses.length} güncel at karşılaştırılacak.</div>`;return v});
@@ -184,12 +194,18 @@ function createDialog(){if($('tjkAnnualArchiveDialog'))return;const d=document.c
   <div class="aa-section"><div class="aa-results-head"><b>Bulunan tarihsel yarışlar</b><span id="aaResultCount">0 yarış</span></div><div id="aaResults" class="aa-list"></div><div class="aa-status">Performans için aynı anda ilk 250 eşleşme gösterilir; filtre daraltıldığında tam liste içinden yeniden seçilir.</div><div class="aa-actions"><button class="aa-btn warn" id="aaRunSelected">Seçilen Yarışlarla Kariyer Analizi</button></div></div>
   <div id="aaAnalysis" class="aa-analysis"></div>
 </div></div>`;document.body.appendChild(d);
-  $('aaClose').onclick=()=>d.close();$('aaUpdateYear').onclick=()=>updateYear(Number($('aaUpdateYearSelect').value));$('aaFillCurrent').onclick=prefillCurrentRace;$('aaSearch').onclick=searchArchive;$('aaResolve').onclick=async()=>{let rows=(await dbGetAll(STORE_RACES)).filter(r=>selectedIds.has(r.id));await resolveRows(rows)};$('aaRunSelected').onclick=runSelectedAnalysis;$('aaClearFilters').onclick=()=>{for(const id of ['aaCity','aaGroup','aaClassBase','aaDistance','aaTrack'])if($(id))$(id).value='';$('aaRaceName').value='';document.querySelectorAll('#aaTokens input').forEach(x=>x.checked=false);searchArchive()};
+  $('aaClose').onclick=()=>d.close();$('aaUpdateYear').onclick=()=>updateYear(Number($('aaUpdateYearSelect').value));$('aaFillCurrent').onclick=prefillCurrentRace;$('aaSearch').onclick=searchArchive;$('aaResolve').onclick=async()=>{let rows=(await archiveRows()).filter(r=>selectedIds.has(r.id));await resolveRows(rows)};$('aaRunSelected').onclick=runSelectedAnalysis;$('aaClearFilters').onclick=()=>{for(const id of ['aaCity','aaGroup','aaClassBase','aaDistance','aaTrack'])if($(id))$(id).value='';$('aaRaceName').value='';document.querySelectorAll('#aaTokens input').forEach(x=>x.checked=false);searchArchive()};
   for(const id of ['aaYearFrom','aaYearTo','aaCity','aaGroup','aaClassBase','aaDistance','aaTrack'])$(id)?.addEventListener('change',searchArchive);$('aaRaceName')?.addEventListener('input',()=>{clearTimeout(window.__aaNameTimer);window.__aaNameTimer=setTimeout(searchArchive,250)});
 }
-async function openArchive(){createDialog();const d=$('tjkAnnualArchiveDialog');if(!d.open)d.showModal();await refreshArchiveUi(false)}
+async function openArchive(){
+  createDialog();const d=$('tjkAnnualArchiveDialog');if(!d.open)d.showModal();
+  setUpdateStatus('Yerel yıllık arşiv hazırlanıyor…',null);
+  await new Promise(resolve=>requestAnimationFrame(()=>resolve()));
+  await refreshArchiveUi(false);
+  setUpdateStatus('Yıllık program yalnız güncelleme sırasında TJK\'dan alınır.',null);
+}
 function installMenu(){const drawer=$('drawer');if(!drawer||$('annualArchiveBtn'))return;const note=drawer.querySelector('.drawer-note');const b=document.createElement('button');b.id='annualArchiveBtn';b.type='button';b.textContent='6. TJK Yıllık Yarış Arşivi';b.addEventListener('click',()=>{try{if(typeof window.closeDrawer==='function')window.closeDrawer()}catch{}openArchive()});note?drawer.insertBefore(b,note):drawer.appendChild(b)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installMenu,{once:true});else installMenu();
 window.ATAnnualArchiveV13={open:openArchive,search:searchArchive,version:VERSION};
-console.info('[AT AI]',VERSION,'aktif — ayrı yıllık yarış kataloğu');
+console.info('[AT AI]',VERSION,'aktif — yıllık arşiv tek IndexedDB okuması + önbellek');
 })();
