@@ -1,6 +1,6 @@
-/* AT AI Mobil — Annual Archive Current Race Picker V13.3
+/* AT AI Mobil — Annual Archive Current Race Picker V14.1
    Standalone picker: lists all races for the loaded day/city and fills archive filters.
-   Does not modify Career analysis source files.
+   Keeps the selected current race synchronized with the annual five-model analysis.
 */
 (() => {
   'use strict';
@@ -30,6 +30,51 @@
     } catch {
       return null;
     }
+  }
+
+  function persistSelectedRace(raceNo) {
+    const value = String(Number(raceNo || 0));
+    if (!value || value === '0') return;
+    let saved = false;
+    try {
+      if (typeof state !== 'undefined' && state && typeof state === 'object') {
+        state.selectedRace = value;
+        if (typeof save === 'function') { save(); saved = true; }
+      }
+    } catch {}
+    if (!saved) {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        const s = raw ? JSON.parse(raw) : {};
+        s.selectedRace = value;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+      } catch {}
+    }
+  }
+
+  function publishCurrentRace(ctx) {
+    const detail = {
+      raceNo: Number(ctx?.raceNo || 0),
+      date: clean(ctx?.date),
+      city: clean(ctx?.city),
+      cityId: clean(ctx?.cityId),
+      classRaw: clean(ctx?.classRaw),
+      ageGroup: clean(ctx?.ageGroup),
+      distance: clean(ctx?.distance),
+      track: clean(ctx?.track),
+      raceName: clean(ctx?.raceName),
+      time: clean(ctx?.time)
+    };
+    window.__AT_AA_ACTIVE_RACE_NO_V14__ = detail.raceNo;
+    window.__AT_AA_ACTIVE_RACE_CTX_V14__ = detail;
+    try { window.dispatchEvent(new CustomEvent('at-ai:annual-current-race', { detail })); } catch {}
+    try { window.ATAnnualArchiveGuardV14?.activateRace?.(detail.raceNo); } catch {}
+  }
+
+  function resetHistoricalSelection() {
+    try { window.__AT_AA_SELECTED_IDS_V134__?.clear?.(); } catch {}
+    document.querySelectorAll('#aaResults [data-select]').forEach(input => { input.checked = false; });
+    try { window.dispatchEvent(new CustomEvent('at-ai:annual-archive-selection', { detail: { selected: 0 } })); } catch {}
   }
 
   function cityName(s) {
@@ -160,6 +205,11 @@
   function applyRace(ctx) {
     const ci = splitClass(ctx.classRaw);
     const missing = [];
+
+    resetHistoricalSelection();
+    persistSelectedRace(ctx.raceNo);
+    publishCurrentRace(ctx);
+
     if (!setSelect('aaCity', ctx.city)) missing.push('Şehir');
     if (!setSelect('aaGroup', ctx.ageGroup)) missing.push('Grup');
     if (!setSelect('aaClassBase', ci.base)) missing.push('Koşu Cinsi');
