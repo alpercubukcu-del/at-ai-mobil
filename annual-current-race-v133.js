@@ -183,4 +183,22 @@
     event.stopImmediatePropagation();
     renderPicker();
   }, true);
+
+  let rangeLoadTimer = null;
+  document.addEventListener('change', event => {
+    const target = event.target;
+    if (!target?.matches?.('#aaYearFrom, #aaYearTo')) return;
+    clearTimeout(rangeLoadTimer);
+    rangeLoadTimer = setTimeout(() => {
+      const from = document.getElementById('aaYearFrom')?.value;
+      const to = document.getElementById('aaYearTo')?.value;
+      if (!from || !to) return;
+      try {
+        const api = window.ATAnnualArchiveV13;
+        if (api && typeof api.search === 'function') api.search();
+      } catch (e) {
+        console.warn('[AT AI] Yıllık arşiv yıl aralığı yükleme uyarısı:', e);
+      }
+    }, 120);
+  });
 })();
