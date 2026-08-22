@@ -33,6 +33,8 @@ function annualUrlV153(beginIso, endIso, filters, page = 0) {
   u.searchParams.set('QueryParameter_Tarih_End', isoToDisplay(endIso, '/'));
   u.searchParams.set('QueryParameter_SehirId', filters.city.value);
   u.searchParams.set('QueryParameter_PistId', filters.track.value);
+  if (filters.raceClass?.value) u.searchParams.set('QueryParameter_KosuCinsiId', filters.raceClass.value);
+  if (filters.group?.value) u.searchParams.set('QueryParameter_GrupId', filters.group.value);
   if (page > 0) u.searchParams.set('PageNumber', String(page));
   u.searchParams.set('_at', String(Date.now()));
   return u.toString();
@@ -121,6 +123,8 @@ async function queryExactYAnnualV153(target) {
   const filters = await resolveFilters(target);
   if (!filters.city) throw new Error(`TJK şehir filtresi bulunamadı: ${target.city}`);
   if (!filters.track) throw new Error(`TJK pist filtresi bulunamadı: ${target.track}`);
+  if (!filters.raceClass) throw new Error(`TJK koşu cinsi filtresi bulunamadı: ${target.class}`);
+  if (!filters.group) throw new Error(`TJK yaş grubu filtresi bulunamadı: ${target.ageGroup}`);
   const targetDate = parseIso(target.date);
   if (!targetDate) throw new Error('Hedef tarih YYYY-MM-DD olmalı.');
 
