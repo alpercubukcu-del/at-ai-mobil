@@ -30,7 +30,7 @@ if (!similar.includes(`from './tjk-race-meta.js'`)) {
   if (!similar.includes(importLine)) throw new Error('[V15.3] tjk-similar import satırı bulunamadı.');
   similar = similar.replace(importLine, `${importLine}\nimport { fetchHtml as fetchProgramHtmlV153, parseRaces as parseProgramRacesV153 } from './tjk-race-meta.js';`);
 }
-similar = similar.replace(`const VERSION = 'TJK-EXACT-HISTORY-V7.2.2';`,`const VERSION = 'TJK-EXACT-HISTORY-V7.3.0';`);
+similar = similar.replace(`const VERSION = 'TJK-EXACT-HISTORY-V7.2.2';`,`const VERSION = 'TJK-EXACT-HISTORY-V7.3.1';`);
 
 const queryMarker = `export async function queryExactHistoricalMatchesV9(targetInput = {}) {`;
 if (!similar.includes('queryExactYAnnualV153(')) {
@@ -44,13 +44,23 @@ if (!similar.includes('return queryExactYAnnualV153(target);')) {
   if (!similar.includes(missingLine)) throw new Error('[V15.3] exact-history Y dalı eklenemedi.');
   similar = similar.replace(missingLine, branchLine);
 }
-fs.writeFileSync(SIMILAR,similar,'utf8');
 
+/* Geçici ama zararsız tanılama: doğru satırın hangi eşleşme alanında elendiğini görünür kılar. */
+const annualReturn = `  return { anchor, beginIso, endIso, pagesScanned:pageLimit, rows:exact };`;
+if (similar.includes(annualReturn)) {
+  similar = similar.replace(annualReturn, `  const debugSamples = rows.filter(row => Number(row.distance) === Number(target.distance)).slice(0, 16).map(row => ({\n    date:row.date, city:row.city, ageGroup:row.ageGroup, class:row.class, distance:row.distance, track:row.track,\n    cityKey:normalizeCity(row.city), targetCityKey:normalizeCity(target.city),\n    ageKey:ageKey(row.ageGroup), targetAgeKey:ageKey(target.ageGroup),\n    classKey:classCoreKey(row.class), targetClassKey:classCoreKey(target.class),\n    trackKey:normalizeTrack(row.track), targetTrackKey:normalizeTrack(target.track)\n  }));\n  return { anchor, beginIso, endIso, pagesScanned:pageLimit, rows:exact, parsedRows:rows.length, debugSamples };`);
+}
+const annualDiag = `      diagnostics.pagesScanned += annual.pagesScanned;\n      diagnostics.candidateRows += annual.rows.length;`;
+if (similar.includes(annualDiag)) {
+  similar = similar.replace(annualDiag, `      diagnostics.pagesScanned += annual.pagesScanned;\n      diagnostics.parsedRows = Number(diagnostics.parsedRows || 0) + Number(annual.parsedRows || 0);\n      if (annual.debugSamples?.length && !diagnostics.debugSamples?.length) diagnostics.debugSamples = annual.debugSamples;\n      diagnostics.candidateRows += annual.rows.length;`);
+}
+
+fs.writeFileSync(SIMILAR,similar,'utf8');
 execFileSync(process.execPath, ['--check', RACE_META], { cwd:ROOT, stdio:'inherit' });
 execFileSync(process.execPath, ['--check', SIMILAR], { cwd:ROOT, stdio:'inherit' });
 
 let html=fs.readFileSync(INDEX,'utf8');
-html=html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=15300');
+html=html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=15310');
 fs.writeFileSync(INDEX,html,'utf8');
 
-console.log('[AT AI] V15.3 build tamamlandı: arşiv şehir sekmeleri + mevcut tjk-similar içinde Y-1/Y1 yıllık katalog ve günlük program doğrulaması.');
+console.log('[AT AI] V15.3.1 build tamamlandı: arşiv şehir sekmeleri + Y-1/Y1 yıllık katalog doğrulaması + eşleşme tanılaması.');
