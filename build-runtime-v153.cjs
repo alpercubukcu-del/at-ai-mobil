@@ -8,35 +8,49 @@ const APP = path.join(ROOT, 'public', 'at-ai-app-v142.js');
 const SIMILAR = path.join(ROOT, 'api', 'tjk-similar.js');
 const RACE_META = path.join(ROOT, 'api', 'tjk-race-meta.js');
 const Y_INC = path.join(ROOT, 'tjk-similar-y-annual-v153.inc.js');
+const ANNUAL_ARCHIVE = path.join(ROOT, 'tjk-annual-archive-v13.js');
 const INDEX = path.join(ROOT, 'public', 'index.html');
 
-execFileSync(process.execPath, [BASE], { cwd:ROOT, stdio:'inherit' });
-for (const f of [APP,SIMILAR,RACE_META,Y_INC,INDEX]) if (!fs.existsSync(f)) throw new Error(`[V15.4] Eksik dosya: ${path.basename(f)}`);
-
-/* V15.4 — Yıllık arşivde TJK'nin KV-6 / KV gibi gereksiz tekrarlarını tek sınıfa indir.
-   Koşu No çözümünde önce tam kanonik sınıf denenir; bulunamazsa aynı temel sınıf + yaş + mesafe + pist ile aday üretilir. */
-let app = fs.readFileSync(APP,'utf8');
-function mustAppReplace(label, from, to) {
-  if (!app.includes(from)) throw new Error(`[V15.4] Uygulama yaması uygulanamadı: ${label}`);
-  app = app.replace(from, to);
+for (const f of [BASE,SIMILAR,RACE_META,Y_INC,ANNUAL_ARCHIVE,INDEX]) {
+  if (!fs.existsSync(f)) throw new Error(`[V15.4] Eksik dosya: ${path.basename(f)}`);
 }
 
-mustAppReplace(
-  'annual archive redundant KV token',
-  `  const tokens = parts.map(canonicalToken).filter(Boolean).sort((a, b) => a.localeCompare(b, 'tr'));\n  const fallback = \`${'${normKey(base)}'}${'${tokens.length ? \'/\' + tokens.join(\'/\') : \'\'}'}\`;\n  let key = fallback;\n  try { if (typeof window.canonicalClassKeyV125 === 'function') key = window.canonicalClassKeyV125(raw) || fallback; } catch {}`,
-  `  let tokens = parts.map(canonicalToken).filter(Boolean).sort((a, b) => a.localeCompare(b, 'tr'));\n  const baseKey = normKey(base);\n  if (/^KV\\d+$/.test(baseKey)) tokens = tokens.filter(t => t !== 'KV');\n  const fallback = \`${'${baseKey}'}${'${tokens.length ? \'/\' + tokens.join(\'/\') : \'\'}'}\`;\n  const canonicalInput = [base, ...tokens].filter(Boolean).join('/');\n  let key = fallback;\n  try { if (typeof window.canonicalClassKeyV125 === 'function') key = window.canonicalClassKeyV125(canonicalInput) || fallback; } catch {}`
+/*
+  V15.4 — TJK sınıf yazım toleransı.
+  TJK yıllık tabloda aynı KV sınıfını KV-6, KV-6 / ve KV-6 /KV olarak yazabiliyor.
+  Kaynak dosyayı bundle üretilmeden önce yamalıyoruz; böylece minify/compact aşamasına bağımlı değiliz.
+*/
+let annual = fs.readFileSync(ANNUAL_ARCHIVE, 'utf8');
+function mustAnnualReplace(label, from, to) {
+  if (!annual.includes(from)) throw new Error(`[V15.4] Yıllık arşiv yaması uygulanamadı: ${label}`);
+  annual = annual.replace(from, to);
+}
+
+mustAnnualReplace(
+  'redundant KV decorator normalization',
+  `function parseClass(raw = '') {\n  const parts = clean(raw).replace(/\\s*\\/\\s*/g, '/').split('/').map(clean).filter(Boolean);\n  const base = parts.shift() || '';\n  const tokens = parts.map(canonicalToken).filter(Boolean).sort((a, b) => a.localeCompare(b, 'tr'));\n  const fallback = \`${'${normKey(base)}'}${'${tokens.length ? \'/\' + tokens.join(\'/\') : \'\'}'}\`;\n  let key = fallback;\n  try { if (typeof window.canonicalClassKeyV125 === 'function') key = window.canonicalClassKeyV125(raw) || fallback; } catch {}\n  return { base, tokens, key };\n}`,
+  `function parseClass(raw = '') {\n  const parts = clean(raw).replace(/\\s*\\/\\s*/g, '/').split('/').map(clean).filter(Boolean);\n  const base = parts.shift() || '';\n  const baseKey = normKey(base);\n  let tokens = parts.map(canonicalToken).filter(Boolean).sort((a, b) => a.localeCompare(b, 'tr'));\n  if (/^KV\\d+$/.test(baseKey)) tokens = tokens.filter(t => t !== 'KV');\n  const fallback = \`${'${baseKey}'}${'${tokens.length ? \'/\' + tokens.join(\'/\') : \'\'}'}\`;\n  const canonicalInput = [base, ...tokens].filter(Boolean).join('/');\n  let key = fallback;\n  try { if (typeof window.canonicalClassKeyV125 === 'function') key = window.canonicalClassKeyV125(canonicalInput) || fallback; } catch {}\n  return { base, tokens, key };\n}`
 );
 
-mustAppReplace(
-  'annual archive tolerant race number resolution',
+mustAnnualReplace(
+  'tolerant race number resolution',
   `function matchRaceCandidates(row, day) {\n  return (Array.isArray(day?.races) ? day.races : []).filter(r => {\n    const ci = parseClass(r.class || r.yaradi1 || '');\n    return ci.key === row.classKey && ageKey(r.ageGroup || r.yaradi2 || '') === ageKey(row.groupRaw) &&\n      Number(r.distance || r.mesafe || 0) === Number(row.distance) && trackKey(r.track || r.pist || '') === row.trackKey;\n  }).map(r => Number(r.no)).filter(Boolean).sort((a, b) => a - b);\n}`,
-  `function matchRaceCandidates(row, day) {\n  const races = Array.isArray(day?.races) ? day.races : [];\n  const sameConditions = r => ageKey(r.ageGroup || r.yaradi2 || '') === ageKey(row.groupRaw) &&\n    Number(r.distance || r.mesafe || 0) === Number(row.distance) && trackKey(r.track || r.pist || '') === row.trackKey;\n  const exact = races.filter(r => {\n    const ci = parseClass(r.class || r.yaradi1 || '');\n    return ci.key === row.classKey && sameConditions(r);\n  }).map(r => Number(r.no)).filter(Boolean).sort((a, b) => a - b);\n  if (exact.length) return exact;\n  const rowBaseKey = normKey(row.classBase || parseClass(row.classRaw || '').base);\n  return races.filter(r => {\n    const ci = parseClass(r.class || r.yaradi1 || '');\n    return normKey(ci.base) === rowBaseKey && sameConditions(r);\n  }).map(r => Number(r.no)).filter(Boolean).sort((a, b) => a - b);\n}`
+  `function matchRaceCandidates(row, day) {\n  const races = Array.isArray(day?.races) ? day.races : [];\n  const sameConditions = r => ageKey(r.ageGroup || r.yaradi2 || '') === ageKey(row.groupRaw) &&\n    Number(r.distance || r.mesafe || 0) === Number(row.distance) && trackKey(r.track || r.pist || '') === row.trackKey;\n\n  const exact = races.filter(r => {\n    const ci = parseClass(r.class || r.yaradi1 || '');\n    return ci.key === row.classKey && sameConditions(r);\n  }).map(r => Number(r.no)).filter(Boolean).sort((a, b) => a - b);\n  if (exact.length) return exact;\n\n  /* Eski IndexedDB kayıtlarında classKey KV-6/KV olarak kalmış olabilir.\n     Yalnız tam eşleşme yoksa temel sınıf + yaş + mesafe + pist ile güvenli fallback yap. */\n  const rowBaseKey = normKey(row.classBase || parseClass(row.classRaw || '').base);\n  return races.filter(r => {\n    const ci = parseClass(r.class || r.yaradi1 || '');\n    return normKey(ci.base) === rowBaseKey && sameConditions(r);\n  }).map(r => Number(r.no)).filter(Boolean).sort((a, b) => a - b);\n}`
 );
 
-fs.writeFileSync(APP,app,'utf8');
-new Function(app);
+annual = annual.replace(`const VERSION = 'TJK-ANNUAL-ARCHIVE-V14.0';`, `const VERSION = 'TJK-ANNUAL-ARCHIVE-V14.1';`);
+fs.writeFileSync(ANNUAL_ARCHIVE, annual, 'utf8');
+execFileSync(process.execPath, ['--check', ANNUAL_ARCHIVE], { cwd:ROOT, stdio:'inherit' });
 
-/* Yeni serverless function oluşturmadan, günlük program parserını exact-history içinde yeniden kullan. */
+/* Ana production bundle. */
+execFileSync(process.execPath, [BASE], { cwd:ROOT, stdio:'inherit' });
+if (!fs.existsSync(APP)) throw new Error('[V15.4] Production app bundle oluşmadı.');
+
+/* Canlı bundle üzerinde sürüm işareti; işlevsel kod kaynak aşamasında eklendi. */
+fs.appendFileSync(APP, `\n;window.__AT_KV_CLASS_ALIAS_V154__='KV-CLASS-ALIAS-V15.4';\n`, 'utf8');
+new Function(fs.readFileSync(APP,'utf8'));
+
+/* Yeni serverless function oluşturmadan günlük program parserını exact-history içinde yeniden kullan. */
 let raceMeta = fs.readFileSync(RACE_META,'utf8');
 if (!raceMeta.includes('export async function fetchHtml(')) {
   if (!raceMeta.includes('async function fetchHtml(')) throw new Error('[V15.4] race-meta fetchHtml bulunamadı.');
@@ -56,17 +70,17 @@ if (!similar.includes(`from './tjk-race-meta.js'`)) {
 }
 similar = similar.replace(`const VERSION = 'TJK-EXACT-HISTORY-V7.2.2';`,`const VERSION = 'TJK-EXACT-HISTORY-V7.3.2';`);
 
-/* KV-6, KV-6 / ve KV-6 /KV aynı sınıftır. Sonuç doğrulamasında yalnız gereksiz KV tekrarını yok say. */
-const classCoreOld = `function classCoreKey(v = '') {\n  const family = parseRaceFamily(v);\n  return \`${'${family.family}'}:${'${family.level ?? \'\'}'}|${'${classTokens(v).join(\'/\')}'}\`;\n}`;
-const classCoreNew = `function classCoreKey(v = '') {\n  const family = parseRaceFamily(v);\n  const tokens = classTokens(v).filter(x => !(family.family === 'KV' && x === 'KV'));\n  return \`${'${family.family}'}:${'${family.level ?? \'\'}'}|${'${tokens.join(\'/\')}'}\`;\n}`;
-if (!similar.includes(classCoreOld)) throw new Error('[V15.4] tjk-similar classCoreKey bulunamadı.');
-similar = similar.replace(classCoreOld,classCoreNew);
-
+/*
+  Normal Kariyer tarihsel doğrulaması:
+  KV ailesinde sondaki tekrar "KV" anlam taşımıyor. Diğer gerçek dekoratörler korunur.
+  Böylece KV-6, KV-6 / ve KV-6 /KV eşdeğerdir; KV-7 vb. asla eşleşmez.
+*/
 const stableOld = `  const stableA = ta.filter(x => !/^Y\\d+$/.test(x));\n  const stableB = tb.filter(x => !/^Y\\d+$/.test(x));`;
 const stableNew = `  const stableA = ta.filter(x => !/^Y\\d+$/.test(x) && !(fa.family === 'KV' && x === 'KV'));\n  const stableB = tb.filter(x => !/^Y\\d+$/.test(x) && !(fb.family === 'KV' && x === 'KV'));`;
 if (!similar.includes(stableOld)) throw new Error('[V15.4] tjk-similar classCoreCompatible bulunamadı.');
 similar = similar.replace(stableOld,stableNew);
 
+/* V15.3 — Y-0/Y-1/Y-2/Y-3 yıllık katalog + günlük program doğrulaması. */
 const queryMarker = `export async function queryExactHistoricalMatchesV9(targetInput = {}) {`;
 if (!similar.includes('queryExactYAnnualV153(')) {
   if (!similar.includes(queryMarker)) throw new Error('[V15.4] exact-history query marker bulunamadı.');
@@ -80,7 +94,7 @@ if (!similar.includes('return queryExactYAnnualV153(target);')) {
   similar = similar.replace(missingLine, branchLine);
 }
 
-/* Geçici ama zararsız tanılama: doğru satırın hangi eşleşme alanında elendiğini görünür kılar. */
+/* Y yolu için geçici tanılama; eşleştirme puanlarını/formüllerini değiştirmez. */
 const annualReturn = `  return { anchor, beginIso, endIso, pagesScanned:pageLimit, rows:exact };`;
 if (similar.includes(annualReturn)) {
   similar = similar.replace(annualReturn, `  const debugSamples = rows.filter(row => Number(row.distance) === Number(target.distance)).slice(0, 16).map(row => ({\n    date:row.date, city:row.city, ageGroup:row.ageGroup, class:row.class, distance:row.distance, track:row.track,\n    cityKey:normalizeCity(row.city), targetCityKey:normalizeCity(target.city),\n    ageKey:ageKey(row.ageGroup), targetAgeKey:ageKey(target.ageGroup),\n    classKey:classCoreKey(row.class), targetClassKey:classCoreKey(target.class),\n    trackKey:normalizeTrack(row.track), targetTrackKey:normalizeTrack(target.track)\n  }));\n  return { anchor, beginIso, endIso, pagesScanned:pageLimit, rows:exact, parsedRows:rows.length, debugSamples };`);
@@ -95,7 +109,7 @@ execFileSync(process.execPath, ['--check', RACE_META], { cwd:ROOT, stdio:'inheri
 execFileSync(process.execPath, ['--check', SIMILAR], { cwd:ROOT, stdio:'inherit' });
 
 let html=fs.readFileSync(INDEX,'utf8');
-html=html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=15400');
+html=html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=15410');
 fs.writeFileSync(INDEX,html,'utf8');
 
-console.log('[AT AI] V15.4 build tamamlandı: KV-6/KV sınıf aliası + yıllık arşiv toleranslı Koşu No çözümü + Y-1 tanılaması.');
+console.log('[AT AI] V15.4.1 build tamamlandı: KV-6 / KV aliası kaynakta normalize edildi; eski yıllık arşiv kayıtları için güvenli Koşu No fallback eklendi.');
