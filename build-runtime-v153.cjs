@@ -11,7 +11,7 @@ const Y_INC = path.join(ROOT, 'tjk-similar-y-annual-v153.inc.js');
 const ANNUAL_ARCHIVE = path.join(ROOT, 'tjk-annual-archive-v13.js');
 const INDEX = path.join(ROOT, 'public', 'index.html');
 
-for (const f of [BASE,SIMILAR,RACE_META,Y_INC,ANNUAL_ARCHIVE,INDEX]) {
+for (const f of [BASE,SIMILAR,RACE_META,Y_INC,ANNUAL_ARCHIVE]) {
   if (!fs.existsSync(f)) throw new Error(`[V15.4] Eksik dosya: ${path.basename(f)}`);
 }
 
@@ -44,7 +44,7 @@ execFileSync(process.execPath, ['--check', ANNUAL_ARCHIVE], { cwd:ROOT, stdio:'i
 
 /* Ana production bundle. */
 execFileSync(process.execPath, [BASE], { cwd:ROOT, stdio:'inherit' });
-if (!fs.existsSync(APP)) throw new Error('[V15.4] Production app bundle oluşmadı.');
+if (!fs.existsSync(APP) || !fs.existsSync(INDEX)) throw new Error('[V15.4] Production app bundle/index oluşmadı.');
 
 /* Canlı bundle üzerinde sürüm işareti; işlevsel kod kaynak aşamasında eklendi. */
 fs.appendFileSync(APP, `\n;window.__AT_KV_CLASS_ALIAS_V154__='KV-CLASS-ALIAS-V15.4';\n`, 'utf8');
