@@ -1,4 +1,4 @@
-/* AT AI Mobil — Annual Archive Guard V14
+/* AT AI Mobil — Annual Archive Guard V14.1
    Event-driven historical cutoff + bulk selection. No global MutationObserver.
 */
 (() => {
@@ -6,7 +6,7 @@
 if (window.__AT_ANNUAL_ARCHIVE_GUARD_V14__) return;
 window.__AT_ANNUAL_ARCHIVE_GUARD_V14__ = true;
 
-const VERSION = 'TJK-ANNUAL-ARCHIVE-GUARD-V14.0';
+const VERSION = 'TJK-ANNUAL-ARCHIVE-GUARD-V14.1';
 const STORAGE_KEY = 'at_ai_mobil_state_v2';
 let activeCutoff = '';
 let activeYear = 0;
@@ -24,23 +24,31 @@ function selectionSet() {
 function currentContext(raceNo = 0) {
   const s = readState();
   const races = Array.isArray(s?.races) ? s.races : [];
-  const wanted = Number(raceNo || s?.selectedRace || 0);
+  const wanted = Number(raceNo || window.__AT_AA_ACTIVE_RACE_NO_V14__ || s?.selectedRace || 0);
   const race = races.find(r => Number(r?.no ?? r?.raceNo ?? r?.kosuNo) === wanted) || (races.length === 1 ? races[0] : null);
   if (!race) return null;
   const no = Number(race?.no ?? race?.raceNo ?? race?.kosuNo ?? 0);
-  const date = clean(s?.date || document.getElementById('raceDate')?.value);
+  const date = clean(window.__AT_AA_ACTIVE_RACE_CTX_V14__?.date || s?.date || document.getElementById('raceDate')?.value);
   return { raceNo: no, date, year: Number(date.slice(0, 4)) || 0 };
+}
+function clearSelectionDom() {
+  selectionSet()?.clear();
+  document.querySelectorAll('#aaResults [data-select]').forEach(input => { input.checked = false; });
+  try { window.dispatchEvent(new CustomEvent('at-ai:annual-archive-selection', { detail: { selected: 0 } })); } catch {}
 }
 function activateRace(raceNo = 0) {
   const ctx = currentContext(raceNo);
   if (!ctx?.date) return;
+  const changed = !!activeRaceNo && activeRaceNo !== ctx.raceNo;
   activeRaceNo = ctx.raceNo;
   activeCutoff = ctx.date;
   activeYear = ctx.year;
+  window.__AT_AA_ACTIVE_RACE_NO_V14__ = activeRaceNo;
+  if (changed) clearSelectionDom();
   applyCutoff();
 }
 function visibleRows() {
-  return [...document.querySelectorAll('#aaResults .aa-row')].filter(row => !row.hidden);
+  return [...document.querySelectorAll('#aaResults .aa-row')].filter(row => !row.hidden && row.style.display !== 'none');
 }
 function updateCounts() {
   const rows = visibleRows();
@@ -87,6 +95,8 @@ function applyCutoff() {
     const date = clean(row.dataset.date);
     const eligible = !activeCutoff || !date || date < activeCutoff;
     row.hidden = !eligible;
+    row.style.display = eligible ? '' : 'none';
+    row.setAttribute('aria-hidden', eligible ? 'false' : 'true');
     if (!eligible) {
       const input = row.querySelector('[data-select]');
       if (input) {
@@ -110,8 +120,7 @@ function bulkSet(checked) {
   try { window.dispatchEvent(new CustomEvent('at-ai:annual-archive-selection', { detail: { selected: set?.size || 0 } })); } catch {}
 }
 function clearAll() {
-  selectionSet()?.clear();
-  document.querySelectorAll('#aaResults [data-select]').forEach(input => { input.checked = false; });
+  clearSelectionDom();
   updateCounts();
 }
 function updateVersion() {
@@ -123,6 +132,10 @@ window.addEventListener('at-ai:annual-archive-created', () => { ensureControls()
 window.addEventListener('at-ai:annual-archive-open', () => { ensureControls(); updateVersion(); activateRace(activeRaceNo); });
 window.addEventListener('at-ai:annual-archive-render', () => { applyCutoff(); });
 window.addEventListener('at-ai:annual-archive-selection', updateCounts);
+window.addEventListener('at-ai:annual-current-race', event => {
+  const no = Number(event?.detail?.raceNo || 0);
+  if (no) activateRace(no);
+});
 document.addEventListener('change', event => {
   if (event.target?.matches?.('#aaResults [data-select]')) setTimeout(updateCounts, 0);
 }, true);
@@ -134,6 +147,6 @@ document.addEventListener('click', event => {
   }
 }, true);
 
-window.ATAnnualArchiveGuardV14 = { version: VERSION, apply: applyCutoff, activateRace };
-console.info('[AT AI]', VERSION, 'aktif — gözlemcisiz tarih sınırı ve toplu seçim');
+window.ATAnnualArchiveGuardV14 = { version: VERSION, apply: applyCutoff, activateRace, getActiveRaceNo: () => activeRaceNo };
+console.info('[AT AI]', VERSION, 'aktif — senkron yarış seçimi, tarih sınırı ve toplu seçim');
 })();
