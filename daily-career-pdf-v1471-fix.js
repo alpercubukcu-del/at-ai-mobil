@@ -1,14 +1,16 @@
-/* AT AI Mobil — V14.8 Direct Career PDF
-   - html2canvas/html2pdf kullanmaz; mobil Chrome'daki boş sayfa sorununu kaldırır.
-   - IndexedDB günlük arşivindeki hesaplanmış sonuçlardan pdfMake ile doğrudan PDF üretir.
-   - Puan/formül değiştirmez; yalnız arşivlenmiş değerleri sıralayıp raporlar.
+/* AT AI Mobil — V14.10 Compact Direct Career PDF
+   - Kariyer/Hazırlık sıralamasını her koşuda en üste alır.
+   - 5 model tablolarını birbirine karıştırmadan iki sütunda yan yana yerleştirir.
+   - En sondaki Tüm Analiz Sıralaması korunur.
+   - html2canvas/html2pdf kullanmaz; arşivlenmiş sonuçları pdfMake ile doğrudan üretir.
+   - Puan/formül değiştirmez.
 */
 (() => {
 'use strict';
-if (window.__AT_DAILY_CAREER_PDF_V148__) return;
-window.__AT_DAILY_CAREER_PDF_V148__ = true;
+if (window.__AT_DAILY_CAREER_PDF_V1410__) return;
+window.__AT_DAILY_CAREER_PDF_V1410__ = true;
 
-const VERSION = 'DAILY-CAREER-PDF-V14.8-DIRECT';
+const VERSION = 'DAILY-CAREER-PDF-V14.10-COMPACT';
 const DB_NAME = 'at_ai_daily_career_archive_v146';
 const STORE = 'entries';
 const MODEL_IDS = ['composite','exact','twin','family','career'];
@@ -165,27 +167,27 @@ async function ensurePdfMake() {
 }
 
 function busy(show,text='PDF hazırlanıyor…') {
-  let el=document.getElementById('careerPdfBusyV148');
+  let el=document.getElementById('careerPdfBusyV1410');
   if (!show) { el?.remove(); return; }
   if (!el) {
-    el=document.createElement('div'); el.id='careerPdfBusyV148';
+    el=document.createElement('div'); el.id='careerPdfBusyV1410';
     Object.assign(el.style,{position:'fixed',inset:'0',zIndex:'2147483647',display:'grid',placeItems:'center',background:'rgba(8,21,34,.97)',color:'#eef7ff',fontFamily:'Arial,sans-serif',textAlign:'center',padding:'24px'});
     document.body.appendChild(el);
   }
-  el.innerHTML=`<div style="padding:18px 22px;border:1px solid rgba(126,226,168,.32);border-radius:14px;background:#10253a"><b>${text}</b><small style="display:block;margin-top:6px;opacity:.72;font-size:11px">Arşivdeki sıralamalar doğrudan PDF tablolarına aktarılıyor.</small></div>`;
+  el.innerHTML=`<div style="padding:18px 22px;border:1px solid rgba(126,226,168,.32);border-radius:14px;background:#10253a"><b>${text}</b><small style="display:block;margin-top:6px;opacity:.72;font-size:11px">Arşivdeki sıralamalar kompakt PDF tablolarına aktarılıyor.</small></div>`;
 }
 
 function tableLayout() {
-  return { hLineColor:'#d9d9d9', vLineColor:'#d9d9d9', hLineWidth:()=>0.5, vLineWidth:()=>0.5, paddingLeft:()=>4, paddingRight:()=>4, paddingTop:()=>3, paddingBottom:()=>3 };
+  return { hLineColor:'#d9d9d9', vLineColor:'#d9d9d9', hLineWidth:()=>0.5, vLineWidth:()=>0.5, paddingLeft:()=>3, paddingRight:()=>3, paddingTop:()=>2, paddingBottom:()=>2 };
 }
 
-function rankingTable(title,rows,career=false) {
+function rankingTable(title,rows,career=false,compact=false) {
   const body = [[
     {text:'Sıra',style:'th'}, {text:'At',style:'th'}, {text:'Puan',style:'th'},
     ...(career ? [{text:'Yol',style:'th'},{text:'Kariyer yarışı',style:'th'}] : [])
   ]];
   if (!rows.length) {
-    body.push([{text:'Bu şablon için arşivlenmiş sıralama yok.',colSpan:career?5:3,alignment:'center',color:'#777777'},...Array((career?5:3)-1).fill({})]);
+    body.push([{text:'Arşivlenmiş sıralama yok.',colSpan:career?5:3,alignment:'center',color:'#777777'},...Array((career?5:3)-1).fill({})]);
   } else {
     rows.forEach((r,i)=>body.push([
       {text:String(i+1),alignment:'center'},
@@ -194,10 +196,22 @@ function rankingTable(title,rows,career=false) {
       ...(career ? [{text:modeText(r.mode)},{text:String(r.careerCount ?? 0),alignment:'center'}] : [])
     ]));
   }
-  return [
-    {text:title,style:'tableTitle',margin:[0,7,0,3]},
-    {table:{headerRows:1,widths:career?[34,'*',46,100,72]:[34,'*',52],body},layout:tableLayout(),fontSize:8.5,margin:[0,0,0,4]}
-  ];
+  const widths = career ? [28,'*',40,86,58] : compact ? [24,'*',34] : [34,'*',52];
+  return {
+    stack:[
+      {text:title,style:'tableTitle',margin:[0,compact?3:6,0,2]},
+      {table:{headerRows:1,widths,body},layout:tableLayout(),fontSize:compact?6.7:8,margin:[0,0,0,3]}
+    ]
+  };
+}
+
+function modelPair(leftId,rightId,modelData) {
+  const leftRows=modelData ? modelRanking(modelData,leftId) : [];
+  const left={width:'*',stack:[rankingTable(`${MODEL_NAMES[leftId]} Sıralaması`,leftRows,false,true)]};
+  if (!rightId) return {columns:[left,{width:'*',text:''}],columnGap:9,margin:[0,1,0,2]};
+  const rightRows=modelData ? modelRanking(modelData,rightId) : [];
+  const right={width:'*',stack:[rankingTable(`${MODEL_NAMES[rightId]} Sıralaması`,rightRows,false,true)]};
+  return {columns:[left,right],columnGap:9,margin:[0,1,0,2]};
 }
 
 function raceContent(pair,index) {
@@ -207,10 +221,13 @@ function raceContent(pair,index) {
   const meta=[race.class || race.meta?.class,race.ageGroup || race.meta?.ageGroup,race.distance || race.meta?.distance,race.track || race.meta?.track].filter(Boolean).join(' · ');
   const out=[
     {text:`${clean(rec.cityName || rec.city)} · ${clean(rec.raceNo)}. Koşu`,style:'raceTitle',pageBreak:index===0?undefined:'before'},
-    {text:meta,color:'#555555',fontSize:9,margin:[0,0,0,6]}
+    {text:meta,color:'#555555',fontSize:8.5,margin:[0,0,0,4]},
+    rankingTable('Kariyer / Hazırlık Sıralaması',careerRanking(race),true,false),
+    {text:'5 Model Kariyer Sıralamaları',style:'modelsTitle',margin:[0,4,0,1]},
+    modelPair('composite','exact',modelData),
+    modelPair('twin','family',modelData),
+    modelPair('career',null,modelData)
   ];
-  MODEL_IDS.forEach(id => out.push(...rankingTable(`${MODEL_NAMES[id]} Sıralaması`,modelData ? modelRanking(modelData,id) : [],false)));
-  out.push(...rankingTable('Kariyer / Hazırlık Sıralaması',careerRanking(race),true));
   return out;
 }
 
@@ -224,7 +241,10 @@ function rankMap(rows) {
 }
 
 function summaryContent(pairs) {
-  const out=[{text:'Tüm Analiz Sıralaması',style:'sectionTitle',pageBreak:'before',margin:[0,0,0,4]},{text:'Her hücrede model sırası ve varsa puan gösterilir. K/H: Kariyer / Hazırlık.',fontSize:8,color:'#666666',margin:[0,0,0,8]}];
+  const out=[
+    {text:'Tüm Analiz Sıralaması',style:'sectionTitle',pageBreak:'before',margin:[0,0,0,4]},
+    {text:'Her hücrede model sırası ve varsa puan gösterilir. K/H: Kariyer / Hazırlık.',fontSize:8,color:'#666666',margin:[0,0,0,8]}
+  ];
   pairs.forEach(pair=>{
     const rec=pair.race || {}, race=rec.race || {}, modelData=pair.model?.data || null;
     const maps=Object.fromEntries(MODEL_IDS.map(id=>[id,rankMap(modelData?modelRanking(modelData,id):[])]));
@@ -247,13 +267,20 @@ function docDefinition(date,pairs) {
     {text:'5 Model Şablonları',style:'sectionTitle',margin:[0,0,0,5]}
   ];
   MODEL_EXPLANATIONS.forEach(([name,text])=>content.push({table:{widths:[90,'*'],body:[[{text:name,bold:true,fontSize:9},{text,fontSize:8.5,color:'#444444'}]]},layout:tableLayout(),margin:[0,0,0,3]}));
-  content.push({text:'PDF yalnız arşivdeki hesaplanmış sonuçları gösterir; puanlar PDF oluşturulurken yeniden hesaplanmaz.',fontSize:7.5,color:'#777777',margin:[0,4,0,10]});
+  content.push({text:'PDF yalnız arşivdeki hesaplanmış sonuçları gösterir; puanlar PDF oluşturulurken yeniden hesaplanmaz.',fontSize:7.5,color:'#777777',margin:[0,4,0,8]});
   pairs.forEach((pair,index)=>content.push(...raceContent(pair,index)));
   content.push(...summaryContent(pairs));
   return {
-    pageSize:'A4', pageMargins:[24,28,24,28],
-    defaultStyle:{font:'Roboto',fontSize:9,color:'#111111'},
-    styles:{title:{fontSize:20,bold:true,margin:[0,0,0,3]},sectionTitle:{fontSize:14,bold:true},raceTitle:{fontSize:15,bold:true,margin:[0,0,0,3]},tableTitle:{fontSize:10.5,bold:true},th:{bold:true,fillColor:'#f3f4f6',fontSize:8}},
+    pageSize:'A4', pageMargins:[22,24,22,26],
+    defaultStyle:{font:'Roboto',fontSize:8.5,color:'#111111'},
+    styles:{
+      title:{fontSize:20,bold:true,margin:[0,0,0,3]},
+      sectionTitle:{fontSize:14,bold:true},
+      raceTitle:{fontSize:15,bold:true,margin:[0,0,0,2]},
+      modelsTitle:{fontSize:11,bold:true},
+      tableTitle:{fontSize:9.5,bold:true},
+      th:{bold:true,fillColor:'#f3f4f6',fontSize:7}
+    },
     content,
     footer:(page,current)=>({text:`${VERSION} · Sayfa ${page}/${current}`,alignment:'center',fontSize:6.5,color:'#888888',margin:[0,8,0,0]})
   };
@@ -285,7 +312,6 @@ async function exportOne(key) {
   return downloadPdf(rec.date,pairs,`${rec.cityName||rec.city}_${rec.raceNo}K_5_MODEL_KARIYER`);
 }
 
-/* Window capture: eski V14.6/V14.7 PDF dinleyicilerine ulaşmadan doğrudan PDF üretir. */
 window.addEventListener('click',event=>{
   const target=event.target?.closest?.('#careerArchivePdfV146,#careerArchiveDayPdfV146,[data-pdf]');
   if (!target) return;
@@ -293,9 +319,9 @@ window.addEventListener('click',event=>{
   event.preventDefault();
   event.stopImmediatePropagation();
   const job=target.matches('[data-pdf]')?exportOne(target.dataset.pdf):exportDay(currentDate());
-  Promise.resolve(job).catch(e=>{console.error('[AT AI] V14.8 PDF:',e);busy(false);alert(e?.message||'PDF hazırlanamadı.');});
+  Promise.resolve(job).catch(e=>{console.error('[AT AI] V14.10 PDF:',e);busy(false);alert(e?.message||'PDF hazırlanamadı.');});
 },true);
 
-window.ATDailyCareerPdfV148={version:VERSION,exportDay,exportOne};
-console.info('[AT AI]',VERSION,'aktif — doğrudan pdfMake PDF; html2canvas/html2pdf kullanılmıyor');
+window.ATDailyCareerPdfV1410={version:VERSION,exportDay,exportOne};
+console.info('[AT AI]',VERSION,'aktif — K/H başta, modeller ayrı yan yana, tüm analiz özeti korunuyor');
 })();
