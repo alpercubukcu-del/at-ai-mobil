@@ -1,15 +1,16 @@
-/* AT AI Mobil — Analysis Navigation Performance V13.9
+/* AT AI Mobil — Analysis Navigation Performance V13.9.1
    - Menuden analiz secmek hesaplama/render tetiklemez.
    - Kariyer state'i localStorage'a yazilmaz; yalniz oturum belleğinde kalir.
    - Kariyer tek kosu ve at bazinda lazy render edilir.
    - 5 Model yalniz panel acildiginda, yalniz secili kosu icin hazirlanir.
+   - Alt at kartlarindaki puan/sira, acik 5 Model sekmesiyle eszamanlanir.
 */
 (() => {
 'use strict';
 if (window.__AT_ANALYSIS_NAV_PERF_V139__) return;
 window.__AT_ANALYSIS_NAV_PERF_V139__ = true;
 
-const VERSION='ANALYSIS-NAV-PERFORMANCE-V13.9';
+const VERSION='ANALYSIS-NAV-PERFORMANCE-V13.9.1';
 const STORAGE_KEY_V139='at_ai_mobil_state_v2';
 const clean=v=>String(v??'').replace(/\s+/g,' ').trim();
 const esc=v=>typeof escapeHtml==='function'?escapeHtml(v):String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -124,6 +125,47 @@ function sortCareerItemsV139(items=[]) {
     return (bs??-1)-(as??-1)||Number(a?.horse?.no||999)-Number(b?.horse?.no||999);
   });
 }
+function horseKeyV139(horse={}) {
+  const no=clean(horse?.no);
+  if (no) return `no:${no}`;
+  return `name:${clean(horse?.name).toLocaleUpperCase('tr-TR')}`;
+}
+function modelRankingForLowerV139(data,modelId='composite') {
+  try {
+    if (typeof modelRankingV112==='function') return modelRankingV112(data,modelId);
+  } catch {}
+  return (Array.isArray(data?.horses)?data.horses:[])
+    .map(item=>({ ...item, displayScore:finite(item?.scores?.[modelId]?.score) }))
+    .filter(item=>item.displayScore!==null)
+    .sort((a,b)=>Number(b.displayScore)-Number(a.displayScore)||Number(a?.horse?.no||999)-Number(b?.horse?.no||999));
+}
+function syncLowerCareerScoresV139(box,data,modelId='composite') {
+  const content=box?.closest?.('#analysisContent')||document.getElementById('analysisContent');
+  const list=content?.querySelector('[data-v139-horse-list]');
+  if (!list) return;
+  const ranking=modelRankingForLowerV139(data,modelId);
+  const byKey=new Map(ranking.map((item,index)=>[
+    horseKeyV139(item?.horse||{}),
+    { score:finite(item?.displayScore??item?.scores?.[modelId]?.score), rank:index+1 }
+  ]));
+  const nodes=[...list.querySelectorAll('[data-v139-horse-key]')];
+  nodes.forEach((el,originalIndex)=>{
+    const row=byKey.get(el.dataset.v139HorseKey)||null;
+    const scoreEl=el.querySelector('[data-v139-score-value]');
+    const rankEl=el.querySelector('[data-v139-rank-label]');
+    if (scoreEl) {
+      scoreEl.textContent=row?.score===null||row?.score===undefined?'—':`%${row.score}`;
+      scoreEl.style.opacity=row?.score===null||row?.score===undefined?'.55':'1';
+      scoreEl.style.color=row?.score===null||row?.score===undefined?'':'#7ee2a8';
+    }
+    if (rankEl) rankEl.textContent=row?`Sira ${row.rank}`:'Sira —';
+    el.dataset.v139ModelRank=String(row?.rank??(10000+originalIndex));
+  });
+  nodes
+    .sort((a,b)=>Number(a.dataset.v139ModelRank)-Number(b.dataset.v139ModelRank))
+    .forEach(el=>list.appendChild(el));
+  if (box) box.dataset.v139ActiveModel=modelId;
+}
 function horseDetailV139(item) {
   const career=item?.career||{};
   const sim=item?.galibiyetBenzerligi||{};
@@ -149,6 +191,10 @@ async function loadFiveModelV139(box,race) {
     const ids=['composite','exact','twin','family','career'];
     if (body) body.innerHTML=`${typeof careerCriteriaNoteV112==='function'?careerCriteriaNoteV112():''}<div class="career-model-tabs-v112">${ids.map((id,i)=>`<button class="career-model-tab-v112 ${i===0?'active':''}" data-career-model-tab="${esc(id)}">${esc(typeof modelDefinitionV112==='function'?modelDefinitionV112(id).short:id)}</button>`).join('')}</div>${ids.map((id,i)=>typeof modelPanelV112==='function'?modelPanelV112(data,id,i===0):'').join('')}`;
     try { if (typeof bindCareerModelTabsV112==='function') bindCareerModelTabsV112(box); } catch {}
+    syncLowerCareerScoresV139(box,data,'composite');
+    box.querySelectorAll('[data-career-model-tab]').forEach(btn=>{
+      btn.addEventListener('click',()=>syncLowerCareerScoresV139(box,data,btn.getAttribute('data-career-model-tab')||'composite'));
+    });
   } catch (e) {
     if (body) body.innerHTML=`<div class="career-model-empty-v112">⚠ ${esc(e?.message||'5 Model verisi hazirlanamadi.')}</div>`;
   }
@@ -189,7 +235,7 @@ try {
     }
     const currentRace=(Array.isArray(state?.races)?state.races:[]).find(r=>String(r?.no)===selected)||null;
     const items=sortCareerItemsV139(Array.isArray(race.horses)?race.horses:[]);
-    content.innerHTML=`<div style="margin-bottom:10px;font-size:13px;line-height:1.5"><b>${esc(repaired.cityName||'')} · ${esc(repaired.date||'')} · ${esc(race.no)}. Kosu</b><br><span style="opacity:.72">${esc(race.class||race.meta?.class||'')} · ${esc(race.ageGroup||race.meta?.ageGroup||'')} · ${esc(race.distance||race.meta?.distance||'')} ${esc(race.track||race.meta?.track||'')}</span><br><span style="opacity:.62">Hafif mod: yalniz acilan at detayi DOM'a eklenir.</span></div>${currentRace?`<details class="career-model-race-v112" id="careerFiveModelV139"><summary><div><b>5 MODEL KARIYER SIRALAMASI</b><small>Yalniz bu kosu · acmak icin dokunun</small></div><span>▾</span></summary><div data-v139-model-body class="career-model-loading-v112">Panel acildiginda hazirlanacak.</div></details>`:''}<div style="margin-top:10px">${items.map((item,index)=>{const score=finite(item?.galibiyetBenzerligi?.score);return `<details class="career-horse-accordion-v104" data-v139-horse="${index}"><summary><div class="career-horse-summary-v104"><div style="min-width:0"><div class="career-horse-name-v104">${esc(item?.horse?.no||'')}. ${esc(item?.horse?.name||'')}</div><div class="career-horse-status-v104">${esc(careerModeLabelV139(item))} · ${esc(careerPathRowsV139(item?.career||{}).length)} kariyer yarisi</div></div><div class="career-horse-score-v104"><div><div style="font-size:18px;font-weight:900;line-height:1;${score===null?'opacity:.55':'color:#7ee2a8'}">${score===null?'—':'%'+esc(score)}</div><div style="font-size:9px;opacity:.72;margin-top:2px">Sira ${index+1}</div></div><div class="career-detail-label-v104">Detay ▾</div></div></div></summary><div data-v139-horse-body style="padding:4px 8px 10px"><div style="padding:10px;opacity:.65">Detay acildiginda hazirlanacak.</div></div></details>`}).join('')}</div>`;
+    content.innerHTML=`<div style="margin-bottom:10px;font-size:13px;line-height:1.5"><b>${esc(repaired.cityName||'')} · ${esc(repaired.date||'')} · ${esc(race.no)}. Kosu</b><br><span style="opacity:.72">${esc(race.class||race.meta?.class||'')} · ${esc(race.ageGroup||race.meta?.ageGroup||'')} · ${esc(race.distance||race.meta?.distance||'')} ${esc(race.track||race.meta?.track||'')}</span><br><span style="opacity:.62">Hafif mod: yalniz acilan at detayi DOM'a eklenir.</span></div>${currentRace?`<details class="career-model-race-v112" id="careerFiveModelV139"><summary><div><b>5 MODEL KARIYER SIRALAMASI</b><small>Yalniz bu kosu · acmak icin dokunun</small></div><span>▾</span></summary><div data-v139-model-body class="career-model-loading-v112">Panel acildiginda hazirlanacak.</div></details>`:''}<div data-v139-horse-list style="margin-top:10px">${items.map((item,index)=>{const score=finite(item?.galibiyetBenzerligi?.score);const horseKey=horseKeyV139(item?.horse||{});return `<details class="career-horse-accordion-v104" data-v139-horse="${index}" data-v139-horse-key="${esc(horseKey)}"><summary><div class="career-horse-summary-v104"><div style="min-width:0"><div class="career-horse-name-v104">${esc(item?.horse?.no||'')}. ${esc(item?.horse?.name||'')}</div><div class="career-horse-status-v104">${esc(careerModeLabelV139(item))} · ${esc(careerPathRowsV139(item?.career||{}).length)} kariyer yarisi</div></div><div class="career-horse-score-v104"><div><div data-v139-score-value style="font-size:18px;font-weight:900;line-height:1;${score===null?'opacity:.55':'color:#7ee2a8'}">${score===null?'—':'%'+esc(score)}</div><div data-v139-rank-label style="font-size:9px;opacity:.72;margin-top:2px">Sira ${index+1}</div></div><div class="career-detail-label-v104">Detay ▾</div></div></div></summary><div data-v139-horse-body style="padding:4px 8px 10px"><div style="padding:10px;opacity:.65">Detay acildiginda hazirlanacak.</div></div></details>`}).join('')}</div>`;
 
     content.querySelectorAll('[data-v139-horse]').forEach(el=>el.addEventListener('toggle',()=>{
       if (!el.open || el.dataset.loaded==='1') return;
@@ -222,5 +268,5 @@ if (analysisRaceV139) {
   };
 }
 
-console.info('[AT AI]',VERSION,'aktif — hafif analiz gezintisi + lazy Kariyer DOM');
+console.info('[AT AI]',VERSION,'aktif — hafif analiz gezintisi + lazy Kariyer DOM + model puan eszamanlama');
 })();
