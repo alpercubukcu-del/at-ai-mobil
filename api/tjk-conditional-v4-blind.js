@@ -39,7 +39,7 @@ async function getJSON(url,timeout=180000){
 }
 async function pool(items,n,fn){const out=new Array(items.length);let i=0;async function run(){for(;;){const k=i++;if(k>=items.length)return;out[k]=await fn(items[k],k);}}await Promise.all(Array.from({length:Math.min(n,items.length||1)},run));return out;}
 function findCity(program,city){const q=clean(city).toLocaleUpperCase('tr-TR');return (program?.cities||[]).find(c=>clean(c?.name).toLocaleUpperCase('tr-TR')===q)||null;}
-function referenceTypeWeight(type){return type==='EXACT'?1:type==='CONDITION_TWIN'?.65:.35;}
+function referenceTypeWeight(type){return type==='EXACT'?1:(type==='CONDITION_TWIN'?0.65:0.35);}
 function buildRefs(roadmap,targetDate){
   const map=new Map();for(const type of ['EXACT','CONDITION_TWIN','RACE_FAMILY'])for(const r of (roadmap?.models?.[type]||[])){
     const rd=iso(r?.date);if(!rd||rd>=targetDate||r?.ok===false)continue;
