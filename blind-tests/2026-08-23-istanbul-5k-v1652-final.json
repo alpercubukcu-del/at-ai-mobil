@@ -1,0 +1,48 @@
+{
+  "snapshotVersion": "ISTANBUL-5K-BLIND-2026-08-23-V16.5.2-FINAL",
+  "raceDate": "2026-08-23",
+  "city": "İstanbul",
+  "raceNo": 5,
+  "target": {"class":"KV-7","ageGroup":"3 Yaşlı İngilizler","distance":1900,"track":"Çim","runnerCount":8},
+  "sourceWorkbook": "2026-08-23_İstanbul_5K_TAM_KARIYER_ANALIZ_PAKETI.xlsx",
+  "workbookAudit": {"currentCareerRows":98,"historicalCareerRows":221,"totalCareerRows":319,"referenceRaces":6,"referenceTop3Horses":18,"currentFutureLeakCount":0,"referenceFutureLeakCount":0},
+  "resultApiCalled": false,
+  "resultDataLoaded": false,
+  "leakageRule": "current career date < target date; reference career date < reference date",
+  "runnerVersion": "UNIVERSAL-V5-BLIND-RUNNER-V5",
+  "patchVersion": "BLIND-V16.5.2-SAMPLE-SURFACE-BRIDGE",
+  "modelVersion": "UNIVERSAL-V5-V16.5-PROTOTYPE",
+  "referenceSetQuality": 67.5,
+  "references": [
+    {"date":"2025-08-24","city":"İstanbul","raceNo":3,"type":"EXACT","weight":1.0,"winner":"PYTHAGOREAN THEORY"},
+    {"date":"2024-08-25","city":"İstanbul","raceNo":9,"type":"EXACT","weight":1.0,"winner":"LOWER SPIRIT"},
+    {"date":"2023-08-20","city":"İstanbul","raceNo":6,"type":"EXACT","weight":1.0,"winner":"ARTEMISA GENTILE"},
+    {"date":"2025-09-07","city":"İstanbul","raceNo":2,"type":"RACE_FAMILY","weight":0.35,"winner":"MAGIC SELECTRA"},
+    {"date":"2024-09-11","city":"İstanbul","raceNo":6,"type":"RACE_FAMILY","weight":0.35,"winner":"PERFECT PLAYER"},
+    {"date":"2023-09-06","city":"İstanbul","raceNo":7,"type":"RACE_FAMILY","weight":0.35,"winner":"DAGMAR"}
+  ],
+  "policy": {
+    "market":"AGF skorlamaya eklenmedi",
+    "degree":"40% all-time best + 60% last-540-day best",
+    "tieBreak":"V5_SKOR > YOL_A+YOL_B > GUNCEL_HEDEF_KANITI > VERI_GUVEN > Program_No",
+    "mainCandidates":4
+  },
+  "finalRanking": [
+    {"rank":1,"no":3,"horse":"MİR EMRE","score":76.5,"routeA":75.7,"routeB":79.3,"form":76.7,"targetEvidence":79.4,"recentTargetEvidence":87.6,"similarEvidence":85.6,"upperClass":61.7,"hpScore":84.3,"weightScore":44.3,"timeScore":100.0,"historicalProfile":78.7,"career":14,"targetExamples":2,"dataConfidence":100,"candidateType":"ÇİFT"},
+    {"rank":2,"no":8,"horse":"NOBLE STRENGTH","score":65.9,"routeA":72.8,"routeB":61.4,"form":72.9,"targetEvidence":73.7,"recentTargetEvidence":90.6,"similarEvidence":66.5,"upperClass":45.7,"hpScore":50.7,"weightScore":100.0,"timeScore":63.3,"historicalProfile":77.3,"career":9,"targetExamples":1,"dataConfidence":85,"candidateType":"FORM"},
+    {"rank":3,"no":6,"horse":"TURAMUN","score":63.2,"routeA":55.3,"routeB":65.2,"form":56.2,"targetEvidence":44.6,"recentTargetEvidence":54.8,"similarEvidence":68.3,"upperClass":64.0,"hpScore":66.4,"weightScore":62.9,"timeScore":84.8,"historicalProfile":81.0,"career":12,"targetExamples":1,"dataConfidence":85,"candidateType":"SKOR"},
+    {"rank":4,"no":1,"horse":"PRANDELLO","score":62.5,"routeA":44.9,"routeB":85.2,"form":69.7,"targetEvidence":0.0,"recentTargetEvidence":0.0,"similarEvidence":77.0,"upperClass":80.9,"hpScore":100.0,"weightScore":35.0,"timeScore":50.0,"historicalProfile":77.6,"career":17,"targetExamples":0,"dataConfidence":70,"candidateType":"KAPASİTE"},
+    {"rank":5,"no":5,"horse":"LINARES","score":56.5,"routeA":46.8,"routeB":68.4},
+    {"rank":6,"no":2,"horse":"GIRALAMO","score":54.6,"routeA":53.9,"routeB":59.5},
+    {"rank":7,"no":7,"horse":"DARKROK","score":54.5,"routeA":70.0,"routeB":44.1},
+    {"rank":8,"no":4,"horse":"GOLDEN BEE","score":46.1,"routeA":59.9,"routeB":40.1}
+  ],
+  "mainCandidatePool": [3,8,6,1],
+  "riskNotes": [
+    "MİR EMRE güçlü birinci aday; son G3 altıncılığına rağmen önceki 1900-2100 çim serisi ve derece kanıtı çok güçlü.",
+    "NOBLE STRENGTH düşük kilo ve son 1900 İstanbul çim galibiyetiyle yükseliyor, fakat KV-7 sınıf sıçraması nedeniyle tek/banko değil.",
+    "TURAMUN üst sınıf kanıtı ve tarihsel profil yönünden güçlü, son formu dalgalı.",
+    "PRANDELLO HP ve üst sınıf kapasitesinde alanın lideri; 61 kg ve tam İstanbul 1900 örneği olmaması A yolunu düşürüyor, B yolunda 1. sırada."
+  ],
+  "freezeNote": "Final pre-race snapshot. Target result was not requested or loaded. Never overwrite after race start; create a separate evaluation record."
+}
