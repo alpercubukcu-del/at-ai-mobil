@@ -2,9 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import vm from 'vm';
 
-const VERSION='UNIVERSAL-V5-BLIND-RUNNER-V2';
+const VERSION='UNIVERSAL-V5-BLIND-RUNNER-V3';
 const APP_BASE='https://at-ai-mobil.vercel.app';
-const MODEL_FILE='universal-v5-prototype-v164.js';
+const MODEL_FILE='universal-v5-prototype-v165.js';
 
 function clean(v=''){return String(v??'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim();}
 function iso(v=''){const s=clean(v);let m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return s;m=s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);return m?`${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`:'';}
@@ -39,12 +39,14 @@ async function getJSON(url,timeout=180000){
 }
 async function pool(items,n,fn){const out=new Array(items.length);let i=0;async function run(){for(;;){const k=i++;if(k>=items.length)return;out[k]=await fn(items[k],k);}}await Promise.all(Array.from({length:Math.min(n,items.length||1)},run));return out;}
 function findCity(program,city){const q=clean(city).toLocaleUpperCase('tr-TR');return (program?.cities||[]).find(c=>clean(c?.name).toLocaleUpperCase('tr-TR')===q)||null;}
+function referenceTypeWeight(type){return type==='EXACT'?1:type==='CONDITION_TWIN'?.65:.35;}
 function buildRefs(roadmap,targetDate){
   const map=new Map();for(const type of ['EXACT','CONDITION_TWIN','RACE_FAMILY'])for(const r of (roadmap?.models?.[type]||[])){
     const rd=iso(r?.date);if(!rd||rd>=targetDate||r?.ok===false)continue;
     for(const q of (r?.top3||[])){
-      if(finish(q)!==1)continue;const id=clean(q?.horseId),name=clean(q?.horseName),key=[rd,clean(r?.city),r?.raceNo,id||name].join('|');
-      if(!map.has(key))map.set(key,{referenceDate:rd,date:rd,city:clean(r?.city),raceNo:r?.raceNo,horseId:id,horseName:name,career:rowsFrom(q?.career||{}),types:new Set()});map.get(key).types.add(type);
+      if(finish(q)!==1)continue;const id=clean(q?.horseId),name=clean(q?.horseName),key=[rd,clean(r?.city),r?.raceNo,id||name].join('|'),w=referenceTypeWeight(type);
+      if(!map.has(key))map.set(key,{referenceDate:rd,date:rd,city:clean(r?.city),raceNo:r?.raceNo,horseId:id,horseName:name,career:rowsFrom(q?.career||{}),types:new Set(),referenceWeight:w});
+      const ref=map.get(key);ref.types.add(type);ref.referenceWeight=Math.max(ref.referenceWeight||0,w);
     }
   }return [...map.values()];
 }
@@ -69,7 +71,7 @@ export default async function handler(req,res){
       roadmap=await getJSON(`${APP_BASE}/api/tjk-model-roadmap-v11?${p.toString()}`,210000);refs=buildRefs(roadmap,date);
       await pool(refs.filter(r=>!r.career.length&&r.horseId),3,async r=>{try{const d=await getJSON(`${APP_BASE}/api/tjk-career-v10?horseId=${encodeURIComponent(r.horseId)}&before=${encodeURIComponent(r.referenceDate)}`,120000);r.career=rowsFrom(d);}catch(e){r.error=e?.message||String(e);}});
     }catch(e){roadmap={ok:false,error:e?.message||String(e)};refs=[];}
-    const refAudit=refs.map(r=>({Referans_Tarih:r.referenceDate,Referans_Şehir:r.city,Referans_Koşu_No:r.raceNo,Kazanan_ID:r.horseId,Kazanan:r.horseName,Tipler:[...r.types].join('+'),Kariyer_Satırı:r.career.length,Son_Kariyer_Tarihi:maxDate(r.career),Leak:r.career.filter(x=>dateOf(x)&&dateOf(x)>=r.referenceDate).length,Hata:r.error||null}));
+    const refAudit=refs.map(r=>({Referans_Tarih:r.referenceDate,Referans_Şehir:r.city,Referans_Koşu_No:r.raceNo,Kazanan_ID:r.horseId,Kazanan:r.horseName,Tipler:[...r.types].join('+'),Referans_Ağırlık:r.referenceWeight,Kariyer_Satırı:r.career.length,Son_Kariyer_Tarihi:maxDate(r.career),Leak:r.career.filter(x=>dateOf(x)&&dateOf(x)>=r.referenceDate).length,Hata:r.error||null}));
     const api=loadModel(),scored=api.scoreRace({target,horses,careers,references:refs});
     const currentLeaks=coverage.reduce((s,x)=>s+x.FutureLeak,0),refLeaks=refAudit.reduce((s,x)=>s+x.Leak,0);
     return res.status(200).json({ok:true,runnerVersion:VERSION,modelVersion:api.VERSION,target,resultApiCalled:false,resultDataLoaded:false,leakAudit:{currentFutureLeakCount:currentLeaks,referenceFutureLeakCount:refLeaks,passed:currentLeaks===0&&refLeaks===0},coverage,referenceWinners:refAudit,roadmapOk:roadmap?.ok!==false,roadmapError:roadmap?.ok===false?roadmap?.error:null,policy:scored.policy,confidence:scored.confidence,rows:scored.rows});
