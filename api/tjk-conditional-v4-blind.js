@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import vm from 'vm';
 
-const VERSION='UNIVERSAL-V5-BLIND-RUNNER-V3';
+const VERSION='UNIVERSAL-V5-BLIND-RUNNER-V4';
 const APP_BASE='https://at-ai-mobil.vercel.app';
 const MODEL_FILE='universal-v5-prototype-v165.js';
 
@@ -51,6 +51,19 @@ function buildRefs(roadmap,targetDate){
   }return [...map.values()];
 }
 function maxDate(rows){return rows.length?rows.map(dateOf).filter(Boolean).sort().at(-1)||null:null;}
+function referenceSetQuality(refs){return refs.length?refs.reduce((s,r)=>s+(Number(r?.referenceWeight)||0),0)/refs.length*100:0;}
+function finalRank(rows,mainN,refQuality){
+  const ranked=[...(rows||[])].map(r=>({...r,REFERANS_KALITE:+refQuality.toFixed(1)})).sort((a,b)=>{
+    let d=(Number(b?.V5_SKOR)||0)-(Number(a?.V5_SKOR)||0);if(d)return d;
+    d=((Number(b?.YOL_A)||0)+(Number(b?.YOL_B)||0))-((Number(a?.YOL_A)||0)+(Number(a?.YOL_B)||0));if(d)return d;
+    d=(Number(b?.GUNCEL_HEDEF_KANITI)||0)-(Number(a?.GUNCEL_HEDEF_KANITI)||0);if(d)return d;
+    d=(Number(b?.VERI_GUVEN)||0)-(Number(a?.VERI_GUVEN)||0);if(d)return d;
+    return (Number(a?.Program_No)||99)-(Number(b?.Program_No)||99);
+  });
+  const main=new Set(ranked.slice(0,mainN).map(r=>r.At_ID||r.At_Adı));
+  for(const r of ranked){const k=r.At_ID||r.At_Adı;r.ANA_ADAY=main.has(k);r.ADAY_TIPI=r.A_SIRA<=2&&r.B_SIRA<=3?'ÇİFT':r.A_SIRA<=2?'FORM':r.B_SIRA<=3?'KAPASİTE':r.ANA_ADAY?'SKOR':'TAKİP';}
+  return ranked;
+}
 
 export default async function handler(req,res){
   res.setHeader('Cache-Control','no-store, max-age=0');
@@ -72,8 +85,8 @@ export default async function handler(req,res){
       await pool(refs.filter(r=>!r.career.length&&r.horseId),3,async r=>{try{const d=await getJSON(`${APP_BASE}/api/tjk-career-v10?horseId=${encodeURIComponent(r.horseId)}&before=${encodeURIComponent(r.referenceDate)}`,120000);r.career=rowsFrom(d);}catch(e){r.error=e?.message||String(e);}});
     }catch(e){roadmap={ok:false,error:e?.message||String(e)};refs=[];}
     const refAudit=refs.map(r=>({Referans_Tarih:r.referenceDate,Referans_Şehir:r.city,Referans_Koşu_No:r.raceNo,Kazanan_ID:r.horseId,Kazanan:r.horseName,Tipler:[...r.types].join('+'),Referans_Ağırlık:r.referenceWeight,Kariyer_Satırı:r.career.length,Son_Kariyer_Tarihi:maxDate(r.career),Leak:r.career.filter(x=>dateOf(x)&&dateOf(x)>=r.referenceDate).length,Hata:r.error||null}));
-    const api=loadModel(),scored=api.scoreRace({target,horses,careers,references:refs});
+    const api=loadModel(),scored=api.scoreRace({target,horses,careers,references:refs}),refQuality=referenceSetQuality(refs),mainN=Number(scored?.policy?.mainCandidates)||Math.min(4,horses.length),rankedRows=finalRank(scored.rows,mainN,refQuality);
     const currentLeaks=coverage.reduce((s,x)=>s+x.FutureLeak,0),refLeaks=refAudit.reduce((s,x)=>s+x.Leak,0);
-    return res.status(200).json({ok:true,runnerVersion:VERSION,modelVersion:api.VERSION,target,resultApiCalled:false,resultDataLoaded:false,leakAudit:{currentFutureLeakCount:currentLeaks,referenceFutureLeakCount:refLeaks,passed:currentLeaks===0&&refLeaks===0},coverage,referenceWinners:refAudit,roadmapOk:roadmap?.ok!==false,roadmapError:roadmap?.ok===false?roadmap?.error:null,policy:scored.policy,confidence:scored.confidence,rows:scored.rows});
+    return res.status(200).json({ok:true,runnerVersion:VERSION,modelVersion:api.VERSION,target,resultApiCalled:false,resultDataLoaded:false,leakAudit:{currentFutureLeakCount:currentLeaks,referenceFutureLeakCount:refLeaks,passed:currentLeaks===0&&refLeaks===0},coverage,referenceWinners:refAudit,referenceSetQuality:+refQuality.toFixed(1),roadmapOk:roadmap?.ok!==false,roadmapError:roadmap?.ok===false?roadmap?.error:null,policy:{...scored.policy,tieBreak:'V5_SKOR > YOL_A+YOL_B > GUNCEL_HEDEF_KANITI > VERI_GUVEN > Program_No'},confidence:scored.confidence,rows:rankedRows});
   }catch(e){return res.status(500).json({ok:false,version:VERSION,resultApiCalled:false,error:e?.message||String(e)});}
 }
