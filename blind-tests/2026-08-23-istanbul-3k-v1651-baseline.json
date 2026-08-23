@@ -1,0 +1,36 @@
+{
+  "snapshotVersion": "ISTANBUL-3K-BLIND-2026-08-23-V16.5.1-BASELINE",
+  "frozenAtUtc": "2026-08-23T06:42:53Z",
+  "raceDate": "2026-08-23",
+  "city": "İstanbul",
+  "raceNo": 3,
+  "target": {"class":"Handikap 15/DHÖ /H2","ageGroup":"3 Yaşlı Araplar","distance":1200,"track":"Çim","runnerCount":6},
+  "sourceWorkbook": "2026-08-23_İstanbul_3K_TAM_KARIYER_ANALIZ_PAKETI (1).xlsx",
+  "workbookAudit": {"currentCareerRows":33,"historicalCareerRows":49,"totalCareerRows":82,"referenceRaces":3,"referenceTop3Rows":9,"currentFutureLeakCount":0,"referenceFutureLeakCount":0},
+  "resultApiCalled": false,
+  "resultDataLoaded": false,
+  "leakageRule": "current career date < target date; reference career date < reference date",
+  "runnerVersion": "UNIVERSAL-V5-BLIND-RUNNER-V4",
+  "modelVersion": "UNIVERSAL-V5-V16.5-PROTOTYPE",
+  "referenceSetQuality": 88.3,
+  "references": [
+    {"date":"2025-08-24","city":"İstanbul","raceNo":1,"type":"EXACT","weight":1.0,"winner":"YAĞIZ TURBO"},
+    {"date":"2024-08-25","city":"İstanbul","raceNo":1,"type":"EXACT","weight":1.0,"winner":"ZEMBEREK"},
+    {"date":"2025-09-13","city":"İzmir","raceNo":4,"type":"CONDITION_TWIN","weight":0.65,"winner":"KALENDER TAY"}
+  ],
+  "baselineRanking": [
+    {"rank":1,"no":5,"horse":"KERVAN SANCAĞI","score":71.9,"routeA":67.4,"routeB":66.7,"form":63.0,"targetEvidence":52.2,"recentTargetEvidence":64.2,"dataConfidence":85},
+    {"rank":2,"no":4,"horse":"ATICI KAYA","score":65.2,"routeA":57.9,"routeB":62.9,"form":45.6,"targetEvidence":56.9,"recentTargetEvidence":69.9,"dataConfidence":85},
+    {"rank":3,"no":2,"horse":"ERHANHAN","score":59.7,"routeA":54.1,"routeB":49.7,"form":100.0,"targetEvidence":0.0,"recentTargetEvidence":0.0,"dataConfidence":24},
+    {"rank":4,"no":3,"horse":"VİRA","score":59.7,"routeA":54.1,"routeB":49.7,"form":100.0,"targetEvidence":0.0,"recentTargetEvidence":0.0,"dataConfidence":24},
+    {"rank":5,"no":1,"horse":"AKERBEY","score":52.9,"routeA":51.7,"routeB":54.4,"form":100.0,"targetEvidence":0.0,"recentTargetEvidence":0.0,"dataConfidence":52},
+    {"rank":6,"no":6,"horse":"ALARASİ","score":52.1,"routeA":44.2,"routeB":43.3,"form":82.1,"targetEvidence":0.0,"recentTargetEvidence":0.0,"dataConfidence":61}
+  ],
+  "mainCandidatePool": [5,4,2],
+  "preResultIssuesFound": [
+    "one-start winners receive FORM=100 without sample-size shrinkage",
+    "horses with zero target-surface starts receive zero target/upper proof even when broader form and capacity are strong",
+    "these are generic structural issues identified before target result and without AGF scoring"
+  ],
+  "freezeNote": "Pre-fix baseline. Target result has not been requested or loaded. Do not overwrite; evaluate future patches against this frozen record."
+}
