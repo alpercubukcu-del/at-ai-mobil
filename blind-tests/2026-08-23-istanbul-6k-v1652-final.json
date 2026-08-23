@@ -1,0 +1,39 @@
+{
+  "snapshotVersion": "ISTANBUL-6K-BLIND-2026-08-23-V16.5.2-FINAL",
+  "raceDate": "2026-08-23",
+  "city": "İstanbul",
+  "raceNo": 6,
+  "target": {"class":"KV-8/DHT/Dişi","ageGroup":"4 ve Yukarı Araplar","distance":1900,"track":"Çim","runnerCount":9},
+  "sourceWorkbook": "2026-08-23_İstanbul_6K_TAM_KARIYER_ANALIZ_PAKETI.xlsx",
+  "workbookAudit": {"currentCareerRows":378,"historicalCareerRows":194,"totalCareerRows":572,"referenceRaces":2,"referenceTop3Horses":6,"currentFutureLeakCount":0,"referenceFutureLeakCount":0},
+  "resultApiCalled": false,
+  "resultDataLoaded": false,
+  "leakageRule": "current career date < target date; reference career date < reference date",
+  "runnerVersion": "UNIVERSAL-V5-BLIND-RUNNER-V5",
+  "patchVersion": "BLIND-V16.5.2-SAMPLE-SURFACE-BRIDGE",
+  "modelVersion": "UNIVERSAL-V5-V16.5-PROTOTYPE",
+  "referenceSetQuality": 100,
+  "references": [
+    {"date":"2025-08-24","city":"İstanbul","raceNo":6,"type":"EXACT","weight":1.0,"winner":"AMAN DULO"},
+    {"date":"2024-08-25","city":"İstanbul","raceNo":7,"type":"EXACT","weight":1.0,"winner":"GÖZPINARI"}
+  ],
+  "finalRanking": [
+    {"rank":1,"no":1,"horse":"GÖZPINARI","score":68.4,"routeA":68.1,"routeB":77.1,"form":79.0,"targetEvidence":55.0,"recentTargetEvidence":54.2,"similarEvidence":66.8,"upperClass":51.0,"hpScore":100.0,"weightScore":35.0,"timeScore":70.0,"historicalProfile":49.7,"career":49,"targetExamples":4,"dataConfidence":100,"candidateType":"KAPASİTE"},
+    {"rank":2,"no":8,"horse":"KURŞUNİLİ","score":68.3,"routeA":69.1,"routeB":70.5,"form":65.6,"targetEvidence":59.5,"recentTargetEvidence":57.8,"similarEvidence":68.7,"upperClass":48.8,"hpScore":71.3,"weightScore":100.0,"timeScore":97.9,"historicalProfile":66.3,"career":51,"targetExamples":8,"dataConfidence":100,"candidateType":"ÇİFT"},
+    {"rank":3,"no":2,"horse":"İLLEDE DORU","score":66.6,"routeA":84.3,"routeB":64.9,"form":96.1,"targetEvidence":79.8,"recentTargetEvidence":79.8,"similarEvidence":84.8,"upperClass":0.0,"hpScore":84.7,"weightScore":35.0,"timeScore":79.1,"historicalProfile":84.5,"career":21,"targetExamples":3,"dataConfidence":100,"candidateType":"ÇİFT"},
+    {"rank":4,"no":5,"horse":"EPARVEN","score":59.5,"routeA":55.4,"routeB":62.7,"form":56.3,"targetEvidence":44.7,"recentTargetEvidence":39.4,"similarEvidence":60.9,"upperClass":44.5,"hpScore":75.1,"weightScore":100.0,"timeScore":55.8,"historicalProfile":67.6,"career":44,"targetExamples":5,"dataConfidence":100,"candidateType":"SKOR"},
+    {"rank":5,"no":9,"horse":"SAADGIRL","score":59.4,"routeA":51.6,"routeB":64.2},
+    {"rank":6,"no":3,"horse":"BELKIS ANA","score":56.2,"routeA":57.8,"routeB":57.6},
+    {"rank":7,"no":7,"horse":"JALELA","score":48.5,"routeA":54.9,"routeB":52.6},
+    {"rank":8,"no":4,"horse":"BLUEMOON","score":41.2,"routeA":38.4,"routeB":50.3},
+    {"rank":9,"no":6,"horse":"GÜL AYALI","score":39.5,"routeA":46.5,"routeB":35.8}
+  ],
+  "mainCandidatePool": [1,8,2,5],
+  "riskNotes": [
+    "GÖZPINARI genel lider ancak 60 kg ve hedef kanıtı KURŞUNİLİ/İLLEDE DORU kadar güçlü değil; liderlik kapasite ve HP tarafından taşınıyor.",
+    "KURŞUNİLİ iki yolun da en dengeli adaylarından; 1900 çim derece kanıtı 97.9 ile çok güçlü.",
+    "İLLEDE DORU A yolunda açık ara birinci; form 96.1 ve güncel hedef kanıtı 79.8, fakat üst sınıf kanıtı 0 ve 60 kg risk.",
+    "EPARVEN ana havuzun dördüncü ayağı; ilk üçten belirgin şekilde geride."
+  ],
+  "freezeNote": "Final pre-race snapshot. Target result was not requested or loaded. Never overwrite after race start; create a separate evaluation record."
+}
