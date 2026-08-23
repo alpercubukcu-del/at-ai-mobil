@@ -1,0 +1,32 @@
+{
+  "snapshotVersion": "ISTANBUL-2K-BLIND-2026-08-23-V16.5.1",
+  "frozenAtUtc": "2026-08-23T06:30:27Z",
+  "raceDate": "2026-08-23",
+  "city": "İstanbul",
+  "raceNo": 2,
+  "target": {"class":"KV-6","ageGroup":"3 ve Yukarı İngilizler","distance":1500,"track":"Sentetik","runnerCount":8},
+  "sourceWorkbook": "2026-08-23_İstanbul_2K_TAM_KARIYER_ANALIZ_PAKETI.xlsx",
+  "workbookAudit": {"currentCareerRows":352,"historicalCareerRows":489,"totalCareerRows":841,"referenceRaces":6,"exactReferences":3,"raceFamilyReferences":3,"currentFutureLeakCount":0,"referenceFutureLeakCount":0,"invalidDateCount":0},
+  "resultApiCalled": false,
+  "resultDataLoaded": false,
+  "leakageRule": "current career date < target date; reference career date < reference date",
+  "modelVersion": "UNIVERSAL-V5-V16.5-PROTOTYPE",
+  "runnerVersion": "UNIVERSAL-V5-BLIND-RUNNER-V4",
+  "referenceSetQuality": 67.5,
+  "referenceWeights": {"EXACT":1.0,"CONDITION_TWIN":0.65,"RACE_FAMILY":0.35},
+  "degreePolicy": "40% all-time best + 60% last-540-day best",
+  "tieBreak": "V5_SKOR > YOL_A+YOL_B > GUNCEL_HEDEF_KANITI > VERI_GUVEN > Program_No",
+  "finalRanking": [
+    {"rank":1,"no":4,"horse":"DRAGONS SON","score":75.6,"routeA":76.2,"routeB":79.5,"recentTargetEvidence":64.9,"historicalProfile":70.4,"candidateType":"ÇİFT"},
+    {"rank":2,"no":1,"horse":"MAKE A FIRE","score":74.7,"routeA":69.1,"routeB":81.7,"recentTargetEvidence":68.2,"historicalProfile":52.9,"candidateType":"KAPASİTE"},
+    {"rank":3,"no":3,"horse":"PRINCE OF DARKNESS","score":67.7,"routeA":57.9,"routeB":80.3,"recentTargetEvidence":48.5,"historicalProfile":58.6,"candidateType":"KAPASİTE"},
+    {"rank":4,"no":2,"horse":"DIAMOND BROTHERS","score":64.1,"routeA":70.2,"routeB":64.9,"recentTargetEvidence":73.8,"historicalProfile":71.0,"candidateType":"SKOR"},
+    {"rank":5,"no":8,"horse":"WINNER GETS IT ALL","score":64.1,"routeA":67.6,"routeB":66.5,"recentTargetEvidence":64.0,"historicalProfile":55.8,"candidateType":"TAKİP"},
+    {"rank":6,"no":6,"horse":"SONG RISING","score":63.8,"routeA":71.5,"routeB":59.9,"recentTargetEvidence":67.2,"historicalProfile":67.3,"candidateType":"FORM"},
+    {"rank":7,"no":5,"horse":"HARDOLD","score":61.7,"routeA":60.1,"routeB":67.8,"recentTargetEvidence":51.5,"historicalProfile":69.3,"candidateType":"TAKİP"},
+    {"rank":8,"no":7,"horse":"TOUCH THE MOON","score":40.7,"routeA":34.3,"routeB":55.1,"recentTargetEvidence":0.0,"historicalProfile":60.0,"candidateType":"TAKİP"}
+  ],
+  "mainCandidatePool": [4,1,3,2],
+  "changeFromV164": {"oldPool":[4,1,3,8],"newPool":[4,1,3,2],"reason":"stale peak inflation reduced; recent target evidence and meaningful tie-break added"},
+  "freezeNote": "Final pre-race snapshot. Never overwrite after target race start; evaluate in a separate result record."
+}
