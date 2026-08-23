@@ -2,8 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import vm from 'vm';
 
-const VERSION='UNIVERSAL-V5-BLIND-RUNNER-V5';
-const PATCH_VERSION='BLIND-V16.5.2-SAMPLE-SURFACE-BRIDGE';
+const VERSION='UNIVERSAL-V5-BLIND-RUNNER-V6';
+const PATCH_VERSION='BLIND-V16.5.3-GENTLE-SAMPLE-SURFACE-BRIDGE';
 const APP_BASE='https://at-ai-mobil.vercel.app';
 const MODEL_FILE='universal-v5-prototype-v165.js';
 
@@ -55,11 +55,17 @@ function patchWeights(type){
   if(type==='CONDITIONAL')return {form:.20,exact:.22,upper:.10};
   return {form:.20,exact:.20,upper:.08};
 }
+function sampleFormReliability(n){
+  if(n<=0)return 0;
+  if(n===1)return .85;
+  if(n===2)return .92;
+  return 1;
+}
 function applyBlindPatch(rows,target,careers){
   const tt=norm(target?.track),out=[];
   for(const base of (rows||[])){
     const r={...base},type=clean(r?.Koşu_Tipi),w=patchWeights(type),career=(careers?.[String(r?.At_ID)]||[]).filter(x=>dateOf(x)&&dateOf(x)<target.date);
-    const n=Number(r?.KARIYER)||career.length||0,rawForm=Number(r?.FORM)||0,formRel=Math.min(1,n/3),safeForm=50+(rawForm-50)*formRel;
+    const n=Number(r?.KARIYER)||career.length||0,rawForm=Number(r?.FORM)||0,formRel=sampleFormReliability(n),safeForm=50+(rawForm-50)*formRel;
     r.FORM_GUVENLI=+safeForm.toFixed(1);r.FORM_ORNEK_GUVENI=+formRel.toFixed(2);
     let score=(Number(r?.V5_SKOR)||0)+(safeForm-rawForm)*w.form;
     let routeA=(Number(r?.YOL_A)||0)+(safeForm-rawForm)*.30;
@@ -73,7 +79,8 @@ function applyBlindPatch(rows,target,careers){
       routeA+=bridge*.30*.35;
     }
     r.PIST_GECIS_KANITI=+bridge.toFixed(1);
-    r.V1652_DUZELTME=+(score-(Number(r?.V5_SKOR)||0)).toFixed(1);
+    r.V1653_DUZELTME=+(score-(Number(r?.V5_SKOR)||0)).toFixed(1);
+    r.V1652_DUZELTME=r.V1653_DUZELTME;
     r.V5_SKOR=+Math.max(0,Math.min(100,score)).toFixed(1);
     r.YOL_A=+Math.max(0,Math.min(100,routeA)).toFixed(1);
     out.push(r);
@@ -120,6 +127,6 @@ export default async function handler(req,res){
     const api=loadModel(),scored=api.scoreRace({target,horses,careers,references:refs}),refQuality=referenceSetQuality(refs),mainN=Number(scored?.policy?.mainCandidates)||Math.min(4,horses.length);
     const patchedRows=applyBlindPatch(scored.rows,target,careers),rankedRows=finalRank(patchedRows,mainN,refQuality);
     const currentLeaks=coverage.reduce((s,x)=>s+x.FutureLeak,0),refLeaks=refAudit.reduce((s,x)=>s+x.Leak,0);
-    return res.status(200).json({ok:true,runnerVersion:VERSION,patchVersion:PATCH_VERSION,modelVersion:api.VERSION,target,resultApiCalled:false,resultDataLoaded:false,leakAudit:{currentFutureLeakCount:currentLeaks,referenceFutureLeakCount:refLeaks,passed:currentLeaks===0&&refLeaks===0},coverage,referenceWinners:refAudit,referenceSetQuality:+refQuality.toFixed(1),roadmapOk:roadmap?.ok!==false,roadmapError:roadmap?.ok===false?roadmap?.error:null,policy:{...scored.policy,tieBreak:'V5_SKOR > YOL_A+YOL_B > GUNCEL_HEDEF_KANITI > VERI_GUVEN > Program_No',formReliability:'FORM, 1-2 kariyer örneğinde 50 nötr değerine doğru shrink edilir; 3+ örnekte tam kullanılır',surfaceBridge:'hedef pist örneği yoksa form+HP+benzer kanıttan en fazla 50 puanlık, düşük katsayılı geçiş kanıtı; gerçek pist kanıtının yerine geçmez'},confidence:scored.confidence,rows:rankedRows});
+    return res.status(200).json({ok:true,runnerVersion:VERSION,patchVersion:PATCH_VERSION,modelVersion:api.VERSION,target,resultApiCalled:false,resultDataLoaded:false,leakAudit:{currentFutureLeakCount:currentLeaks,referenceFutureLeakCount:refLeaks,passed:currentLeaks===0&&refLeaks===0},coverage,referenceWinners:refAudit,referenceSetQuality:+refQuality.toFixed(1),roadmapOk:roadmap?.ok!==false,roadmapError:roadmap?.ok===false?roadmap?.error:null,policy:{...scored.policy,tieBreak:'V5_SKOR > YOL_A+YOL_B > GUNCEL_HEDEF_KANITI > VERI_GUVEN > Program_No',formReliability:'FORM örnek güveni: 1 yarış %85, 2 yarış %92, 3+ yarış %100; nötr 50ye yalnız sınırlı shrink uygulanır',surfaceBridge:'hedef pist örneği yoksa form+HP+benzer kanıttan en fazla 50 puanlık, düşük katsayılı geçiş kanıtı; gerçek pist kanıtının yerine geçmez'},confidence:scored.confidence,rows:rankedRows});
   }catch(e){return res.status(500).json({ok:false,version:VERSION,resultApiCalled:false,error:e?.message||String(e)});}
 }
