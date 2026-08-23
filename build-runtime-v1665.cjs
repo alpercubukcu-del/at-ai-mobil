@@ -20,10 +20,9 @@ html=html.replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=16650');
 fs.writeFileSync(INDEX,html,'utf8');
 
 let app=fs.readFileSync(APP,'utf8');
-const oldTitle="historical:\n      'Tarihsel Benzerlik'";
-const newTitle="historical:\n      'Kazanan Yolu Kör Testi'";
-if(!app.includes(oldTitle)) throw new Error('[V16.6.5] historical analiz başlığı bulunamadı.');
-app=app.replace(oldTitle,newTitle);
+const titlePattern=/historical\s*:\s*(['"])Tarihsel Benzerlik\1/;
+if(!titlePattern.test(app)) throw new Error('[V16.6.5] historical analiz başlığı bulunamadı.');
+app=app.replace(titlePattern,'historical:"Kazanan Yolu Kör Testi"');
 app += "\n;window.__AT_WINNER_PATH_BLIND_MENU_V1665__={version:'V16.6.5',label:'Kazanan Yolu Kör Testi',winnerOnly:true};\n";
 new Function(app);
 fs.writeFileSync(APP,app,'utf8');
