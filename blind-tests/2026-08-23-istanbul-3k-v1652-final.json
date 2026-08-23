@@ -1,0 +1,39 @@
+{
+  "snapshotVersion": "ISTANBUL-3K-BLIND-2026-08-23-V16.5.2-FINAL",
+  "frozenAtUtc": "2026-08-23T06:46:39Z",
+  "raceDate": "2026-08-23",
+  "city": "İstanbul",
+  "raceNo": 3,
+  "target": {"class":"Handikap 15/DHÖ /H2","ageGroup":"3 Yaşlı Araplar","distance":1200,"track":"Çim","runnerCount":6},
+  "sourceWorkbook": "2026-08-23_İstanbul_3K_TAM_KARIYER_ANALIZ_PAKETI (1).xlsx",
+  "workbookAudit": {"currentCareerRows":33,"historicalCareerRows":49,"totalCareerRows":82,"referenceRaces":3,"referenceTop3Rows":9,"currentFutureLeakCount":0,"referenceFutureLeakCount":0},
+  "resultApiCalled": false,
+  "resultDataLoaded": false,
+  "leakageRule": "current career date < target date; reference career date < reference date",
+  "runnerVersion": "UNIVERSAL-V5-BLIND-RUNNER-V5",
+  "patchVersion": "BLIND-V16.5.2-SAMPLE-SURFACE-BRIDGE",
+  "modelVersion": "UNIVERSAL-V5-V16.5-PROTOTYPE",
+  "referenceSetQuality": 88.3,
+  "references": [
+    {"date":"2025-08-24","city":"İstanbul","raceNo":1,"type":"EXACT","weight":1.0,"winner":"YAĞIZ TURBO"},
+    {"date":"2024-08-25","city":"İstanbul","raceNo":1,"type":"EXACT","weight":1.0,"winner":"ZEMBEREK"},
+    {"date":"2025-09-13","city":"İzmir","raceNo":4,"type":"CONDITION_TWIN","weight":0.65,"winner":"KALENDER TAY"}
+  ],
+  "policyChanges": {
+    "formReliability": "1-2 kariyer örneğinde FORM 50 nötr değerine doğru küçültülür; 3+ örnekte tam kullanılır",
+    "surfaceBridge": "hedef pist geçmişi yoksa form+HP+benzer kanıttan maksimum 50, düşük katsayılı geçiş kanıtı üretilir; gerçek pist kanıtına eşit değildir",
+    "market": "AGF skorlamaya eklenmedi"
+  },
+  "baselinePool": [5,4,2],
+  "finalRanking": [
+    {"rank":1,"no":5,"horse":"KERVAN SANCAĞI","score":71.9,"routeA":67.4,"routeB":66.7,"form":63.0,"safeForm":63.0,"targetSurfaceStarts":7,"surfaceBridge":0.0,"patchDelta":0.0,"candidateType":"ÇİFT"},
+    {"rank":2,"no":4,"horse":"ATICI KAYA","score":65.2,"routeA":57.9,"routeB":62.9,"form":45.6,"safeForm":45.6,"targetSurfaceStarts":7,"surfaceBridge":0.0,"patchDelta":0.0,"candidateType":"ÇİFT"},
+    {"rank":3,"no":1,"horse":"AKERBEY","score":58.4,"routeA":56.9,"routeB":54.4,"form":100.0,"safeForm":100.0,"targetSurfaceStarts":0,"surfaceBridge":49.6,"patchDelta":5.5,"candidateType":"KAPASİTE"},
+    {"rank":4,"no":6,"horse":"ALARASİ","score":55.8,"routeA":47.7,"routeB":43.3,"form":82.1,"safeForm":82.1,"targetSurfaceStarts":0,"surfaceBridge":33.7,"patchDelta":3.7,"candidateType":"TAKİP"},
+    {"rank":5,"no":2,"horse":"ERHANHAN","score":54.3,"routeA":45.0,"routeB":49.7,"form":100.0,"safeForm":66.7,"formSampleReliability":0.33,"targetSurfaceStarts":0,"surfaceBridge":8.5,"patchDelta":-5.4,"candidateType":"TAKİP"},
+    {"rank":6,"no":3,"horse":"VİRA","score":54.3,"routeA":45.0,"routeB":49.7,"form":100.0,"safeForm":66.7,"formSampleReliability":0.33,"targetSurfaceStarts":0,"surfaceBridge":8.5,"patchDelta":-5.4,"candidateType":"TAKİP"}
+  ],
+  "mainCandidatePool": [5,4,1],
+  "changeFromBaseline": {"oldPool":[5,4,2],"newPool":[5,4,1],"reason":"tek yarışlık form şişmesi azaltıldı; ilk çim geçişi sıfır kanıt yerine belirsizlik-indirimli geçiş kanıtıyla değerlendirildi"},
+  "freezeNote": "Final pre-race snapshot. Target result has not been requested or loaded. Never overwrite after race start; create a separate evaluation record."
+}
