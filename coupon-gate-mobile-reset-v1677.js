@@ -3,6 +3,7 @@
    - Önceki iç scroll konumu sıfırlanır; ekran daima başlıktan başlar.
    - Arka sayfa overlay açıkken kaymaz; kapanınca eski sayfa konumu korunur.
    - V16.7.1 karar/puan formüllerine dokunmaz.
+   - V16.7.9 HOTFIX: style mutasyonunu gözlemek sonsuz MutationObserver döngüsü oluşturduğu için kaldırıldı.
 */
 (() => {
 'use strict';
@@ -109,7 +110,12 @@ function hardViewport(){
   injectStyle();
   const el=screen();
   if(!el) return false;
-  const set=(k,v)=>{try{el.style.setProperty(k,v,'important');}catch{}};
+  const set=(k,v)=>{
+    try{
+      if(el.style.getPropertyValue(k)===v && el.style.getPropertyPriority(k)==='important') return;
+      el.style.setProperty(k,v,'important');
+    }catch{}
+  };
   set('position','fixed');
   set('inset','0');set('top','0');set('right','0');set('bottom','0');set('left','0');
   set('width','100dvw');set('height','100dvh');
@@ -154,7 +160,8 @@ function syncOpenState(){
 }
 
 const observer=new MutationObserver(()=>syncOpenState());
-try{observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','aria-hidden']});}catch{}
+// V16.7.9 HOTFIX: syncOpenState()->hardViewport() style yazdığı için 'style' gözlenirse observer kendini tekrar tetikler.
+try{observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','aria-hidden']});}catch{}
 
 document.addEventListener('click',event=>{
   if(event.target?.closest?.('#buildAllBtn')){
