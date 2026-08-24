@@ -1,8 +1,8 @@
-/* AT AI Mobil — V16.8.8 5 Model tarihsel yol haritası transport cache
-   - Eski /api/tjk-model-roadmap-v11 doğrudan çağrılmaz.
-   - Aynı tarih + şehir + koşul için CDN cache katmanı kullanılır.
+/* AT AI Mobil — V16.8.8 5 Model tarihsel yol haritası CDN cache
+   - Mevcut /api/tjk-model-roadmap-v11 kullanılır; yeni serverless function oluşturulmaz.
+   - Vercel route header'ı aynı tarih + şehir + koşul cevabını CDN'de 6 saat tutar.
    - İlk MISS dışında tarihsel ilk-3 kariyer zinciri sunucuda yeniden kurulmaz.
-   - Puanlama / model formülleri değişmez; yalnız veri taşıma yolu cache'lenir.
+   - Puanlama / model formülleri değişmez; yalnız veri taşıma ve cache politikası değişir.
 */
 (() => {
 'use strict';
@@ -17,7 +17,7 @@ fetchModelRoadmapV11=async function(race){
   if(!meta?.ok)return{ok:false,error:meta?.error||'Koşu şartları eksik.'};
 
   const url=
-    `/api/tjk-model-roadmap-cache-v1688`+
+    `/api/tjk-model-roadmap-v11`+
     `?date=${encodeURIComponent(state?.date||'')}`+
     `&city=${encodeURIComponent(typeof getCityName==='function'?getCityName():'')}`+
     `&class=${encodeURIComponent(meta.class||race?.class||'')}`+
@@ -28,22 +28,21 @@ fetchModelRoadmapV11=async function(race){
 
   try{
     if(typeof atAiFetchJsonV1111==='function'){
-      const d=await atAiFetchJsonV1111(url,120000,`Koşu ${race?.no} tarihsel model cache`);
-      return d;
+      return await atAiFetchJsonV1111(url,120000,`Koşu ${race?.no} tarihsel model CDN cache`);
     }
     const c=new AbortController(),t=setTimeout(()=>c.abort(),120000);
     try{
       const r=await fetch(url,{cache:'default',headers:{accept:'application/json'},signal:c.signal});
       const text=await r.text();let d={};
-      try{d=text?JSON.parse(text):{};}catch{throw new Error(`5 Model tarihsel cache JSON dönmedi (API ${r.status}).`);}
+      try{d=text?JSON.parse(text):{};}catch{throw new Error(`5 Model tarihsel veri JSON dönmedi (API ${r.status}).`);}
       if(!r.ok||d?.ok===false)return{ok:false,error:d?.error||`API ${r.status}`};
       return d;
     }finally{clearTimeout(t);}
   }catch(e){
-    return{ok:false,error:e?.name==='AbortError'?'5 Model tarihsel cache zaman aşımına uğradı.':(e?.message||'5 Model tarihsel cache alınamadı.')};
+    return{ok:false,error:e?.name==='AbortError'?'5 Model tarihsel veri zaman aşımına uğradı.':(e?.message||'5 Model tarihsel veri alınamadı.')};
   }
 };
 
 window.__AT_MODEL_ROADMAP_CACHE_VERSION__=VERSION;
-console.info('[AT AI]',VERSION,'aktif — 5 Model tarihsel yol haritası CDN cache üzerinden alınır.');
+console.info('[AT AI]',VERSION,'aktif — mevcut 5 Model roadmap endpointi Vercel CDN cache ile kullanılır.');
 })();
