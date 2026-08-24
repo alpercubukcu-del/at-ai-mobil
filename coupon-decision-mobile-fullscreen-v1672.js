@@ -1,6 +1,7 @@
 /* AT AI Mobil — V16.7.2 Kupon Veri Denetimi Android tam ekran sabitleme
    V16.7.1 karar motoruna dokunmaz; yalnız mobil katman yerleşimini düzeltir.
    Ekranı body dışına, documentElement altına taşır ve viewport'a dört kenardan kilitler.
+   V16.7.9 HOTFIX: style mutasyonunu gözlemek sonsuz requestAnimationFrame döngüsü oluşturduğu için kaldırıldı.
 */
 (() => {
 'use strict';
@@ -56,7 +57,12 @@ function harden(){
     try{document.documentElement.appendChild(el);}catch{}
   }
 
-  const set=(k,v)=>{try{el.style.setProperty(k,v,'important');}catch{}};
+  const set=(k,v)=>{
+    try{
+      if(el.style.getPropertyValue(k)===v && el.style.getPropertyPriority(k)==='important') return;
+      el.style.setProperty(k,v,'important');
+    }catch{}
+  };
   set('position','fixed');
   set('top','0');set('right','0');set('bottom','0');set('left','0');set('inset','0');
   set('width','auto');set('height','auto');
@@ -87,7 +93,8 @@ const observer=new MutationObserver(muts=>{
   }
   if(relevant) requestAnimationFrame(()=>harden());
 });
-observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','aria-hidden']});
+// V16.7.9 HOTFIX: harden() style yazdığı için 'style' gözlenirse kendini sonsuza kadar yeniden tetikler.
+observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','aria-hidden']});
 
 document.addEventListener('click',event=>{
   if(event.target?.closest?.('#buildAllBtn')){
