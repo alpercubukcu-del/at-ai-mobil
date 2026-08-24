@@ -23,8 +23,43 @@
         <div id="status" class="status">Hazır</div>
       </section>
       <section class="panel">
+        <div class="eyebrow">GÜNLÜK PROGRAM</div><h2>Koşular</h2>
+        <div id="raceTabs" class="race-tabs"></div>
+        <div id="raceList" class="race-list empty">Program henüz yüklenmedi.</div>
+      </section>
+    </main>
+  </div>
+
+  <aside id="drawer" class="drawer" aria-hidden="true">
+    <div class="drawer-head"><strong>Analiz Bölümleri</strong><button id="closeMenu" class="icon-btn">✕</button></div>
+    <button data-view="current">1. Güncel Analiz</button>
+    <button data-view="historical">2. Tarihsel Benzerlik</button>
+    <button data-view="scenario">3. Koşu Senaryosu</button>
+    <button data-view="career">4. Kariyer Yol Haritası</button>
+    <button data-view="calibration">5. Model Kalibrasyonu</button>
+    <button id="couponMenuBtn" type="button">6. Kupon Oluştur</button>
+    <div class="drawer-note">Kupon işlemleri ana sayfadan kaldırıldı. Kupon seçimi, veri denetimi ve oluşturulan kupon yalnız “6. Kupon Oluştur” bölümünde çalışır.</div>
+  </aside>
+  <div id="overlay" class="overlay"></div>
+
+  <dialog id="analysisDialog">
+    <div class="dialog-head"><div><div class="eyebrow" id="dialogEyebrow">ANALİZ</div><h2 id="dialogTitle">Analiz</h2></div><button id="closeDialog" class="icon-btn">✕</button></div>
+    <div class="toolbar">
+      <select id="analysisRace"><option value="all">Tüm Koşular</option></select>
+      <button id="runAnalysis" class="primary small">Analizi Hesapla</button>
+    </div>
+    <div id="analysisContent" class="analysis-content empty">Analiz seçilmedi.</div>
+  </dialog>
+
+  <dialog id="couponCenterDialog" aria-label="Kupon Oluştur">
+    <div class="coupon-menu-head-v1681">
+      <div><div class="eyebrow">KUPON MERKEZİ</div><h2 id="couponMenuTitleV1681">Kupon Oluştur</h2></div>
+      <button id="closeCouponMenuV1681" class="icon-btn" type="button" aria-label="Kupon ekranını kapat">✕</button>
+    </div>
+    <div id="couponMenuScrollV1681" class="coupon-menu-scroll-v1681">
+      <section id="couponSetupV1681" class="panel coupon-menu-panel-v1681">
         <div class="section-title-row">
-          <div><div class="eyebrow">KUPON MERKEZİ</div><h2>Manuel Kupon</h2></div>
+          <div><div class="eyebrow">KUPON AYARLARI</div><h2>Manuel Kupon</h2></div>
           <button id="clearBtn" class="danger-ghost">Analizleri Temizle</button>
         </div>
         <div class="five-model-note-v11">
@@ -39,39 +74,22 @@
           <label>Birim fiyat (₺)<input id="unitPrice" type="number" min="0.01" step="0.01" value="1" /></label>
           <label>Tek sayısı<select id="singleCount"><option>0</option><option selected>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
         </div>
-        <div class="ticket-rule-v11">Atları ayak içinde dokunarak ekleyip çıkarabilirsin. Kupon Oluştur yalnız seçtiğin bahis tipini oluşturur.</div>
+        <div class="ticket-rule-v11">Atları ayak içinde dokunarak ekleyip çıkarabilirsin. Kupon Oluştur önce veri denetimini açar.</div>
         <button id="buildAllBtn" class="primary">Kupon Oluştur</button>
       </section>
-      <section class="panel">
-        <div class="eyebrow">GÜNLÜK PROGRAM</div><h2>Koşular</h2>
-        <div id="raceTabs" class="race-tabs"></div>
-        <div id="raceList" class="race-list empty">Program henüz yüklenmedi.</div>
+
+      <section id="couponAuditSectionV1681" class="coupon-audit-section-v1681" hidden>
+        <button id="couponBackV1681" class="secondary coupon-back-v1681" type="button">← Kupon Ayarlarına Dön</button>
+        <div id="couponAuditHostV1681"></div>
       </section>
-      <section class="panel">
+
+      <section id="couponResultV1681" class="panel coupon-menu-panel-v1681">
         <div class="eyebrow">OLUŞTURULAN KUPON</div><h2>Seçili Bahis</h2>
         <div id="tickets" class="ticket-list empty">Henüz kupon oluşturulmadı.</div>
       </section>
-    </main>
-  </div>
-  <aside id="drawer" class="drawer" aria-hidden="true">
-    <div class="drawer-head"><strong>Analiz Bölümleri</strong><button id="closeMenu" class="icon-btn">✕</button></div>
-    <button data-view="current">1. Güncel Analiz</button>
-    <button data-view="historical">2. Tarihsel Benzerlik</button>
-    <button data-view="scenario">3. Koşu Senaryosu</button>
-    <button data-view="career">4. Kariyer Yol Haritası</button>
-    <button data-view="calibration">5. Model Kalibrasyonu</button>
-    <div class="drawer-note">Her bölümde tüm koşuları birlikte veya tek koşuyu ayrı inceleyebilirsiniz. Kalibrasyon ekranı gerçek sonuçlarla model sıralamasını ölçer.</div>
-  </aside>
-  <div id="overlay" class="overlay"></div>
-  <dialog id="analysisDialog">
-    <div class="dialog-head"><div><div class="eyebrow" id="dialogEyebrow">ANALİZ</div><h2 id="dialogTitle">Analiz</h2></div><button id="closeDialog" class="icon-btn">✕</button></div>
-    <div class="toolbar">
-      <select id="analysisRace"><option value="all">Tüm Koşular</option></select>
-      <button id="runAnalysis" class="primary small">Analizi Hesapla</button>
-      <button id="ticketFromAnalysis" class="secondary small">Manuel Kupon</button>
     </div>
-    <div id="analysisContent" class="analysis-content empty">Analiz seçilmedi.</div>
   </dialog>
+
   <script src="/at-ai-app-v142.js?v=1420"></script>
 </body>
 </html>
