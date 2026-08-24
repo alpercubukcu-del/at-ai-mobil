@@ -1,8 +1,8 @@
 /* AT AI Mobil — V16.7.8 Kupon Oluştur -> Kupon Veri Denetimi kesin yönlendirme
    - Eski buildTickets onclick yolunu devre dışı bırakır.
    - Kupon Oluştur her durumda V16.7.1 veri denetimini açar.
-   - Android'de önceki V16.7.7 body position:fixed kilidini nötrler; overlay gerçek viewport'ta kalır.
    - Açılışta denetim gövdesi daima en üstten başlar.
+   - V16.8.0 MOBILE NATIVE FIX: overlay <body> içinde kalır; width/height viewport unit zorlaması kaldırıldı.
 */
 (() => {
 'use strict';
@@ -23,8 +23,8 @@ function injectStyle(){
 #${SCREEN_ID}.open{
   position:fixed!important;inset:0!important;
   top:0!important;right:0!important;bottom:0!important;left:0!important;
-  width:100%!important;max-width:none!important;min-width:0!important;
-  height:100dvh!important;max-height:none!important;min-height:0!important;
+  width:auto!important;height:auto!important;
+  max-width:none!important;max-height:none!important;min-width:0!important;min-height:0!important;
   margin:0!important;padding:0!important;border:0!important;border-radius:0!important;
   transform:none!important;translate:none!important;
   display:flex!important;flex-direction:column!important;align-items:stretch!important;
@@ -46,6 +46,18 @@ function injectStyle(){
   -webkit-overflow-scrolling:touch!important;overscroll-behavior:contain!important;
   box-sizing:border-box!important;scroll-behavior:auto!important;
 }
+@media(max-width:760px){
+  #${SCREEN_ID}.open .cdg-head{
+    padding-top:max(12px,env(safe-area-inset-top))!important;
+    padding-left:max(12px,env(safe-area-inset-left))!important;
+    padding-right:max(12px,env(safe-area-inset-right))!important;
+  }
+  #${SCREEN_ID}.open .cdg-body{
+    padding-left:max(12px,env(safe-area-inset-left))!important;
+    padding-right:max(12px,env(safe-area-inset-right))!important;
+    padding-bottom:max(24px,env(safe-area-inset-bottom))!important;
+  }
+}
 `;
   document.head.appendChild(s);
 }
@@ -53,10 +65,9 @@ function injectStyle(){
 function gate(){return document.getElementById(SCREEN_ID);}
 function isOpen(){return !!gate()?.classList.contains('open');}
 
-function neutralizeBodyFixedLock(){
-  // V16.7.7'deki body position:fixed Android'de alttaki yarış listesini görünür bırakabiliyordu.
-  // Arka sayfayı yalnız overflow ile kilitle; viewport koordinatını değiştirme.
+function neutralizeLegacyBodyLock(){
   try{
+    // Eski mobil düzeltmelerin body'yi fixed yapmasına izin verme.
     for(const p of ['position','top','left','right','width']) document.body.style.removeProperty(p);
     document.documentElement.style.setProperty('overflow','hidden','important');
     document.documentElement.style.setProperty('overflow-x','hidden','important');
@@ -70,19 +81,24 @@ function hardenOpenGate(){
   const el=gate();
   if(!el || !el.classList.contains('open')) return false;
 
-  // body/app-shell transform/scroll bağlamından tamamen çıkar.
-  if(el.parentElement!==document.documentElement){
-    try{document.documentElement.appendChild(el);}catch{}
+  // Geçerli HTML yapısı: mobil overlay BODY içinde kalır.
+  if(document.body && el.parentElement!==document.body){
+    try{document.body.appendChild(el);}catch{}
   }
 
-  neutralizeBodyFixedLock();
-  const set=(k,v)=>{try{el.style.setProperty(k,v,'important');}catch{}};
+  neutralizeLegacyBodyLock();
+  const set=(k,v)=>{
+    try{
+      if(el.style.getPropertyValue(k)===v && el.style.getPropertyPriority(k)==='important') return;
+      el.style.setProperty(k,v,'important');
+    }catch{}
+  };
   set('position','fixed');set('inset','0');
   set('top','0');set('right','0');set('bottom','0');set('left','0');
-  set('width','100%');set('height','100dvh');
+  set('width','auto');set('height','auto');
   set('max-width','none');set('max-height','none');set('min-width','0');set('min-height','0');
   set('margin','0');set('padding','0');set('transform','none');set('translate','none');
-  set('display','flex');set('flex-direction','column');set('overflow','hidden');
+  set('display','flex');set('flex-direction','column');set('align-items','stretch');set('overflow','hidden');
   set('z-index','2147483640');set('background','#07131f');
 
   try{el.scrollTop=0;el.scrollLeft=0;}catch{}
@@ -126,7 +142,6 @@ function callGateOpen(){
 function bindButton(){
   const btn=document.getElementById(BTN_ID);
   if(!btn) return;
-  // Legacy app.js: buildAllBtn.onclick = buildTickets. Bunu kesin olarak değiştir.
   btn.onclick=function(e){
     try{e?.preventDefault?.();e?.stopPropagation?.();}catch{}
     callGateOpen();
@@ -135,14 +150,11 @@ function bindButton(){
   btn.dataset.cdgRouteV1678='1';
 }
 
-// click capture eski V16.7.1 tarafından stopImmediatePropagation ile kesilse bile
-// pointerup watchdog çalışır ve gate'in gerçekten açıldığını doğrular.
 document.addEventListener('pointerup',event=>{
   if(!event.target?.closest?.(`#${BTN_ID}`)) return;
   setTimeout(()=>{if(!isOpen())callGateOpen();else hardenOpenGate();},0);
 },true);
 
-// Eğer click bize ulaşırsa legacy yolun çalışmasına izin verme.
 document.addEventListener('click',event=>{
   if(!event.target?.closest?.(`#${BTN_ID}`)) return;
   if(!event.isTrusted) return;
@@ -164,5 +176,5 @@ window.addEventListener('resize',()=>{if(isOpen())hardenOpenGate();},{passive:tr
 window.visualViewport?.addEventListener?.('resize',()=>{if(isOpen())hardenOpenGate();},{passive:true});
 
 window.__AT_COUPON_GATE_ROUTING_VERSION__=VERSION;
-console.info('[AT AI]',VERSION,'aktif — Kupon Oluştur yalnız Kupon Veri Denetimini açar.');
+console.info('[AT AI]',VERSION,'aktif — V16.8.0 mobile native viewport fix.');
 })();
