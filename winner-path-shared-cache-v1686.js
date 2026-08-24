@@ -1,17 +1,16 @@
-/* AT AI Mobil — V16.8.6 Ortak Kazanan Yolu Cache
-   Amaç:
+/* AT AI Mobil — V16.8.7 Kalıcı Kompakt Kazanan Yolu Paylaşımı
    - Menü 2 Kazanan Yolu Kör Testi ile Kupon Veri Denetimi aynı kör endpoint sonucunu paylaşır.
    - Aynı tarih + şehir + koşu için eşzamanlı ikinci /api/tjk-conditional-v4-blind zinciri açılmaz.
-   - Menü 2 tamamladığında kuponun mevcut kompakt session cache'i otomatik beslenir.
-   - Kupon tamamladığında Menü 2 aynı sayfa oturumunda ham kör sonucu bellekten anında kullanabilir.
+   - Kuponun kompakt session cache'i sayfa yenilemesinden sonra da Menü 2 tarafından kullanılabilir.
    - Ham kör payload kalıcı depolamaya yazılmaz; yalnız RAM'de sınırlı LRU tutulur.
+   - Tarih sızıntısı kontrolü korunur; leakPassed olmayan kayıt yeniden çağrılır.
 */
 (() => {
 'use strict';
-if (window.__AT_WINNER_PATH_SHARED_CACHE_V1686__) return;
-window.__AT_WINNER_PATH_SHARED_CACHE_V1686__ = true;
+if (window.__AT_WINNER_PATH_SHARED_CACHE_V1687__) return;
+window.__AT_WINNER_PATH_SHARED_CACHE_V1687__ = true;
 
-const VERSION='WINNER-PATH-SHARED-CACHE-V16.8.6';
+const VERSION='WINNER-PATH-SHARED-CACHE-V16.8.7';
 const ENDPOINT='/api/tjk-conditional-v4-blind';
 const SESSION_KEY='at_ai_coupon_winnerpath_v1671';
 const MAX_RAW_RECORDS=12;
@@ -47,6 +46,14 @@ function stateTarget(no){
 }
 function sessionLoad(){try{const x=JSON.parse(sessionStorage.getItem(SESSION_KEY)||'{}');return x&&typeof x==='object'?x:{};}catch{return{};}}
 function sessionSave(all){try{sessionStorage.setItem(SESSION_KEY,JSON.stringify(all));}catch{}}
+function compactReference(r={}){
+  return {
+    Referans_Tarih:clean(r?.Referans_Tarih??r?.referenceDate??r?.date),
+    Kazanan:clean(r?.Kazanan??r?.horseName??r?.name),
+    Referans_Şehir:clean(r?.Referans_Şehir??r?.city),
+    Kariyer_Satırı:num(r?.Kariyer_Satırı??r?.careerRows??r?.careerCount)??0
+  };
+}
 function compact(data,target){
   const rows=(Array.isArray(data?.rows)?data.rows:[]).map((r,i)=>({
     id:clean(r?.At_ID??r?.horseId),
@@ -58,12 +65,14 @@ function compact(data,target){
     type:clean(r?.ADAY_TIPI),
     rank:i+1
   }));
+  const refs=(Array.isArray(data?.referenceWinners)?data.referenceWinners:[]).slice(0,40).map(compactReference);
   return {
     date:target.date,
     city:target.city,
     raceNo:target.raceNo,
     rows,
-    referenceCount:Array.isArray(data?.referenceWinners)?data.referenceWinners.length:0,
+    references:refs,
+    referenceCount:Array.isArray(data?.referenceWinners)?data.referenceWinners.length:(num(data?.referenceCount)??refs.length),
     referenceQuality:num(data?.referenceSetQuality)??0,
     leakPassed:data?.leakAudit?.passed===true,
     roadmapOk:data?.roadmapOk!==false,
@@ -73,8 +82,10 @@ function compact(data,target){
 }
 function saveCompact(target,data){
   if(!target||!data||data?.ok===false||data?.resultApiCalled||data?.resultDataLoaded)return false;
+  const c=compact(data,target);
+  if(c.leakPassed!==true||!c.rows.length)return false;
   const all=sessionLoad();
-  all[target.key]=compact(data,target);
+  all[target.key]=c;
   const keys=Object.keys(all);
   if(keys.length>30){
     keys.sort((a,b)=>String(all[a]?.createdAt||'').localeCompare(String(all[b]?.createdAt||'')));
@@ -83,15 +94,17 @@ function saveCompact(target,data){
   sessionSave(all);
   return true;
 }
-function hasCompact(target){return !!(target&&sessionLoad()?.[target.key]);}
+function compactRecord(target){return target?sessionLoad()?.[target.key]||null:null;}
+function usableCompact(target){
+  const c=compactRecord(target);
+  return !!(c&&c.leakPassed===true&&Array.isArray(c.rows)&&c.rows.length);
+}
 function rememberRaw(key,packet){
   if(rawCache.has(key))rawCache.delete(key);
   rawCache.set(key,packet);
   while(rawCache.size>MAX_RAW_RECORDS)rawCache.delete(rawCache.keys().next().value);
 }
-function responseFrom(packet){
-  return new Response(packet.text,{status:packet.status,statusText:packet.statusText,headers:new Headers(packet.headers||[])});
-}
+function responseFrom(packet){return new Response(packet.text,{status:packet.status,statusText:packet.statusText,headers:new Headers(packet.headers||[])});}
 function waitFor(promise,signal){
   if(!signal)return promise;
   if(signal.aborted)return Promise.reject(new DOMException('Aborted','AbortError'));
@@ -100,6 +113,26 @@ function waitFor(promise,signal){
     signal.addEventListener('abort',abort,{once:true});
     promise.then(v=>{signal.removeEventListener('abort',abort);resolve(v);},e=>{signal.removeEventListener('abort',abort);reject(e);});
   });
+}
+function dataFromCompact(c={}){
+  return {
+    ok:true,
+    rows:(Array.isArray(c?.rows)?c.rows:[]).map(r=>({
+      At_ID:r.id,Program_No:r.no,At_Adı:r.name,V5_SKOR:r.score,A_SIRA:r.a,B_SIRA:r.b,ADAY_TIPI:r.type
+    })),
+    referenceWinners:Array.isArray(c?.references)?c.references:[],
+    referenceSetQuality:num(c?.referenceQuality)??0,
+    leakAudit:{passed:c?.leakPassed===true},
+    roadmapOk:c?.roadmapOk!==false,
+    resultApiCalled:false,
+    resultDataLoaded:false,
+    sharedCompact:true,
+    sharedSource:VERSION
+  };
+}
+function packetFromCompact(c){
+  const text=JSON.stringify(dataFromCompact(c));
+  return {text,status:200,statusText:'OK',headers:[['content-type','application/json; charset=utf-8'],['x-at-ai-cache','winner-path-session']]};
 }
 
 window.fetch=async function sharedWinnerPathFetch(input,init){
@@ -112,10 +145,12 @@ window.fetch=async function sharedWinnerPathFetch(input,init){
     return responseFrom(packet);
   }
 
+  // Sayfa yenilense bile aynı sekmedeki güvenli kompakt kör sonuç tekrar kullanılır.
+  if(usableCompact(target))return responseFrom(packetFromCompact(compactRecord(target)));
+
   let task=inFlight.get(target.key);
   if(!task){
-    const safeInit={...(init||{})};
-    delete safeInit.signal;
+    const safeInit={...(init||{})};delete safeInit.signal;
     task=(async()=>{
       const res=await nativeFetch(target.url,safeInit);
       const text=await res.text();
@@ -123,7 +158,7 @@ window.fetch=async function sharedWinnerPathFetch(input,init){
       if(res.ok){
         try{
           const data=JSON.parse(text);
-          if(data?.ok!==false&&!data?.resultApiCalled&&!data?.resultDataLoaded){
+          if(data?.ok!==false&&!data?.resultApiCalled&&!data?.resultDataLoaded&&data?.leakAudit?.passed===true){
             rememberRaw(target.key,packet);
             saveCompact(target,data);
           }
@@ -147,32 +182,30 @@ function seedLastBlind(){
     if(target.date&&target.city&&Number.isFinite(target.raceNo))saveCompact(target,d);
   }catch{}
 }
-
 function wrapCoupon(){
   const A=window.ATCouponDecisionV1671;
-  if(!A||A.__winnerSharedV1686||typeof A.completeWinner!=='function')return false;
+  if(!A||A.__winnerSharedV1687||typeof A.completeWinner!=='function')return false;
   const base=A.completeWinner.bind(A);
   A.completeWinner=async function(raceNos){
     if(!Array.isArray(raceNos))return base(raceNos);
-    const missing=raceNos.filter(no=>!hasCompact(stateTarget(no)));
+    const missing=raceNos.filter(no=>!usableCompact(stateTarget(no)));
     if(!missing.length)return;
     return base(missing);
   };
-  A.__winnerSharedV1686=true;
+  A.__winnerSharedV1687=true;
   return true;
 }
 
-seedLastBlind();
-wrapCoupon();
-setTimeout(wrapCoupon,0);
-setTimeout(wrapCoupon,400);
+seedLastBlind();wrapCoupon();setTimeout(wrapCoupon,0);setTimeout(wrapCoupon,400);
 window.addEventListener('pageshow',()=>{seedLastBlind();wrapCoupon();},{passive:true});
 
 window.ATWinnerPathSharedCacheV1686={
   VERSION,
-  has:(date,city,raceNo)=>hasCompact({key:[clean(date),fold(city),Number(raceNo)||0].join('|')}),
-  stats:()=>({version:VERSION,rawMemoryRecords:rawCache.size,inFlight:inFlight.size,sessionRecords:Object.keys(sessionLoad()).length,rawPersistent:false}),
+  has:(date,city,raceNo)=>usableCompact({key:[clean(date),fold(city),Number(raceNo)||0].join('|')}),
+  get:(date,city,raceNo)=>compactRecord({key:[clean(date),fold(city),Number(raceNo)||0].join('|')}),
+  stats:()=>({version:VERSION,rawMemoryRecords:rawCache.size,inFlight:inFlight.size,sessionRecords:Object.keys(sessionLoad()).length,rawPersistent:false,compactSessionReuse:true}),
   clearMemory:()=>{rawCache.clear();inFlight.clear();}
 };
-console.info('[AT AI]',VERSION,'aktif — Menü 2 + Kupon aynı Kazanan Yolu kör isteğini paylaşır; ham payload yalnız RAM.');
+window.ATWinnerPathSharedCacheV1687=window.ATWinnerPathSharedCacheV1686;
+console.info('[AT AI]',VERSION,'aktif — Kazanan Yolu kompakt sonucu sayfa yenilemesinde de Menü 2 + Kupon arasında paylaşılır.');
 })();
