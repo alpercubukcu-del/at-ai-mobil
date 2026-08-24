@@ -10,26 +10,30 @@ const ROUTING_PATCH=path.join(ROOT,'coupon-gate-routing-v1678.js');
 const MENU_PATCH=path.join(ROOT,'coupon-menu-v1681.js');
 const NUMBER_PATCH=path.join(ROOT,'drawer-menu-numbering-v1682.js');
 const COMPACT_PATCH=path.join(ROOT,'coupon-menu-compact-v1683.js');
+const BET_DROPDOWN_PATCH=path.join(ROOT,'coupon-bet-dropdown-v1684.js');
 
-for(const f of [BASE,ROUTING_PATCH,MENU_PATCH,NUMBER_PATCH,COMPACT_PATCH]) if(!fs.existsSync(f)) throw new Error(`[V16.8.3] Eksik dosya: ${path.basename(f)}`);
+for(const f of [BASE,ROUTING_PATCH,MENU_PATCH,NUMBER_PATCH,COMPACT_PATCH,BET_DROPDOWN_PATCH]) if(!fs.existsSync(f)) throw new Error(`[V16.8.4] Eksik dosya: ${path.basename(f)}`);
 execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
-for(const f of [APP,INDEX]) if(!fs.existsSync(f)) throw new Error(`[V16.8.3] Build sonrası eksik dosya: ${path.relative(ROOT,f)}`);
+for(const f of [APP,INDEX]) if(!fs.existsSync(f)) throw new Error(`[V16.8.4] Build sonrası eksik dosya: ${path.relative(ROOT,f)}`);
 
 let app=fs.readFileSync(APP,'utf8');
 const routingPatch=fs.readFileSync(ROUTING_PATCH,'utf8');
 const menuPatch=fs.readFileSync(MENU_PATCH,'utf8');
 const numberPatch=fs.readFileSync(NUMBER_PATCH,'utf8');
 const compactPatch=fs.readFileSync(COMPACT_PATCH,'utf8');
+const betDropdownPatch=fs.readFileSync(BET_DROPDOWN_PATCH,'utf8');
 if(!app.includes('COUPON-GATE-ROUTING-V16.7.8')) app += `\n${routingPatch}\n`;
 if(!app.includes('COUPON-MENU-V16.8.1')) app += `\n${menuPatch}\n`;
 if(!app.includes('DRAWER-MENU-NUMBERING-V16.8.2')) app += `\n${numberPatch}\n`;
 if(!app.includes('COUPON-MENU-COMPACT-V16.8.3')) app += `\n${compactPatch}\n`;
+if(!app.includes('COUPON-BET-DROPDOWN-V16.8.4')) app += `\n${betDropdownPatch}\n`;
 
 for(const token of [
   'ATCouponDecisionV1671',
   'COUPON-MENU-V16.8.1',
   'DRAWER-MENU-NUMBERING-V16.8.2',
   'COUPON-MENU-COMPACT-V16.8.3',
+  'COUPON-BET-DROPDOWN-V16.8.4',
   'COUPON-MISSING-RECOVERY-V16.7.4+V16.8.3',
   'couponCenterDialog',
   'couponMenuBtn',
@@ -38,29 +42,30 @@ for(const token of [
   '7. Kariyer Excel Dışa Aktarım',
   '8. TJK Yıllık Yarış Arşivi',
   '#couponCenterDialog #betTypes{display:none!important}',
-  'dialog içi ilerleme görünür'
+  'dialog içi ilerleme görünür',
+  'bahis türleri yalnız 6. Kupon Oluştur içinde inline açılır'
 ]) {
-  if(!app.includes(token)) throw new Error(`[V16.8.3] production bundle doğrulaması başarısız: ${token}`);
+  if(!app.includes(token)) throw new Error(`[V16.8.4] production bundle doğrulaması başarısız: ${token}`);
 }
 if(app.includes("attributeFilter:['class','style','aria-hidden']")) {
-  throw new Error('[V16.8.3] eski style MutationObserver freeze yolu bundle içinde kaldı.');
+  throw new Error('[V16.8.4] eski style MutationObserver freeze yolu bundle içinde kaldı.');
 }
 if(app.includes("document.body.style.setProperty('position','fixed','important')")) {
-  throw new Error('[V16.8.3] eski body position:fixed kupon kilidi bundle içinde kaldı.');
+  throw new Error('[V16.8.4] eski body position:fixed kupon kilidi bundle içinde kaldı.');
 }
 new Function(app);
 fs.writeFileSync(APP,app,'utf8');
 
 let html=fs.readFileSync(INDEX,'utf8');
 for(const token of ['id="couponMenuBtn"','id="couponCenterDialog"','id="couponSetupV1681"','id="couponAuditHostV1681"','id="tickets"']) {
-  if(!html.includes(token)) throw new Error(`[V16.8.3] hamburger kupon HTML eksik: ${token}`);
+  if(!html.includes(token)) throw new Error(`[V16.8.4] hamburger kupon HTML eksik: ${token}`);
 }
 const mainMatch=html.match(/<main>([\s\S]*?)<\/main>/i);
-if(!mainMatch) throw new Error('[V16.8.3] <main> bulunamadı.');
-for(const forbidden of ['buildAllBtn','betTypes','couponSetupV1681','id="tickets"','KUPON MERKEZİ','OLUŞTURULAN KUPON']) {
-  if(mainMatch[1].includes(forbidden)) throw new Error(`[V16.8.3] ana sayfada kupon kalıntısı var: ${forbidden}`);
+if(!mainMatch) throw new Error('[V16.8.4] <main> bulunamadı.');
+for(const forbidden of ['buildAllBtn','betTypes','couponSetupV1681','id="tickets"','KUPON MERKEZİ','OLUŞTURULAN KUPON','manualBetSheetV117']) {
+  if(mainMatch[1].includes(forbidden)) throw new Error(`[V16.8.4] ana sayfada kupon kalıntısı var: ${forbidden}`);
 }
-html=html.replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=16830');
+html=html.replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=16840');
 fs.writeFileSync(INDEX,html,'utf8');
 
-console.log('[AT AI] V16.8.3 build tamamlandı: Kupon=6 kompakt; eski ikinci bahis kartı listesi gizli; eksik veri ilerleme/yüzde kutusu dialog içinde görünür; cache v=16830.');
+console.log('[AT AI] V16.8.4 build tamamlandı: bahis türü bottom-sheet kaldırıldı; seçim yalnız 6. Kupon Oluştur içinde ikon altı inline listede; cache v=16840.');
