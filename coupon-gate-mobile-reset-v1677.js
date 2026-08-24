@@ -4,6 +4,7 @@
    - Arka sayfa overlay açıkken kaymaz; kapanınca eski sayfa konumu korunur.
    - V16.7.1 karar/puan formüllerine dokunmaz.
    - V16.7.9 HOTFIX: style mutasyonunu gözlemek sonsuz MutationObserver döngüsü oluşturduğu için kaldırıldı.
+   - V16.8.0 MOBILE NATIVE FIX: body position:fixed kaldırıldı; 100dvw/100dvh zorlaması kaldırıldı.
 */
 (() => {
 'use strict';
@@ -26,10 +27,7 @@ function injectStyle(){
   position:fixed!important;
   inset:0!important;
   top:0!important;right:0!important;bottom:0!important;left:0!important;
-  width:100vw!important;
-  width:100dvw!important;
-  height:100vh!important;
-  height:100dvh!important;
+  width:auto!important;height:auto!important;
   min-width:0!important;min-height:0!important;
   max-width:none!important;max-height:none!important;
   margin:0!important;padding:0!important;
@@ -84,14 +82,11 @@ function lockPage(){
   locked=true;
   savedPageY=window.scrollY||document.documentElement.scrollTop||0;
   try{
+    // Android'de body'yi fixed yapmak viewport koordinatını bozuyordu.
     document.documentElement.style.setProperty('overflow','hidden','important');
     document.documentElement.style.setProperty('overscroll-behavior','none','important');
-    document.body.style.setProperty('position','fixed','important');
-    document.body.style.setProperty('top',`${-savedPageY}px`,'important');
-    document.body.style.setProperty('left','0','important');
-    document.body.style.setProperty('right','0','important');
-    document.body.style.setProperty('width','100%','important');
     document.body.style.setProperty('overflow','hidden','important');
+    document.body.style.setProperty('overscroll-behavior','none','important');
   }catch{}
 }
 
@@ -101,7 +96,8 @@ function unlockPage(){
   try{
     document.documentElement.style.removeProperty('overflow');
     document.documentElement.style.removeProperty('overscroll-behavior');
-    for(const p of ['position','top','left','right','width','overflow']) document.body.style.removeProperty(p);
+    document.body.style.removeProperty('overflow');
+    document.body.style.removeProperty('overscroll-behavior');
     window.scrollTo(0,savedPageY);
   }catch{}
 }
@@ -110,6 +106,9 @@ function hardViewport(){
   injectStyle();
   const el=screen();
   if(!el) return false;
+  if(document.body && el.parentElement!==document.body){
+    try{document.body.appendChild(el);}catch{}
+  }
   const set=(k,v)=>{
     try{
       if(el.style.getPropertyValue(k)===v && el.style.getPropertyPriority(k)==='important') return;
@@ -118,10 +117,10 @@ function hardViewport(){
   };
   set('position','fixed');
   set('inset','0');set('top','0');set('right','0');set('bottom','0');set('left','0');
-  set('width','100dvw');set('height','100dvh');
+  set('width','auto');set('height','auto');
   set('min-width','0');set('min-height','0');set('max-width','none');set('max-height','none');
   set('margin','0');set('padding','0');set('transform','none');set('overflow','hidden');set('box-sizing','border-box');
-  if(el.classList.contains('open')){set('display','flex');set('flex-direction','column');}
+  if(el.classList.contains('open')){set('display','flex');set('flex-direction','column');set('align-items','stretch');}
   return true;
 }
 
@@ -181,5 +180,5 @@ window.visualViewport?.addEventListener?.('scroll',()=>{if(isOpen())hardViewport
 injectStyle();
 syncOpenState();
 window.__AT_COUPON_GATE_MOBILE_RESET_VERSION__=VERSION;
-console.info('[AT AI]',VERSION,'aktif — Kupon Veri Denetimi her açılışta üstten tam ekran başlar.');
+console.info('[AT AI]',VERSION,'aktif — V16.8.0 mobile native viewport fix.');
 })();
