@@ -1,13 +1,14 @@
 /* AT AI Mobil — V16.7.4 Kupon eksik veri tamamlayıcı
    Sorun: Kariyer / 5 Model / Kazanan Yolu toplu tamamlama bir ayakta hata alınca tüm zinciri bırakabiliyordu.
    Çözüm: Eksik ayakları tek tek tamamla, başarısız ayağı raporla, diğer ayaklara devam et.
+   V16.8.3: hamburger kupon dialogunda ilerleme kutusu top-layer dışında kalmasın; dialog içine görünür/sticky yerleşsin.
 */
 (() => {
 'use strict';
 if (window.__AT_COUPON_MISSING_RECOVERY_V1674__) return;
 window.__AT_COUPON_MISSING_RECOVERY_V1674__ = true;
 
-const VERSION='COUPON-MISSING-RECOVERY-V16.7.4';
+const VERSION='COUPON-MISSING-RECOVERY-V16.7.4+V16.8.3';
 const SCREEN_ID='couponDecisionGateV1671';
 const BOX_ID='cdgRecoveryV1674';
 let running=false;
@@ -23,13 +24,29 @@ function ensureStyle(){
   s.id='cdgRecoveryStyleV1674';
   s.textContent=`
 #${BOX_ID}{position:fixed;left:12px;right:12px;top:max(82px,calc(env(safe-area-inset-top) + 70px));z-index:2147483646;background:#0b2032;border:1px solid rgba(83,189,255,.38);border-radius:14px;padding:11px 12px;color:#eef7ff;box-shadow:0 14px 40px rgba(0,0,0,.35)}
-#${BOX_ID} b{display:block;font-size:14px;margin-bottom:4px}#${BOX_ID} span{display:block;font-size:12px;color:#b8cce0;line-height:1.4}#${BOX_ID} .bar{height:7px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden;margin-top:8px}#${BOX_ID} .bar i{display:block;height:100%;background:linear-gradient(90deg,#2ab8ff,#64e0a8);transition:width .25s ease}
+#${BOX_ID} b{display:block;font-size:14px;margin-bottom:4px}#${BOX_ID} span{display:block;font-size:12px;color:#b8cce0;line-height:1.4}#${BOX_ID} .bar{height:8px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden;margin-top:8px}#${BOX_ID} .bar i{display:block;height:100%;background:linear-gradient(90deg,#2ab8ff,#64e0a8);transition:width .25s ease}
 #${BOX_ID}.bad{border-color:rgba(255,121,121,.45)}
+#couponCenterDialog #${BOX_ID}{position:sticky!important;left:auto!important;right:auto!important;top:0!important;z-index:80!important;margin:0 0 10px!important;width:100%!important;box-sizing:border-box!important;box-shadow:0 8px 24px rgba(0,0,0,.30)!important}
 `;
   document.head.appendChild(s);
 }
+function progressParent(){
+  const dialog=$('couponCenterDialog');
+  if(dialog?.open){return $('couponAuditSectionV1681')||dialog;}
+  return document.documentElement;
+}
 function showBox(title,text,pct=0,bad=false){
-  ensureStyle();let box=$(BOX_ID);if(!box){box=document.createElement('div');box.id=BOX_ID;document.documentElement.appendChild(box);}box.classList.toggle('bad',!!bad);box.innerHTML=`<b>${esc(title)}</b><span>${esc(text)}</span><div class="bar"><i style="width:${Math.max(0,Math.min(100,Number(pct)||0))}%"></i></div>`;
+  ensureStyle();
+  let box=$(BOX_ID);
+  if(!box){box=document.createElement('div');box.id=BOX_ID;}
+  const parent=progressParent();
+  if(box.parentElement!==parent){
+    try{parent.prepend(box);}catch{try{document.documentElement.appendChild(box);}catch{}}
+  }
+  box.classList.toggle('bad',!!bad);
+  const safePct=Math.max(0,Math.min(100,Number(pct)||0));
+  box.innerHTML=`<b>${esc(title)} · %${Math.round(safePct)}</b><span>${esc(text)}</span><div class="bar"><i style="width:${safePct}%"></i></div>`;
+  try{box.scrollIntoView({block:'nearest',behavior:'auto'});}catch{}
 }
 function hideBox(delay=800){setTimeout(()=>$(BOX_ID)?.remove(),delay);}
 
@@ -77,7 +94,8 @@ async function robustCategory(kind){
   const done=[],errors=[];
   const label=kind==='career'?'Kariyer Yol Haritası':kind==='models'?'5 Model Verisi':'Kazanan Yolu Kör Verisi';
   for(let i=0;i<list.length;i++){
-    const no=list[i];showBox(label,`${no}. Koşu tamamlanıyor · ${i+1}/${list.length}`,Math.round(i/list.length*100));
+    const no=list[i];
+    showBox(label,`${no}. Koşu tamamlanıyor · ${i+1}/${list.length}`,Math.round(i/list.length*100));
     try{
       if(kind==='career')await completeCareerRace(no);
       else if(kind==='models')await A.completeModels([no]);
@@ -85,6 +103,7 @@ async function robustCategory(kind){
       done.push(no);
     }catch(e){errors.push(`${no}.K: ${e?.name==='AbortError'?'zaman aşımı':e?.message||e}`);}
     await waitPaint();
+    showBox(label,`${no}. Koşu işlendi · ${i+1}/${list.length}`,Math.round((i+1)/list.length*100),errors.length>0);
   }
   showBox(label,errors.length?`${done.length}/${list.length} tamamlandı · ${errors.join(' · ')}`:`${done.length}/${list.length} tamamlandı`,100,errors.length>0);
   try{$('cdgCheckV1671')?.click();}catch{}
@@ -99,8 +118,11 @@ async function robustOne(kind){
 async function robustAll(){
   if(running)return;running=true;const errors=[];
   try{
-    for(const kind of ['career','models','winner']){
-      if(!issueBy(kind))continue;
+    const kinds=['career','models','winner'].filter(kind=>issueBy(kind));
+    if(!kinds.length){showBox('Eksik veri tamamlama','Tamamlanacak eksik veri kalmadı.',100,false);return;}
+    for(let i=0;i<kinds.length;i++){
+      const kind=kinds[i];
+      showBox('Eksik veri tamamlama',`${i+1}/${kinds.length} kaynak hazırlanıyor…`,Math.round(i/kinds.length*100));
       const r=await robustCategory(kind);errors.push(...r.errors);
     }
     showBox('Eksik veri tamamlama',errors.length?`Tamamlanamayan ayaklar: ${errors.join(' · ')}`:'Bütün kalan veri kaynakları tamamlandı.',100,errors.length>0);
@@ -117,5 +139,5 @@ document.addEventListener('click',event=>{
 },true);
 
 window.ATCouponMissingRecoveryV1674={VERSION,robustCategory,robustAll};
-console.info('[AT AI]',VERSION,'aktif — eksik ayaklar tek tek tamamlanır; tek hata zinciri durdurmaz.');
+console.info('[AT AI]',VERSION,'aktif — eksik ayaklar tek tek tamamlanır; V16.8.3 dialog içi ilerleme görünür.');
 })();
