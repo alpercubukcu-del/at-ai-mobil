@@ -19,9 +19,9 @@ if(!app.includes('COUPON-GATE-ROUTING-V16.7.8')) app += `\n${patch}\n`;
 for(const token of [
   'COUPON-GATE-ROUTING-V16.7.8',
   'ATCouponDecisionV1671',
-  'Kupon Oluştur yalnız Kupon Veri Denetimini açar',
   'V16.7.9 HOTFIX',
-  'V16.8.0 MOBILE NATIVE FIX'
+  'V16.8.0 MOBILE NATIVE FIX',
+  'document.body.appendChild(el)'
 ]) {
   if(!app.includes(token)) throw new Error(`[V16.8.0] production bundle doğrulaması başarısız: ${token}`);
 }
