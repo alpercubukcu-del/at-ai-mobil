@@ -1,6 +1,6 @@
 /* AT AI Mobil — V16.7.4 Kupon eksik veri tamamlayıcı
    Sorun: Kariyer / 5 Model / Kazanan Yolu toplu tamamlama bir ayakta hata alınca tüm zinciri bırakabiliyordu.
-   Çözüm: Eksik ayakları tek tek tamamla, başarısız ayağı raporla, diğer ayaklara devam et.
+   Çözüm: Eksik ayakları tek tek tamamla; tek hata zinciri durdurmaz; başarısız ayağı raporla, diğer ayaklara devam et.
    V16.8.3: hamburger kupon dialogunda ilerleme kutusu top-layer dışında kalmasın; dialog içine görünür/sticky yerleşsin.
 */
 (() => {
