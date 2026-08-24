@@ -1,7 +1,9 @@
 /* AT AI Mobil — V16.7.2 Kupon Veri Denetimi Android tam ekran sabitleme
    V16.7.1 karar motoruna dokunmaz; yalnız mobil katman yerleşimini düzeltir.
-   Ekranı body dışına, documentElement altına taşır ve viewport'a dört kenardan kilitler.
-   V16.7.9 HOTFIX: style mutasyonunu gözlemek sonsuz requestAnimationFrame döngüsü oluşturduğu için kaldırıldı.
+   V16.8.0 MOBILE NATIVE FIX:
+   - Kupon ekranı artık <html> altına taşınmaz; normal şekilde <body> içinde kalır.
+   - Boyut 100vw/100dvw yerine fixed + inset:0 ile gerçek mobil viewport'tan alınır.
+   - V16.7.9 HOTFIX: style mutasyonunu gözlemek sonsuz requestAnimationFrame döngüsü oluşturduğu için kaldırıldı.
 */
 (() => {
 'use strict';
@@ -35,7 +37,7 @@ html,body{max-width:100%;overflow-x:hidden}
   overscroll-behavior:none!important;
   isolation:isolate!important;
 }
-#${SCREEN_ID}.open{display:flex!important;flex-direction:column!important}
+#${SCREEN_ID}.open{display:flex!important;flex-direction:column!important;align-items:stretch!important}
 #${SCREEN_ID} .cdg-head{position:relative!important;inset:auto!important;width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important;flex:0 0 auto!important}
 #${SCREEN_ID} .cdg-body{position:relative!important;inset:auto!important;width:100%!important;min-width:0!important;max-width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;box-sizing:border-box!important;flex:1 1 auto!important;overflow-y:auto!important;overflow-x:hidden!important;-webkit-overflow-scrolling:touch!important;overscroll-behavior:contain!important}
 @media(max-width:720px){
@@ -52,9 +54,9 @@ function harden(){
   const el=document.getElementById(SCREEN_ID);
   if(!el) return false;
 
-  // body/app katmanlarının scroll/transform bağlamından çıkar.
-  if(el.parentElement!==document.documentElement){
-    try{document.documentElement.appendChild(el);}catch{}
+  // Mobil Chrome/Samsung Internet için geçerli DOM: overlay BODY içinde kalır.
+  if(document.body && el.parentElement!==document.body){
+    try{document.body.appendChild(el);}catch{}
   }
 
   const set=(k,v)=>{
@@ -72,7 +74,7 @@ function harden(){
   set('z-index','2147483000');set('background','#07131f');
 
   if(el.classList.contains('open')){
-    set('display','flex');set('flex-direction','column');
+    set('display','flex');set('flex-direction','column');set('align-items','stretch');
     try{el.scrollLeft=0;}catch{}
     const body=el.querySelector('.cdg-body');
     if(body){
@@ -108,5 +110,5 @@ window.visualViewport?.addEventListener?.('resize',()=>{if(document.getElementBy
 injectStyle();
 harden();
 window.__AT_COUPON_DECISION_FULLSCREEN_VERSION__=VERSION;
-console.info('[AT AI]',VERSION,'aktif');
+console.info('[AT AI]',VERSION,'aktif — V16.8.0 mobile native viewport fix.');
 })();
