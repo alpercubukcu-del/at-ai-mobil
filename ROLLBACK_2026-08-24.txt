@@ -1,0 +1,5 @@
+AT AI Mobil production rollback marker
+Target state: 24.08.2026 23:46:57 TRT
+Base commit: f373ce4337f0d9d4f53225ac55e9d922c756e91b
+Version: V16.9.1
+This file does not change application runtime behavior.
