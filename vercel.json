@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "node build-runtime-v16915.cjs",
+  "buildCommand": "node build-runtime-v16916.cjs",
   "outputDirectory": "public",
   "rewrites": [
     {
