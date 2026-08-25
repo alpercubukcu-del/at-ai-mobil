@@ -1,12 +1,15 @@
-/* AT AI Mobil — Annual Archive Five-Model Career V14
-   Selected annual races + full-career five-model scoring. Event-driven; no global MutationObserver.
+/* AT AI Mobil — Annual Archive Five-Model Career V14.1
+   Selected annual races + full-career five-model scoring.
+   HARD RULE: each historical race contributes only finishers 1-2-3; today's horse
+   is compared with all three pre-race career paths separately and only the best
+   reference of each source year survives.
 */
 (() => {
 'use strict';
 if (window.__AT_ANNUAL_CAREER_FIVE_MODEL_V14__) return;
 window.__AT_ANNUAL_CAREER_FIVE_MODEL_V14__ = true;
 
-const VERSION = 'TJK-ANNUAL-ARCHIVE-FIVE-MODEL-V14.0';
+const VERSION = 'TJK-ANNUAL-ARCHIVE-FIVE-MODEL-V14.1-TOP3-YEARBEST';
 const ARCHIVE_DB = 'at_ai_tjk_annual_archive_v13';
 const ARCHIVE_STORE = 'races';
 const CAREER_DB = 'at_ai_tjk_annual_career_v138';
@@ -19,6 +22,7 @@ const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const upper = v => clean(v).toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/İ/g, 'I');
 const keyText = v => upper(v).replace(/[^A-Z0-9]+/g, '').trim();
 const finite = v => { if (v === null || v === undefined || v === '') return null; const n = Number(v); return Number.isFinite(n) ? n : null; };
+const finishNo = (ref, index = 0) => { const n = Number(ref?.finish ?? ref?.rank ?? ref?.sira); return Number.isFinite(n) && n > 0 ? n : index + 1; };
 function readState() {
   try { if (typeof state !== 'undefined' && state && typeof state === 'object') return state; } catch {}
   try { const x = localStorage.getItem(STORAGE_KEY); return x ? JSON.parse(x) : null; } catch { return null; }
@@ -108,26 +112,67 @@ function channel(ctx, row) {
 async function historicalRace(ctx, row) {
   const r = await fetch(`/api/tjk-history?date=${encodeURIComponent(row.date)}&city=${encodeURIComponent(row.city)}&raceNo=${encodeURIComponent(row.raceNo)}`, { cache: 'no-store' });
   const h = await r.json(); if (!r.ok || h?.ok === false) throw new Error(h?.error || `Tarihsel sonuç ${r.status}`);
-  const top3 = await mapLimit(h.top3 || [], 2, async ref => {
+  const sourceTop3 = (Array.isArray(h?.top3) ? h.top3 : [])
+    .map((ref, index) => ({ ...ref, finish: finishNo(ref, index) }))
+    .filter(ref => Number(ref.finish) >= 1 && Number(ref.finish) <= 3)
+    .sort((a, b) => Number(a.finish) - Number(b.finish))
+    .slice(0, 3);
+  const top3 = await mapLimit(sourceTop3, 3, async ref => {
     if (!ref?.horseId) return { ...ref, career: { ok: false, fullPathBefore: [] } };
     try { return { ...ref, career: await career(ref.horseId, row.date) }; } catch (e) { return { ...ref, career: { ok: false, fullPathBefore: [], error: e?.message || String(e) } }; }
   });
   const score = conditionScore(ctx, row), type = channel(ctx, row);
-  return { ...h, ok: true, date: row.date, city: row.city, raceNo: row.raceNo, sourceYear: Number(row.year || row.date.slice(0, 4)), referenceType: type, raceConditionSimilarity: score, transferabilityScore: score, top3, top3Count: top3.length, annualArchiveId: row.id };
+  return { ...h, ok: true, date: row.date, city: row.city, raceNo: row.raceNo, sourceYear: Number(row.year || row.date.slice(0, 4)), referenceType: type, raceConditionSimilarity: score, transferabilityScore: score, top3, top3Count: top3.length, annualArchiveId: row.id, annualReferenceRule: 'TOP3_ONLY' };
 }
-function fallbackScore(currentCareer, races, useCondition) {
-  const path = currentCareer?.fullPathBefore || currentCareer?.roadmap || [], byYear = new Map();
-  for (const race of races) for (const ref of race.top3 || []) {
-    const rp = ref?.career?.fullPathBefore || []; if (!path.length || !rp.length) continue;
-    const raw = typeof orderedPathSimilarity === 'function' ? orderedPathSimilarity(path, rp) : 0;
-    const pathScore = Math.round(raw * 100), condition = useCondition ? Number(race.transferabilityScore || 100) : 100, score = Math.round(pathScore * condition / 100);
-    const item = { year: race.sourceYear, score, pathScore, conditionScore: condition, historicalHorse: ref.horseName, historicalFinish: ref.finish, raceDate: race.date, raceCity: race.city, raceNo: race.raceNo, currentPathCount: path.length, referencePathCount: rp.length };
-    const prev = byYear.get(item.year); if (!prev || item.score > prev.score) byYear.set(item.year, item);
+function annualTop3YearBestScore(currentCareer, races, useCondition) {
+  const path = currentCareer?.fullPathBefore || currentCareer?.roadmap || [];
+  const byYear = new Map();
+  let referencesEvaluated = 0;
+  for (const race of Array.isArray(races) ? races : []) {
+    if (race?.ok === false) continue;
+    const year = Number(race?.sourceYear || String(race?.date || '').slice(0, 4)) || null;
+    if (!year) continue;
+    const refs = (Array.isArray(race?.top3) ? race.top3 : [])
+      .filter(ref => { const f = Number(ref?.finish ?? ref?.rank ?? ref?.sira); return Number.isFinite(f) ? f >= 1 && f <= 3 : true; })
+      .slice(0, 3);
+    for (const ref of refs) {
+      const rp = ref?.career?.fullPathBefore || ref?.career?.roadmap || [];
+      if (!path.length || !rp.length) continue;
+      referencesEvaluated++;
+      const raw = typeof orderedPathSimilarity === 'function' ? orderedPathSimilarity(path, rp) : 0;
+      const pathScore = Math.round(Math.max(0, Math.min(1, Number(raw) || 0)) * 100);
+      const condition = useCondition ? Math.max(0, Math.min(100, Number(race?.transferabilityScore ?? race?.raceConditionSimilarity ?? 100) || 0)) : 100;
+      const score = Math.round(pathScore * condition / 100);
+      const item = {
+        year, score, pathScore, conditionScore: condition,
+        historicalHorse: ref?.horseName || '', historicalHorseId: ref?.horseId || '',
+        historicalFinish: Number(ref?.finish ?? ref?.rank ?? ref?.sira) || null,
+        raceDate: race?.date || '', raceCity: race?.city || '', raceNo: race?.raceNo || '',
+        referenceType: race?.referenceType || '', currentPathCount: path.length,
+        referencePathCount: rp.length, sourceRule: 'ANNUAL_TOP3_YEAR_BEST_V14_1'
+      };
+      const prev = byYear.get(year);
+      if (!prev || item.score > prev.score ||
+          (item.score === prev.score && item.pathScore > prev.pathScore) ||
+          (item.score === prev.score && item.pathScore === prev.pathScore && Number(item.historicalFinish || 99) < Number(prev.historicalFinish || 99))) {
+        byYear.set(year, item);
+      }
+    }
   }
-  const rows = [...byYear.values()].sort((a, b) => b.year - a.year), strongest = [...rows].sort((a, b) => b.score - a.score)[0];
-  return { score: strongest?.score ?? null, strongest, rows, coverageYears: rows.length, strongYears: rows.filter(x => x.score >= 85).length, supportYears: rows.filter(x => x.score >= 70).length, latestScore: rows[0]?.score ?? null };
+  const rows = [...byYear.values()].sort((a, b) => b.year - a.year);
+  const strongest = rows.length ? [...rows].sort((a, b) => b.score - a.score || b.pathScore - a.pathScore || Number(a.historicalFinish || 99) - Number(b.historicalFinish || 99) || b.year - a.year)[0] : null;
+  return {
+    score: strongest?.score ?? null, strongest, rows,
+    coverageYears: rows.length,
+    strongYears: rows.filter(x => x.score >= 85).length,
+    supportYears: rows.filter(x => x.score >= 70).length,
+    latestScore: rows[0]?.score ?? null,
+    referencesEvaluated,
+    yearAggregation: 'BEST_REFERENCE_PER_YEAR',
+    referenceRule: 'EACH_HISTORICAL_RACE_TOP3_PRE_RACE_CAREER'
+  };
 }
-function scoreRows(careerData, races, useCondition) { try { if (typeof scoreRowsV11 === 'function') return scoreRowsV11(careerData, races, useCondition); } catch {} return fallbackScore(careerData, races, useCondition); }
+function scoreRows(careerData, races, useCondition) { return annualTop3YearBestScore(careerData, races, useCondition); }
 function composite(ch) {
   try { if (typeof compositeScoreV11 === 'function') return compositeScoreV11(ch); } catch {}
   const w = { exact: .4, twin: .25, family: .2, career: .15 }; let sum = 0, used = 0;
@@ -146,7 +191,7 @@ function modelLabel(id) { return ({ composite: 'Bileşik', exact: 'Tam', twin: '
 function render(data, ctx, rows) {
   const out = document.getElementById('aaAnalysis'); if (!out) return;
   const ids = ['composite','exact','twin','family','career'];
-  out.innerHTML = `<div class="aa-section"><h3>5 Model Kariyer Yol Haritası</h3><div class="aa-note"><b>${esc(ctx.raceNo)}. Koşu · ${esc(ctx.city)} · ${esc(ctx.date)}</b><br>${rows.length} seçilmiş tarihsel yarış kullanıldı.</div><div class="career-model-tabs-v112">${ids.map((id, i) => `<button class="career-model-tab-v112 ${i === 0 ? 'active' : ''}" data-v14-tab="${id}">${modelLabel(id)}</button>`).join('')}</div>${ids.map((id, i) => { const rank = ranking(data, id); return `<div class="career-model-panel-v112 ${i === 0 ? 'active' : ''}" data-v14-panel="${id}"><div class="career-model-panel-head-v112"><b>${modelLabel(id)}</b></div>${rank.length ? rank.map((x, n) => `<div class="career-model-rank-v112" style="display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:8px"><span class="career-model-rank-no-v112">${n + 1}</span><div class="career-model-rank-horse-v112"><b>${esc(x.horse.no)}. ${esc(x.horse.name)}</b><small>${x.career?.fullPathBeforeCount || 0} kariyer yarışı</small></div><div class="career-model-rank-score-v112"><strong>%${esc(x.displayScore)}</strong></div></div>`).join('') : '<div class="career-model-empty-v112">Bu model için karşılaştırılabilir veri yok.</div>'}</div>`; }).join('')}</div>`;
+  out.innerHTML = `<div class="aa-section"><h3>5 Model Kariyer Yol Haritası</h3><div class="aa-note"><b>${esc(ctx.raceNo)}. Koşu · ${esc(ctx.city)} · ${esc(ctx.date)}</b><br>${rows.length} seçilmiş tarihsel yarış kullanıldı.<br><b>Referans kuralı:</b> Her geçmiş yarışın 1.-2.-3. atı ayrı karşılaştırılır; her yıl için en yüksek kariyer yolu benzerliği tutulur.</div><div class="career-model-tabs-v112">${ids.map((id, i) => `<button class="career-model-tab-v112 ${i === 0 ? 'active' : ''}" data-v14-tab="${id}">${modelLabel(id)}</button>`).join('')}</div>${ids.map((id, i) => { const rank = ranking(data, id); return `<div class="career-model-panel-v112 ${i === 0 ? 'active' : ''}" data-v14-panel="${id}"><div class="career-model-panel-head-v112"><b>${modelLabel(id)}</b></div>${rank.length ? rank.map((x, n) => { const best = x?.scores?.[id]?.strongest; return `<div class="career-model-rank-v112" style="display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:8px"><span class="career-model-rank-no-v112">${n + 1}</span><div class="career-model-rank-horse-v112"><b>${esc(x.horse.no)}. ${esc(x.horse.name)}</b><small>${x.career?.fullPathBeforeCount || 0} kariyer yarışı${best ? ` · en iyi: ${esc(best.year)} ${esc(best.historicalHorse)} (${esc(best.historicalFinish)}.)` : ''}</small></div><div class="career-model-rank-score-v112"><strong>%${esc(x.displayScore)}</strong></div></div>`; }).join('') : '<div class="career-model-empty-v112">Bu model için karşılaştırılabilir veri yok.</div>'}</div>`; }).join('')}</div>`;
   out.querySelectorAll('[data-v14-tab]').forEach(btn => btn.addEventListener('click', () => {
     const id = btn.dataset.v14Tab;
     out.querySelectorAll('[data-v14-tab]').forEach(x => x.classList.toggle('active', x === btn));
@@ -156,13 +201,13 @@ function render(data, ctx, rows) {
 async function run() {
   if (busy) return;
   busy = true;
-  const out = document.getElementById('aaAnalysis'); if (out) out.innerHTML = '<div class="aa-note">Seçilen yarışlar 5 Model motoruna hazırlanıyor…</div>';
+  const out = document.getElementById('aaAnalysis'); if (out) out.innerHTML = '<div class="aa-note">Seçilen yarışların ilk 3 atı ve yarış öncesi kariyerleri hazırlanıyor…</div>';
   try {
     const ctx = currentContext(); if (!ctx?.meta?.ok) throw new Error('Bugünkü programdan tek bir koşu seçin.');
     const rows = (await selectedRows()).filter(r => r.raceNo && r.date < ctx.date);
     if (!rows.length) throw new Error('Koşu No’su kesinleşmiş en az bir geçmiş yarış seçin.');
     let done = 0;
-    const refs = await mapLimit(rows, 2, async row => { const r = await historicalRace(ctx, row); done++; if (out) out.innerHTML = `<div class="aa-note">Tarihsel yarışlar: ${done}/${rows.length}</div>`; return r; });
+    const refs = await mapLimit(rows, 2, async row => { const r = await historicalRace(ctx, row); done++; if (out) out.innerHTML = `<div class="aa-note">İlk 3 referans yarışları: ${done}/${rows.length}</div>`; return r; });
     const models = { EXACT: [], CONDITION_TWIN: [], RACE_FAMILY: [] };
     for (const r of refs) models[r.referenceType]?.push(r);
     let hd = 0;
@@ -187,6 +232,6 @@ document.addEventListener('click', event => {
   if (!btn || event.isTrusted) return;
   event.preventDefault(); event.stopImmediatePropagation(); run();
 }, true);
-window.ATAnnualCareerFiveModelV138 = { version: VERSION, run };
-console.info('[AT AI]', VERSION, 'aktif — yıllık arşiv 5 Model, gözlemcisiz');
+window.ATAnnualCareerFiveModelV138 = { version: VERSION, run, scoringRule: 'TOP3_EACH_RACE_THEN_BEST_PER_YEAR' };
+console.info('[AT AI]', VERSION, 'aktif — yıllık arşiv ilk 3 ayrı kariyer yolu + yılın en iyi referansı');
 })();
