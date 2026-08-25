@@ -6,7 +6,7 @@
 if (window.__AT_RESUMABLE_CAREER_V127__) return;
 window.__AT_RESUMABLE_CAREER_V127__ = true;
 
-const VERSION='RESUMABLE-CAREER-ANALYSIS-V12.7';
+const VERSION='RESUMABLE-CAREER-ANALYSIS-V12.7+RUNNING-OVERLAY-FIX-V16.9.5';
 const DB='at_ai_resume_v127', STORE='entries', SESSION='session|career';
 const HTTP_TTL=14*864e5, SESSION_TTL=864e5;
 const PATHS=new Set([
