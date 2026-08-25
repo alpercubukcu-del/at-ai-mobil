@@ -26,8 +26,8 @@ for (const token of [
   if (!app.includes(token)) throw new Error(`[V16.9.9] Runtime doğrulaması başarısız: ${token}`);
 }
 for (const forbidden of [
-  "JSON.parse(sessionStorage.getItem(SESSION_KEY)||'{}')",
-  "JSON.parse(sessionStorage.getItem(MODEL_SESSION)||'{}')",
+  "const SESSION_KEY='at_ai_five_model_compact_v1687';",
+  "const MODEL_SESSION='at_ai_five_model_compact_v1687';",
   'const store=sessionLoad();\n  store[k]',
   'const store=modelSessionLoad();'
 ]) {
