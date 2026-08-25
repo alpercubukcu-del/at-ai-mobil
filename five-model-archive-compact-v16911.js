@@ -143,48 +143,13 @@ async function discardLegacy(key) {
   });
 }
 
-function currentModelContext() {
-  try {
-    const raceNo = clean(document.getElementById('analysisRace')?.value);
-    if (!raceNo || raceNo === 'all') return null;
-    const race = (Array.isArray(window.state?.races) ? window.state.races : [])
-      .find(item => String(item?.no) === String(raceNo));
-    if (!race) return null;
-    const key = ['model', clean(window.state?.date), clean(window.state?.city), raceNo].join('|');
-    return { key, race, raceNo };
-  } catch { return null; }
+function currentModelKey(raceNo) {
+  return ['model', clean(window.state?.date), clean(window.state?.city), clean(raceNo)].join('|');
 }
 
-function markSavedPanel() {
-  if (typeof document === 'undefined') return false;
-  const dialog = document.getElementById('analysisDialog');
-  const box = document.getElementById('careerFiveModelV139');
-  if (!dialog?.open || dialog?.dataset?.view !== 'career' || !box || box.dataset.loaded === '1') return false;
-  const context = currentModelContext();
-  if (!context || !canRead(context.key)) return false;
-  const small = box.querySelector?.('summary small');
-  if (small) small.textContent = 'Kayıtlı · açmak için dokunun';
-  return true;
-}
-
-let restoreTimer = null;
-function scheduleSavedRestore() {
-  clearTimeout(restoreTimer);
-  restoreTimer = setTimeout(markSavedPanel, 70);
-}
-
-function observeSavedPanel() {
-  if (typeof document === 'undefined') return;
-  const dialog = document.getElementById('analysisDialog');
-  if (dialog && typeof MutationObserver === 'function') {
-    const observer = new MutationObserver(scheduleSavedRestore);
-    observer.observe(dialog, { childList:true, subtree:true, attributes:true, attributeFilter:['data-view','open'] });
-  }
-  document.addEventListener('change', event => {
-    if (event.target?.matches?.('#analysisRace')) scheduleSavedRestore();
-  });
-  window.addEventListener?.('pageshow', scheduleSavedRestore, { passive:true });
-  scheduleSavedRestore();
+function hasRace(raceNo) {
+  const no = clean(raceNo);
+  return Boolean(no && no !== 'all' && canRead(currentModelKey(no)));
 }
 
 window.ATFiveModelArchiveCompactV16911 = {
@@ -195,9 +160,9 @@ window.ATFiveModelArchiveCompactV16911 = {
   forget,
   discardLegacy,
   compactModel,
-  markSavedPanel,
+  currentModelKey,
+  hasRace,
   persistentUntilClear:true
 };
-observeSavedPanel();
 console.info('[AT AI]', VERSION, 'aktif — 5 Model sonucu siz temizleyene kadar sekmeleri altında kalıcıdır.');
 })();
