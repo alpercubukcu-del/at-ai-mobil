@@ -77,5 +77,9 @@ const build = fs.readFileSync(new URL('./build-runtime-v16911.cjs', import.meta.
 assert.ok(build.includes('compactApi?.discardLegacy?.(key)'), 'okuyucu eski kaydı get öncesi atmalı');
 assert.ok(build.indexOf('compactApi?.discardLegacy?.(key)') < build.indexOf("objectStore(STORE).get(key)"), 'silme koruması get çağrısından önce olmalı');
 assert.ok(build.includes("compactApi?.prepareRecord?.(value)"), 'yeni model kaydı yazılmadan önce kompaktlaşmalı');
+assert.ok(!build.includes("fingerprint === raceFingerprint(race)"), 'kayıt kullanıcı temizleyene kadar program parmak iziyle geçersizleşmemeli');
+assert.ok(source.includes('persistentUntilClear:true'), 'kalıcı sonuç davranışı API üzerinde görünür olmalı');
+assert.ok(source.includes('box.open = true'), 'kayıtlı sekmeler Kariyer ekranına dönünce açılmalı');
+assert.ok(source.includes('ATFiveModelRepairV1697?.load'), 'kayıtlı sonuç mevcut renderer ile otomatik gösterilmeli');
 
 console.log('V16.9.11 kompakt 5 Model arşiv onarım testi geçti.');
