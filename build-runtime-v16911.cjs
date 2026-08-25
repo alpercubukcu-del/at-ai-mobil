@@ -86,11 +86,8 @@ mustReplacePattern(
       const request = db.transaction(STORE, 'readonly').objectStore(STORE).get(key);
       request.onsuccess = () => {
         const record = request.result;
-        const fingerprint = clean(record?.fingerprint) || raceFingerprint(record?.race);
         const safe = record?.compactArchiveV16911 === true
           && record?.kind === 'model'
-          && record?.engine === MODEL_ENGINE
-          && fingerprint === raceFingerprint(race)
           && validModel(record?.data);
         if (!safe) compactApi?.forget?.(key);
         resolve(safe ? record.data : null);
@@ -110,6 +107,15 @@ const oldNote = 'İstek Onarımı: günlük arşiv → oturum önbelleği → te
 if (!app.includes(oldNote)) throw new Error('[V16.9.11] İstek onarım açıklaması bulunamadı.');
 app = app.replace(oldNote, 'İstek Onarımı: eski büyük 5 Model kaydı okunmadan temizlenir; hafif önbellek → tek ağ isteği kullanılır.');
 
+const sourceTextOld = "if (source === 'archive') return 'Günlük arşivden hazırlandı';";
+const sourceTextNew = "if (source === 'archive') return 'Kayıtlı sonuç · siz temizleyene kadar kullanılacak';";
+if (!app.includes(sourceTextOld)) throw new Error('[V16.9.11] Kayıtlı sonuç kaynak metni bulunamadı.');
+app = app.replace(sourceTextOld, sourceTextNew);
+const readyTextOld = "if (small) small.textContent = 'Hazır · sekmeleri açabilirsiniz';";
+const readyTextNew = "if (small) small.textContent = 'Kayıtlı · Bileşik · Tam · İkiz · Aile · Kariyer';";
+if (!app.includes(readyTextOld)) throw new Error('[V16.9.11] 5 Model hazır başlığı bulunamadı.');
+app = app.replace(readyTextOld, readyTextNew);
+
 app += `\n${patch}\n`;
 for (const token of [
   'FIVE-MODEL-ARCHIVE-COMPACT-V16.9.11',
@@ -117,6 +123,10 @@ for (const token of [
   "prepared?.kind === 'model' && prepared?.compactArchiveV16911",
   'Hafif önbellek ve tek istek denetleniyor',
   'eski büyük 5 Model kaydı okunmadan temizlenir',
+  'persistentUntilClear:true',
+  'Kayıtlı sonuç açılıyor…',
+  'Kayıtlı · Bileşik · Tam · İkiz · Aile · Kariyer',
+  'Kayıtlı sonuç · siz temizleyene kadar kullanılacak',
   'Günlük Arşiv açılıyor…',
   'FIVE-MODEL-MOBILE-CACHE-V16.9.9'
 ]) {
@@ -130,4 +140,4 @@ html = html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=169110'
 fs.writeFileSync(INDEX, html, 'utf8');
 if (!html.includes('/at-ai-app-v142.js?v=169110')) throw new Error('[V16.9.11] cache-bust güncellenemedi.');
 
-console.log('[AT AI] V16.9.11 build tamamlandı: eski ham 5 Model IDB kaydı okunmadan silinir; yeni kayıtlar kompakt saklanır.');
+console.log('[AT AI] V16.9.11 build tamamlandı: 5 Model kompakt sonucu temizlenene kadar Bileşik/Tam/İkiz/Aile/Kariyer altında kalıcıdır.');
