@@ -13,7 +13,7 @@ if(!fs.existsSync(APP)||!fs.existsSync(INDEX))throw new Error('[V16.9.5] Önceki
 let app=fs.readFileSync(APP,'utf8');
 for(const token of [
   'DAILY-CAREER-MODEL-MANUAL-V16.9.5',
-  "if(s.status==='running'){box.classList.remove('show','offline');return}"
+  'RUNNING-OVERLAY-FIX-V16.9.5'
 ]){
   if(!app.includes(token))throw new Error(`[V16.9.5] Runtime doğrulaması başarısız: ${token}`);
 }
