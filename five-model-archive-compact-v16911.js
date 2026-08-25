@@ -155,26 +155,22 @@ function currentModelContext() {
   } catch { return null; }
 }
 
-function restoreSavedPanel() {
+function markSavedPanel() {
   if (typeof document === 'undefined') return false;
   const dialog = document.getElementById('analysisDialog');
   const box = document.getElementById('careerFiveModelV139');
   if (!dialog?.open || dialog?.dataset?.view !== 'career' || !box || box.dataset.loaded === '1') return false;
   const context = currentModelContext();
   if (!context || !canRead(context.key)) return false;
-  box.open = true;
   const small = box.querySelector?.('summary small');
-  if (small) small.textContent = 'Kayıtlı sonuç açılıyor…';
-  const loader = window.ATFiveModelRepairV1697?.load;
-  if (typeof loader !== 'function') return false;
-  Promise.resolve(loader(box, context.race)).catch(() => { box.dataset.loaded = '0'; });
+  if (small) small.textContent = 'Kayıtlı · açmak için dokunun';
   return true;
 }
 
 let restoreTimer = null;
 function scheduleSavedRestore() {
   clearTimeout(restoreTimer);
-  restoreTimer = setTimeout(restoreSavedPanel, 70);
+  restoreTimer = setTimeout(markSavedPanel, 70);
 }
 
 function observeSavedPanel() {
@@ -199,7 +195,7 @@ window.ATFiveModelArchiveCompactV16911 = {
   forget,
   discardLegacy,
   compactModel,
-  restoreSavedPanel,
+  markSavedPanel,
   persistentUntilClear:true
 };
 observeSavedPanel();
