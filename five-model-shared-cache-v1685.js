@@ -1,37 +1,48 @@
-/* AT AI Mobil — V16.8.7 Kalıcı Kompakt 5 Model Cache
-   - Aynı tarih + şehir + koşu için 5 Model hesabı bir kez gerçek hesaplanır.
-   - Devam eden hesap varsa ikinci API/kariyer zinciri açılmaz.
-   - Sonuç, yalnız kupon/ranking için gerekli skor alanlarıyla sessionStorage'a kompakt yazılır.
-   - Sayfa yenilense bile aynı sekmede kompakt sonuç yeniden kullanılır.
-   - Kupon menüsü açılırken mevcut kompakt kayıtlar karar motorunun private model belleğine sessizce hydrate edilir.
-   - Puanlama/model formüllerine dokunmaz; yalnız hesap sonucunu yeniden kullanır.
+/* AT AI Mobil — V16.9.9 Mobil Güvenli Kompakt 5 Model Cache
+   - Eski tek-parca sessionStorage paketi Android ana is parcacigini kilitlemesin diye okunmadan temizlenir.
+   - Her tarih + sehir + kosu sonucu ayri, kucuk bir sessionStorage kaydinda tutulur.
+   - JSON yazma/kompaktlastirma arayuz boyandiktan sonra idle kuyruğunda yapilir.
+   - get/has yalniz istenen kosuyu okur; tum manualTicket haritasini tekrar tekrar yazmaz.
+   - Puanlama/model formullerine dokunmaz; yalniz hesap sonucunu yeniden kullanir.
 */
 (() => {
 'use strict';
 if (window.__AT_FIVE_MODEL_SHARED_CACHE_V1687__) return;
 window.__AT_FIVE_MODEL_SHARED_CACHE_V1687__ = true;
+window.__AT_FIVE_MODEL_MOBILE_CACHE_V1699__ = true;
 
 const VERSION='FIVE-MODEL-SHARED-CACHE-V16.8.7';
-const SESSION_KEY='at_ai_five_model_compact_v1687';
+const MOBILE_VERSION='FIVE-MODEL-MOBILE-CACHE-V16.9.9';
+const LEGACY_SESSION_KEY='at_ai_five_model_compact_v1687';
+const SESSION_PREFIX='at_ai_five_model_compact_v1699:';
+const SESSION_INDEX='at_ai_five_model_compact_index_v1699';
 const MAX_RECORDS=24;
 const resolved=new Map();
 const inflight=new Map();
+const persistQueued=new Set();
 let hydrating=false;
 
 const clean=v=>String(v??'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim();
 const fold=v=>clean(v).toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/İ/g,'I').replace(/[^A-Z0-9]+/g,'');
 const finite=v=>{const n=Number(v);return Number.isFinite(n)?n:null;};
+const yieldTurn=()=>new Promise(resolve=>setTimeout(resolve,0));
 function city(){
   try{return typeof getCityName==='function'?clean(getCityName()):clean(document.querySelector('#citySelect option:checked')?.textContent);}catch{return'';}
 }
 function dateNow(){return clean(window.state?.date||document.getElementById('raceDate')?.value);}
 function key(raceNo){return [dateNow(),fold(city()),Number(raceNo)||0].join('|');}
 function valid(d){return !!d && Number(d?.no)>0 && Array.isArray(d?.horses) && d.horses.length>0;}
+function storageKey(k){return SESSION_PREFIX+k;}
 
-function sessionLoad(){
-  try{const x=JSON.parse(sessionStorage.getItem(SESSION_KEY)||'{}');return x&&typeof x==='object'?x:{};}catch{return{};}
+/* V16.8.7'nin tek buyuk JSON paketi donmanin kaynagiydi. Degeri getItem ile
+   ana is parcacigina kopyalamadan dogrudan kaldiriyoruz. Gunluk IndexedDB arsivi
+   korunur; yalniz guvensiz oturum kopyasi sifirlanir. */
+try{sessionStorage.removeItem(LEGACY_SESSION_KEY);}catch{}
+
+function readIndex(){
+  try{const x=JSON.parse(sessionStorage.getItem(SESSION_INDEX)||'{}');return x&&typeof x==='object'?x:{};}catch{return{};}
 }
-function sessionSave(store){try{sessionStorage.setItem(SESSION_KEY,JSON.stringify(store));return true;}catch{return false;}}
+function saveIndex(index){try{sessionStorage.setItem(SESSION_INDEX,JSON.stringify(index));return true;}catch{return false;}}
 function compactChannel(src={}){
   const out={};
   const scalarKeys=['score','rawScore','decisionScore','coverageYears','strongYears','supportYears','latestScore','mode','analysisMode','modeRank','modeSize','coverage','usedWeight','modeAware','targetFinish'];
@@ -76,7 +87,7 @@ function compactModel(d={}){
     roadmapError:clean(d?.roadmapError),
     modelCounts:d?.modelCounts&&typeof d.modelCounts==='object'?d.modelCounts:{},
     compactSession:true,
-    compactVersion:VERSION,
+    compactVersion:MOBILE_VERSION,
     horses:(Array.isArray(d?.horses)?d.horses:[]).map(item=>({
       horse:compactHorse(item?.horse||{}),
       careerOk:item?.careerOk!==false,
@@ -86,25 +97,57 @@ function compactModel(d={}){
   };
 }
 function persisted(k){
-  const rec=sessionLoad()?.[k];
-  const d=rec?.data||rec;
-  return valid(d)?d:null;
+  try{
+    const rec=JSON.parse(sessionStorage.getItem(storageKey(k))||'null');
+    const d=rec?.data||rec;
+    if(valid(d)){resolved.set(k,d);return d;}
+  }catch{}
+  return null;
 }
-function persist(k,d){
-  if(!k||!valid(d))return false;
-  const store=sessionLoad();
-  store[k]={savedAt:Date.now(),data:compactModel(d)};
-  const keys=Object.keys(store);
-  if(keys.length>MAX_RECORDS){
-    keys.sort((a,b)=>(Number(store[a]?.savedAt)||0)-(Number(store[b]?.savedAt)||0));
-    for(const old of keys.slice(0,keys.length-MAX_RECORDS))delete store[old];
+function trimIndex(index){
+  const keys=Object.keys(index);
+  if(keys.length<=MAX_RECORDS)return;
+  keys.sort((a,b)=>(Number(index[a])||0)-(Number(index[b])||0));
+  for(const old of keys.slice(0,keys.length-MAX_RECORDS)){
+    try{sessionStorage.removeItem(storageKey(old));}catch{}
+    delete index[old];
   }
-  return sessionSave(store);
+}
+function persistNow(k,d){
+  if(!k||!valid(d))return false;
+  try{
+    const rec={savedAt:Date.now(),data:compactModel(d)};
+    sessionStorage.setItem(storageKey(k),JSON.stringify(rec));
+    const index=readIndex();index[k]=rec.savedAt;trimIndex(index);saveIndex(index);
+    return true;
+  }catch{return false;}
+}
+function schedulePersist(k,d){
+  if(!k||!valid(d)||persistQueued.has(k))return;
+  persistQueued.add(k);
+  const run=()=>{persistQueued.delete(k);persistNow(k,d);};
+  if(typeof requestIdleCallback==='function')requestIdleCallback(run,{timeout:1500});
+  else setTimeout(run,32);
+}
+function manualFor(raceNo){
+  try{
+    const map=window.manualTicketV117?.raceDataMap;
+    if(!(map instanceof Map))return null;
+    for(const d of [map.get(raceNo),map.get(Number(raceNo)),map.get(String(raceNo))])if(valid(d))return d;
+    return null;
+  }catch{return null;}
+}
+function prime(raceNo,d,{persist=true}={}){
+  if(!valid(d))return false;
+  const k=key(raceNo);
+  resolved.set(k,d);
+  if(persist)schedulePersist(k,d);
+  return true;
 }
 
 const base=typeof prepareRaceModelsV11==='function'?prepareRaceModelsV11:null;
 if(!base){
-  console.warn('[AT AI]',VERSION,'prepareRaceModelsV11 bulunamadı.');
+  console.warn('[AT AI]',MOBILE_VERSION,'prepareRaceModelsV11 bulunamadı.');
   return;
 }
 
@@ -115,10 +158,15 @@ prepareRaceModelsV11=async function(race,progressCb){
     try{progressCb?.(`Koşu ${race?.no}: daha önce hesaplanan 5 Model kullanılıyor.`);}catch{}
     return ready;
   }
+  const manual=manualFor(race?.no);
+  if(valid(manual)){
+    prime(race?.no,manual);
+    try{progressCb?.(`Koşu ${race?.no}: açık oturumdaki 5 Model sonucu kullanılıyor.`);}catch{}
+    return manual;
+  }
   const stored=persisted(k);
   if(valid(stored)){
-    resolved.set(k,stored);
-    try{progressCb?.(`Koşu ${race?.no}: oturumdaki kompakt 5 Model sonucu kullanılıyor; kariyerler yeniden çağrılmıyor.`);}catch{}
+    try{progressCb?.(`Koşu ${race?.no}: oturumdaki kompakt 5 Model sonucu kullanılıyor; koşuya özel kayıt sayesinde kariyerler yeniden çağrılmıyor.`);}catch{}
     return stored;
   }
   if(inflight.has(k)){
@@ -126,11 +174,9 @@ prepareRaceModelsV11=async function(race,progressCb){
     return inflight.get(k);
   }
   const p=(async()=>{
+    await yieldTurn();
     const d=await base(race,progressCb);
-    if(valid(d)){
-      resolved.set(k,d);
-      persist(k,d);
-    }
+    if(valid(d))prime(race?.no,d);
     return d;
   })();
   inflight.set(k,p);
@@ -141,13 +187,13 @@ prepareRaceModelsV11=async function(race,progressCb){
 function importManual(){
   try{
     const map=window.manualTicketV117?.raceDataMap;
-    if(!(map instanceof Map)) return 0;
+    if(!(map instanceof Map))return 0;
     let n=0;
     for(const [raceNo,d] of map.entries()){
-      if(!valid(d)) continue;
+      if(!valid(d))continue;
       const k=key(raceNo);
       if(!resolved.has(k)){resolved.set(k,d);n++;}
-      persist(k,d);
+      schedulePersist(k,d);
     }
     return n;
   }catch{return 0;}
@@ -157,15 +203,16 @@ async function hydrateCurrent(){
   if(hydrating)return 0;
   const races=Array.isArray(window.state?.races)?window.state.races:[];
   if(!races.length)return 0;
-  const ready=races.filter(r=>valid(persisted(key(r?.no))));
-  if(!ready.length)return 0;
   hydrating=true;
   let count=0;
   try{
-    // Burada global prepareRaceModelsV11 çağrılır. V16.7.1 karar kapısı daha sonra bu fonksiyonu
-    // sardığı için, çağrı aynı zamanda private modelMem'i de doldurur. Ağ çağrısı yapılmaz.
-    for(const race of ready){
-      try{const d=await prepareRaceModelsV11(race);if(valid(d))count++;}catch{}
+    for(const race of races){
+      const k=key(race?.no);
+      const d=resolved.get(k)||manualFor(race?.no)||persisted(k);
+      if(!valid(d))continue;
+      resolved.set(k,d);
+      try{const ready=await prepareRaceModelsV11(race);if(valid(ready))count++;}catch{}
+      await yieldTurn();
     }
     return count;
   }finally{hydrating=false;}
@@ -173,34 +220,40 @@ async function hydrateCurrent(){
 
 function clearOtherContext(){
   const prefix=[dateNow(),fold(city())].join('|')+'|';
-  for(const k of [...resolved.keys()]) if(!k.startsWith(prefix)) resolved.delete(k);
-  for(const k of [...inflight.keys()]) if(!k.startsWith(prefix)) inflight.delete(k);
+  for(const k of [...resolved.keys()])if(!k.startsWith(prefix))resolved.delete(k);
+  for(const k of [...inflight.keys()])if(!k.startsWith(prefix))inflight.delete(k);
 }
 function has(raceNo){
-  importManual();
-  const k=key(raceNo);
+  const k=key(raceNo),manual=manualFor(raceNo);
+  if(valid(manual))prime(raceNo,manual);
   return valid(resolved.get(k))||valid(persisted(k));
 }
 function get(raceNo){
-  importManual();
-  const k=key(raceNo);
-  const d=resolved.get(k)||persisted(k)||null;
-  if(valid(d)&&!resolved.has(k))resolved.set(k,d);
-  return d;
+  const k=key(raceNo),manual=manualFor(raceNo);
+  if(valid(manual))prime(raceNo,manual);
+  return resolved.get(k)||persisted(k)||null;
 }
 function clear(){
-  resolved.clear();inflight.clear();
-  try{sessionStorage.removeItem(SESSION_KEY);}catch{}
+  resolved.clear();inflight.clear();persistQueued.clear();
+  const index=readIndex();
+  for(const k of Object.keys(index))try{sessionStorage.removeItem(storageKey(k));}catch{}
+  try{sessionStorage.removeItem(SESSION_INDEX);sessionStorage.removeItem(LEGACY_SESSION_KEY);}catch{}
 }
 
-window.ATFiveModelSharedCacheV1685={VERSION,key,has,get,pending:raceNo=>inflight.has(key(raceNo)),pendingPromise:raceNo=>inflight.get(key(raceNo))||null,importManual,hydrateCurrent,stats(){const s=sessionLoad();return{version:VERSION,resolved:resolved.size,inflight:inflight.size,sessionRecords:Object.keys(s).length,sessionPersistentAcrossReload:true,keys:Object.keys(s)};},clear};
+window.ATFiveModelSharedCacheV1685={
+  VERSION,key,has,get,prime,
+  pending:raceNo=>inflight.has(key(raceNo)),
+  pendingPromise:raceNo=>inflight.get(key(raceNo))||null,
+  importManual,hydrateCurrent,
+  stats(){const index=readIndex();return{version:VERSION,mobileVersion:MOBILE_VERSION,resolved:resolved.size,inflight:inflight.size,sessionRecords:Object.keys(index).length,sessionPersistentAcrossReload:true,compactSessionReuse:true,rawPersistent:false,perRaceStorage:true,keys:Object.keys(index)};},
+  clear
+};
 window.ATFiveModelSharedCacheV1687=window.ATFiveModelSharedCacheV1685;
 
-// Kupon menüsüne girildiğinde daha önce hesaplanmış kompakt skorları karar motorunun private belleğine taşı.
 document.addEventListener('click',e=>{
   if(e.target?.closest?.('#couponMenuBtn'))setTimeout(()=>void hydrateCurrent(),0);
-  if(e.target?.closest?.('#buildAllBtn'))void hydrateCurrent();
+  if(e.target?.closest?.('#buildAllBtn'))setTimeout(()=>void hydrateCurrent(),0);
 },true);
-window.addEventListener('pageshow',()=>{clearOtherContext();importManual();setTimeout(()=>void hydrateCurrent(),0);},{passive:true});
-console.info('[AT AI]',VERSION,'aktif — 5 Model kompakt sonucu sessionStorage ile sayfa yenilemesinde de tekrar kullanılır.');
+window.addEventListener('pageshow',()=>{clearOtherContext();setTimeout(()=>{importManual();void hydrateCurrent();},0);},{passive:true});
+console.info('[AT AI]',MOBILE_VERSION,'aktif — eski buyuk oturum paketi temizlendi; kosu-bazli cache ve idle yazim kullaniliyor.');
 })();
