@@ -17,7 +17,11 @@ for(const token of [
 ]){
   if(!app.includes(token))throw new Error(`[V16.9.5] Runtime doğrulaması başarısız: ${token}`);
 }
-if(app.includes('5 Model otomatik arşiv'))throw new Error('[V16.9.5] Eski otomatik 5 Model hooku bundle içinde kaldı.');
+const PATCH_SOURCE=path.join(ROOT,'daily-career-model-autoarchive-v149.js');
+const patchSource=fs.readFileSync(PATCH_SOURCE,'utf8');
+for(const hook of ['runCareerAnalysis = async function','renderCareerAnalysis = function']){
+  if(patchSource.includes(hook))throw new Error(`[V16.9.5] Otomatik 5 Model hooku kaynakta kaldı: ${hook}`);
+}
 app+=`\n;window.__AT_CAREER_FREEZE_FIX_V1695__='LAZY-FIVE-MODEL-NO-RUNNING-OVERLAY-V16.9.5';\n`;
 new Function(app);
 fs.writeFileSync(APP,app,'utf8');
