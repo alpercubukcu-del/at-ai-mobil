@@ -8,7 +8,7 @@ function active(){return Array.isArray(state?.tickets)&&state.tickets.some(t=>t?
 function sync(){
   if(!active())return;
   const root=document.getElementById('tickets');if(!root)return;
-  root.querySelectorAll('.cdg-ticket-summary').forEach(el=>el.remove());
+  root.querySelectorAll('.cdg-ticket-summary:not(#careerOnlyTicketSummaryV16915)').forEach(el=>el.remove());
   root.querySelectorAll('.ticket-group-v11 summary small').forEach(el=>el.textContent='Kariyer/Hazırlık sıralaması');
   root.querySelectorAll('.ticket-group-v11 summary > span').forEach(el=>el.textContent='Kariyer kaynağı ▾');
   root.querySelectorAll('.ticket-model-tab-v11').forEach(el=>el.textContent='Kariyer/Hazırlık');
