@@ -1,6 +1,6 @@
-/* AT AI Mobil — V14.9 5 Model Otomatik Arşiv
-   - Kariyer analizi tamamlanınca seçili koşunun 5 Model verisini arka planda bir kez hazırlar.
-   - Sonuç mevcut günlük IndexedDB arşivine yazılır; sonraki açılışlarda yeniden hesaplama gerekmez.
+/* AT AI Mobil — V16.9.5 5 Model İsteğe Bağlı Hazırlama
+   - Kariyer sayfası açılırken otomatik 5 Model hesabı başlatmaz.
+   - Kullanıcı 5 Model panelini açarsa sonuç mevcut günlük IndexedDB arşivine yazılır.
    - Puan formüllerine ve sıralama mantığına dokunmaz.
 */
 (() => {
@@ -8,7 +8,7 @@
 if (window.__AT_DAILY_CAREER_MODEL_AUTOARCHIVE_V149__) return;
 window.__AT_DAILY_CAREER_MODEL_AUTOARCHIVE_V149__ = true;
 
-const VERSION = 'DAILY-CAREER-MODEL-AUTOARCHIVE-V14.9';
+const VERSION = 'DAILY-CAREER-MODEL-MANUAL-V16.9.5';
 const queue = [];
 const queued = new Set();
 let running = false;
@@ -81,37 +81,10 @@ function enqueueFromResult(result, raceValue) {
   for (const race of races) enqueue(race?.no);
 }
 
-/* Yeni kariyer hesabı tamamlandıktan sonra 5 Model arka planda hazırlanır. */
-try {
-  if (typeof runCareerAnalysis === 'function') {
-    const baseRun = runCareerAnalysis;
-    runCareerAnalysis = async function(selectedRaces, raceValue) {
-      const out = await baseRun(selectedRaces, raceValue);
-      try { enqueueFromResult(state?.analyses?.career, raceValue); } catch {}
-      return out;
-    };
-  }
-} catch (e) {
-  console.warn('[AT AI] V14.9 runCareerAnalysis hook kurulamadı:', e);
-}
-
-/* Arşivden açılan eski kariyer kaydında 5 Model eksikse, paneli tıklamayı beklemeden tamamla. */
-try {
-  if (typeof renderCareerAnalysis === 'function') {
-    const baseRender = renderCareerAnalysis;
-    renderCareerAnalysis = function(result, raceFilter = null) {
-      const out = baseRender(result, raceFilter);
-      try {
-        const selected = String(raceFilter ?? document.getElementById('analysisRace')?.value ?? 'all');
-        if (selected !== 'all') enqueue(selected);
-      } catch {}
-      return out;
-    };
-  }
-} catch (e) {
-  console.warn('[AT AI] V14.9 render hook kurulamadı:', e);
-}
+/* V16.9.5: Otomatik run/render hookları kaldırıldı.
+   Kuyruk API'si uyumluluk için korunur; 5 Model yalnız kullanıcı paneli açtığında
+   V13.9 lazy renderer üzerinden hazırlanır. */
 
 window.ATDailyCareerModelAutoArchiveV149 = { version:VERSION, enqueue, ensureOne };
-console.info('[AT AI]', VERSION, 'aktif — 5 Model otomatik arşiv');
+console.info('[AT AI]', VERSION, 'aktif — 5 Model yalnız panel açıldığında hazırlanır');
 })();
