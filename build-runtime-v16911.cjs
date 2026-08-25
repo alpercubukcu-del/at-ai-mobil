@@ -115,6 +115,10 @@ const readyTextOld = "if (small) small.textContent = 'Hazır · sekmeleri açabi
 const readyTextNew = "if (small) small.textContent = 'Kayıtlı · Bileşik · Tam · İkiz · Aile · Kariyer';";
 if (!app.includes(readyTextOld)) throw new Error('[V16.9.11] 5 Model hazır başlığı bulunamadı.');
 app = app.replace(readyTextOld, readyTextNew);
+const savedHeadingOld = '<small>Yalniz bu kosu · acmak icin dokunun</small>';
+const savedHeadingNew = `<small>\${window.ATFiveModelArchiveCompactV16911?.hasRace?.(selected)?'Kayıtlı · açmak için dokunun':'Yalniz bu kosu · acmak icin dokunun'}</small>`;
+if (!app.includes(savedHeadingOld)) throw new Error('[V16.9.11] 5 Model tembel başlığı bulunamadı.');
+app = app.replace(savedHeadingOld, savedHeadingNew);
 
 app += `\n${patch}\n`;
 for (const token of [
@@ -124,6 +128,7 @@ for (const token of [
   'Hafif önbellek ve tek istek denetleniyor',
   'eski büyük 5 Model kaydı okunmadan temizlenir',
   'persistentUntilClear:true',
+  'hasRace?.(selected)',
   'Kayıtlı · açmak için dokunun',
   'Kayıtlı · Bileşik · Tam · İkiz · Aile · Kariyer',
   'Kayıtlı sonuç · siz temizleyene kadar kullanılacak',
