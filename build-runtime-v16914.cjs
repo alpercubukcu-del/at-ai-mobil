@@ -24,6 +24,7 @@ for (const token of [
   'prepareRaceModelsV11 = async function',
   'getCareerRaceModelsV112 = async function',
   'canonicalDate',
+  'Seçili yarış tarihi bulunamadı',
   'FIVE-MODEL-ROADMAP-RECOVERY-V16.9.13'
 ]) {
   if (!app.includes(token)) throw new Error('[V16.9.14] Runtime dogrulamasi basarisiz: ' + token);
@@ -36,4 +37,4 @@ html = html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=169140'
 fs.writeFileSync(INDEX, html, 'utf8');
 if (!html.includes('/at-ai-app-v142.js?v=169140')) throw new Error('[V16.9.14] cache-bust guncellenemedi.');
 
-console.log('[AT AI] V16.9.14 build tamamlandi: 5 Model tarih baglami otomatik normalize ediliyor.');
+console.log('[AT AI] V16.9.14 production build tamamlandi: 5 Model tarih baglami otomatik normalize ediliyor.');
