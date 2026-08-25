@@ -116,6 +116,9 @@ function banner(){
 }
 function renderBanner(s=activeSession,override=''){
   const box=banner(); if(!s){box.classList.remove('show','offline');return}
+  /* V16.9.5: Kullanıcının başlattığı analiz çalışırken "yarım kaldı" katmanı
+     gösterilmez. Katman yalnız gerçek partial/offline checkpoint için açılır. */
+  if(s.status==='running'){box.classList.remove('show','offline');return}
   const rem=remaining(s), title=box.querySelector('b'), detail=box.querySelector('span'), btn=box.querySelector('button');
   box.classList.add('show'); box.classList.toggle('offline',!navigator.onLine);
   if(!navigator.onLine){title.textContent='İnternet bağlantısı kesildi';detail.textContent=override||`${s.doneCareer.size}/${s.expectedCareer.size} at korunuyor. Bağlantı gelince yalnız eksikler devam edecek.`;btn.style.display='none';return}
@@ -179,6 +182,6 @@ if(typeof runCareerAnalysis==='function'){
 window.addEventListener('offline',async()=>{networkWasOffline=true;const s=activeSession||await loadSession();if(!s)return;activeSession=s;s.status='offline';await saveSession();renderBanner()});
 window.addEventListener('online',async()=>{const s=activeSession||await loadSession();if(!s){networkWasOffline=false;return}activeSession=s;s.status='partial';await saveSession();renderBanner();networkWasOffline=false});
 
-(async()=>{await prune();const s=await loadSession();if(!s)return;if(String(s.date)!==String(state?.date||'')||String(s.city)!==String(state?.city||''))return;activeSession=s;renderBanner()})();
+(async()=>{await prune();const s=await loadSession();if(!s)return;if(String(s.date)!==String(state?.date||'')||String(s.city)!==String(state?.city||''))return;if(s.status==='running'){s.status='partial';await saveSession(s)}activeSession=s;renderBanner()})();
 console.info('[AT AI]',VERSION,'aktif — compact checkpoint + eksikten devam');
 })();
