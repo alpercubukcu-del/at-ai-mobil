@@ -143,6 +143,54 @@ async function discardLegacy(key) {
   });
 }
 
+function currentModelContext() {
+  try {
+    const raceNo = clean(document.getElementById('analysisRace')?.value);
+    if (!raceNo || raceNo === 'all') return null;
+    const race = (Array.isArray(window.state?.races) ? window.state.races : [])
+      .find(item => String(item?.no) === String(raceNo));
+    if (!race) return null;
+    const key = ['model', clean(window.state?.date), clean(window.state?.city), raceNo].join('|');
+    return { key, race, raceNo };
+  } catch { return null; }
+}
+
+function restoreSavedPanel() {
+  if (typeof document === 'undefined') return false;
+  const dialog = document.getElementById('analysisDialog');
+  const box = document.getElementById('careerFiveModelV139');
+  if (!dialog?.open || dialog?.dataset?.view !== 'career' || !box || box.dataset.loaded === '1') return false;
+  const context = currentModelContext();
+  if (!context || !canRead(context.key)) return false;
+  box.open = true;
+  const small = box.querySelector?.('summary small');
+  if (small) small.textContent = 'Kayıtlı sonuç açılıyor…';
+  const loader = window.ATFiveModelRepairV1697?.load;
+  if (typeof loader !== 'function') return false;
+  Promise.resolve(loader(box, context.race)).catch(() => { box.dataset.loaded = '0'; });
+  return true;
+}
+
+let restoreTimer = null;
+function scheduleSavedRestore() {
+  clearTimeout(restoreTimer);
+  restoreTimer = setTimeout(restoreSavedPanel, 70);
+}
+
+function observeSavedPanel() {
+  if (typeof document === 'undefined') return;
+  const dialog = document.getElementById('analysisDialog');
+  if (dialog && typeof MutationObserver === 'function') {
+    const observer = new MutationObserver(scheduleSavedRestore);
+    observer.observe(dialog, { childList:true, subtree:true, attributes:true, attributeFilter:['data-view','open'] });
+  }
+  document.addEventListener('change', event => {
+    if (event.target?.matches?.('#analysisRace')) scheduleSavedRestore();
+  });
+  window.addEventListener?.('pageshow', scheduleSavedRestore, { passive:true });
+  scheduleSavedRestore();
+}
+
 window.ATFiveModelArchiveCompactV16911 = {
   VERSION,
   prepareRecord,
@@ -150,7 +198,10 @@ window.ATFiveModelArchiveCompactV16911 = {
   mark,
   forget,
   discardLegacy,
-  compactModel
+  compactModel,
+  restoreSavedPanel,
+  persistentUntilClear:true
 };
-console.info('[AT AI]', VERSION, 'aktif — eski ham Model arşivi okunmadan temizlenir; yeni kayıtlar kompakt saklanır.');
+observeSavedPanel();
+console.info('[AT AI]', VERSION, 'aktif — 5 Model sonucu siz temizleyene kadar sekmeleri altında kalıcıdır.');
 })();
