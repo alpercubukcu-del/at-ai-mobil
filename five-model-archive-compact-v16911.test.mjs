@@ -79,7 +79,9 @@ assert.ok(build.indexOf('compactApi?.discardLegacy?.(key)') < build.indexOf("obj
 assert.ok(build.includes("compactApi?.prepareRecord?.(value)"), 'yeni model kaydı yazılmadan önce kompaktlaşmalı');
 assert.ok(!build.includes("fingerprint === raceFingerprint(race)"), 'kayıt kullanıcı temizleyene kadar program parmak iziyle geçersizleşmemeli');
 assert.ok(source.includes('persistentUntilClear:true'), 'kalıcı sonuç davranışı API üzerinde görünür olmalı');
-assert.ok(source.includes('Kayıtlı · açmak için dokunun'), 'başlık kayıtlı sonucu yeniden hesaplamadan açacağını göstermeli');
+assert.ok(source.includes('hasRace'), 'başlık seçili koşunun kayıtlı sonucunu hafif işaretten okuyabilmeli');
+assert.ok(build.includes('hasRace?.(selected)'), 'Kariyer başlığı kayıtlı sonucu yeniden hesaplamadan göstermeli');
+assert.ok(build.includes('Kayıtlı · açmak için dokunun'), 'başlık kayıtlı sonucu açıkça belirtmeli');
 assert.ok(!source.includes('box.open = true'), 'kayıtlı sonuç paneli kullanıcı istemeden genişlememeli');
 
 console.log('V16.9.11 kompakt 5 Model arşiv onarım testi geçti.');
