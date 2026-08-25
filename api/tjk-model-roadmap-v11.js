@@ -40,4 +40,79 @@ async function buildHistoricalHorse(baseUrl,horse,date,careerCache){const result
 async function buildRaces(baseUrl,candidates){const raceStates=[];for(const c of candidates){const history=c._history;const top3=(Array.isArray(history?.top3)?history.top3:[]).map(normalizeHorse).filter(h=>h.finish>=1&&h.finish<=3).sort((a,b)=>a.finish-b.finish).slice(0,3);raceStates.push({candidate:c,history,top3,careers:new Array(top3.length)})}
 const jobs=[];raceStates.forEach((r,ri)=>r.top3.forEach((horse,hi)=>jobs.push({ri,hi,horse,date:r.candidate.date})));const careerCache=new Map(),careerResults=await mapLimit(jobs,CAREER_CONCURRENCY,j=>buildHistoricalHorse(baseUrl,j.horse,j.date,careerCache));for(let i=0;i<jobs.length;i++)raceStates[jobs[i].ri].careers[jobs[i].hi]=careerResults[i];careerCache.clear();return raceStates.map(r=>{const c=r.candidate,h=r.history;if(!r.top3.length)return{...c,ok:false,top3:[],error:'Tarihsel yarışın gerçek ilk 3 verisi bulunamadı.'};return{...c,ok:true,classVerification:'TJK_HISTORY_FULL_CLASS',authoritativeClass:c.authoritativeClass||h.class||null,condition:{class:h.class||c.class||'',ageGroup:h.ageGroup||c.ageGroup||'',distance:h.distance||c.distance||'',track:h.track||c.track||'',raw:h.conditionRaw||null},top3:r.careers,top3Count:r.careers.length,fullClassVerified:true,pathRule:'İlk 3 atın referans yarıştan önceki tüm yarış geçmişi dondurularak kullanılır.',_history:undefined}})}
 
-export default async function handler(req,res){const startedAt=Date.now();try{const baseUrl=getBaseUrl(req),sourceUrl=new URL('/api/tjk-adaptive-roadmap-v102',baseUrl);for(const key of['date','city','class','ageGroup','track','distance','minYear']){const value=clean(req.query?.[key]||'');if(value)sourceUrl.searchParams.set(key,value)}const sourceStarted=Date.now(),source=await fetchJson(sourceUrl.toString(),90000,1),sourceDurationMs=Date.now()-sourceStarted;if(!source?.ok)throw new Error(source?.error||'V10.3 tarihsel tarama alınamadı.');const target={date:clean(source?.target?.date||req.query?.date||''),city:clean(source?.target?.city||req.query?.city||''),class:clean(source?.target?.class||req.query?.class||''),ageGroup:clean(source?.target?.ageGroup||req.query?.ageGroup||''),track:clean(source?.target?.track||req.query?.track||''),distance:normalizeDistance(source?.target?.distance||req.query?.distance)},sourceTrusted=Boolean(source?.rules?.fullClassVerificationFromResultPage),rawCandidates=collectSourceCandidates(source),historyCache=new Map(),historyStarted=Date.now(),prepared=(await mapLimit(rawCandidates,HISTORY_CONCURRENCY,c=>prepareCandidate(baseUrl,target,c,historyCache,sourceTrusted))).filter(Boolean),historyDurationMs=Date.now()-historyStarted,uniqueMap=new Map();for(const c of prepared){const key=candidateModelKey(c),prev=uniqueMap.get(key);if(!prev||Number(c.transferabilityScore||0)>Number(prev.transferabilityScore||0))uniqueMap.set(key,c)}const unique=[...uniqueMap.values()],careerStarted=Date.now(),built=await buildRaces(baseUrl,unique),careerDurationMs=Date.now()-careerStarted;historyCache.clear();const models={EXACT:[],CONDITION_TWIN:[],RACE_FAMILY:[]};for(const race of built){if(!race?.ok)continue;const type=normalizeType(race.referenceType);if(type&&models[type])models[type].push(race)}for(const type of MODEL_TYPES)models[type].sort((a,b)=>Number(b.sourceYear||0)-Number(a.sourceYear||0));res.setHeader('Cache-Control','no-store, max-age=0');return res.status(200).json({ok:true,version:VERSION,sourceVersion:source.version||null,target,classIdentity:{strategy:'PROGRAM_TO_TJK_RESULT_FULL_TEXT',fullClassKey:fullClassKey(target.class),noFamilyReduction:true,noDecoratorRemoval:true},rules:{yearWindow:'target month/day ±45 days, every historical year separately',independentModels:true,modelTypes:MODEL_TYPES,candidateRule:'V10.3 tarafından sonuç sayfasında TAM sınıfla doğrulanmış adaylar tekrar seri doğrulanmaz; history snapshot toplu çekilir ve TAM sınıf tekrar güvenlik kontrolünden geçer.',top3CareerFreeze:'historical horse career only before historical race date',pathComparison:'FULL_PRE_RACE_HISTORY',pathNote:'Kazanan/ikinci/üçüncünün yalnız eski galibiyetleri değil, referans yarıştan önceki bütün yarış yolu kullanılır.'},models,counts:Object.fromEntries(MODEL_TYPES.map(type=>[type,models[type].length])),diagnostics:{sourceYears:Array.isArray(source.yearResults)?source.yearResults.length:0,sourceVerifiedRaces:Array.isArray(source.historicalRaces)?source.historicalRaces.length:0,rawCandidateCount:rawCandidates.length,verifiedCandidateCount:unique.length,builtCount:built.filter(x=>x?.ok).length,failedBuildCount:built.filter(x=>!x?.ok).length,historyConcurrency:HISTORY_CONCURRENCY,careerConcurrency:CAREER_CONCURRENCY,sourceDurationMs,historyDurationMs,careerDurationMs,durationMs:Date.now()-startedAt,warning:unique.length?'':'Tam sınıfı doğrulanmış tarihsel aday üretilemedi.'}})}catch(e){return res.status(500).json({ok:false,version:VERSION,error:e?.message||'V11 model yol haritası hazırlanamadı.',durationMs:Date.now()-startedAt})}}
+async function handlerCoreV1697(req,res){const startedAt=Date.now();try{const baseUrl=getBaseUrl(req),sourceUrl=new URL('/api/tjk-adaptive-roadmap-v102',baseUrl);for(const key of['date','city','class','ageGroup','track','distance','minYear']){const value=clean(req.query?.[key]||'');if(value)sourceUrl.searchParams.set(key,value)}const sourceStarted=Date.now(),source=await fetchJson(sourceUrl.toString(),90000,1),sourceDurationMs=Date.now()-sourceStarted;if(!source?.ok)throw new Error(source?.error||'V10.3 tarihsel tarama alınamadı.');const target={date:clean(source?.target?.date||req.query?.date||''),city:clean(source?.target?.city||req.query?.city||''),class:clean(source?.target?.class||req.query?.class||''),ageGroup:clean(source?.target?.ageGroup||req.query?.ageGroup||''),track:clean(source?.target?.track||req.query?.track||''),distance:normalizeDistance(source?.target?.distance||req.query?.distance)},sourceTrusted=Boolean(source?.rules?.fullClassVerificationFromResultPage),rawCandidates=collectSourceCandidates(source),historyCache=new Map(),historyStarted=Date.now(),prepared=(await mapLimit(rawCandidates,HISTORY_CONCURRENCY,c=>prepareCandidate(baseUrl,target,c,historyCache,sourceTrusted))).filter(Boolean),historyDurationMs=Date.now()-historyStarted,uniqueMap=new Map();for(const c of prepared){const key=candidateModelKey(c),prev=uniqueMap.get(key);if(!prev||Number(c.transferabilityScore||0)>Number(prev.transferabilityScore||0))uniqueMap.set(key,c)}const unique=[...uniqueMap.values()],careerStarted=Date.now(),built=await buildRaces(baseUrl,unique),careerDurationMs=Date.now()-careerStarted;historyCache.clear();const models={EXACT:[],CONDITION_TWIN:[],RACE_FAMILY:[]};for(const race of built){if(!race?.ok)continue;const type=normalizeType(race.referenceType);if(type&&models[type])models[type].push(race)}for(const type of MODEL_TYPES)models[type].sort((a,b)=>Number(b.sourceYear||0)-Number(a.sourceYear||0));res.setHeader('Cache-Control','public, max-age=0, s-maxage=21600, stale-while-revalidate=86400');res.setHeader('Vercel-CDN-Cache-Control','public, max-age=21600, stale-while-revalidate=86400');return res.status(200).json({ok:true,version:VERSION,sourceVersion:source.version||null,target,classIdentity:{strategy:'PROGRAM_TO_TJK_RESULT_FULL_TEXT',fullClassKey:fullClassKey(target.class),noFamilyReduction:true,noDecoratorRemoval:true},rules:{yearWindow:'target month/day ±45 days, every historical year separately',independentModels:true,modelTypes:MODEL_TYPES,candidateRule:'V10.3 tarafından sonuç sayfasında TAM sınıfla doğrulanmış adaylar tekrar seri doğrulanmaz; history snapshot toplu çekilir ve TAM sınıf tekrar güvenlik kontrolünden geçer.',top3CareerFreeze:'historical horse career only before historical race date',pathComparison:'FULL_PRE_RACE_HISTORY',pathNote:'Kazanan/ikinci/üçüncünün yalnız eski galibiyetleri değil, referans yarıştan önceki bütün yarış yolu kullanılır.'},models,counts:Object.fromEntries(MODEL_TYPES.map(type=>[type,models[type].length])),diagnostics:{sourceYears:Array.isArray(source.yearResults)?source.yearResults.length:0,sourceVerifiedRaces:Array.isArray(source.historicalRaces)?source.historicalRaces.length:0,rawCandidateCount:rawCandidates.length,verifiedCandidateCount:unique.length,builtCount:built.filter(x=>x?.ok).length,failedBuildCount:built.filter(x=>!x?.ok).length,historyConcurrency:HISTORY_CONCURRENCY,careerConcurrency:CAREER_CONCURRENCY,sourceDurationMs,historyDurationMs,careerDurationMs,durationMs:Date.now()-startedAt,warning:unique.length?'':'Tam sınıfı doğrulanmış tarihsel aday üretilemedi.'}})}catch(e){return res.status(500).json({ok:false,version:VERSION,error:e?.message||'V11 model yol haritası hazırlanamadı.',durationMs:Date.now()-startedAt})}}
+
+
+/* V16.9.7 server request repair:
+   - identical date/city/condition requests share one active job per warm instance;
+   - three most recent successful responses stay in a short warm cache;
+   - Vercel CDN keeps successful public historical model responses for six hours.
+   Model selection, scoring, candidate verification and career paths are unchanged. */
+const REQUEST_REPAIR_VERSION_V1697='MODEL-ROADMAP-REQUEST-REPAIR-V16.9.7';
+const REQUEST_REPAIR_TTL_MS_V1697=15*60*1000;
+const REQUEST_REPAIR_MAX_READY_V1697=3;
+const requestRepairInflightV1697=new Map();
+const requestRepairReadyV1697=new Map();
+
+function requestRepairKeyV1697(req){
+  return ['date','city','class','ageGroup','track','distance','minYear']
+    .map(key=>`${key}=${clean(req.query?.[key]||'')}`).join('&');
+}
+function pruneRequestRepairV1697(){
+  const now=Date.now();
+  for(const [key,entry] of requestRepairReadyV1697){
+    if(!entry||now-entry.savedAt>REQUEST_REPAIR_TTL_MS_V1697)requestRepairReadyV1697.delete(key);
+  }
+  while(requestRepairReadyV1697.size>REQUEST_REPAIR_MAX_READY_V1697){
+    requestRepairReadyV1697.delete(requestRepairReadyV1697.keys().next().value);
+  }
+}
+function captureResponseV1697(){
+  let statusCode=200;
+  const headers={};
+  const response={
+    setHeader(name,value){headers[String(name).toLowerCase()]=value;},
+    status(code){statusCode=Number(code)||500;return response;},
+    json(body){return{statusCode,headers,body};}
+  };
+  return response;
+}
+async function runModelRoadmapV1697(req){
+  return handlerCoreV1697(req,captureResponseV1697());
+}
+function sendCapturedV1697(res,output,source){
+  const statusCode=Number(output?.statusCode)||500;
+  const headers=output?.headers&&typeof output.headers==='object'?output.headers:{};
+  for(const [name,value] of Object.entries(headers))res.setHeader(name,value);
+  res.setHeader('X-AT-Request-Repair',source);
+  res.setHeader('X-AT-Request-Repair-Version',REQUEST_REPAIR_VERSION_V1697);
+  if(statusCode<200||statusCode>=300)res.setHeader('Cache-Control','no-store, max-age=0');
+  return res.status(statusCode).json(output?.body||{ok:false,version:VERSION,error:'5 Model yanıtı oluşturulamadı.'});
+}
+
+export default async function handler(req,res){
+  const key=requestRepairKeyV1697(req);
+  pruneRequestRepairV1697();
+  const ready=requestRepairReadyV1697.get(key);
+  if(ready)return sendCapturedV1697(res,ready.output,'warm-cache');
+
+  let task=requestRepairInflightV1697.get(key);
+  let source='coalesced';
+  if(!task){
+    source='fresh';
+    task=Promise.resolve().then(()=>runModelRoadmapV1697(req));
+    requestRepairInflightV1697.set(key,task);
+  }
+  try{
+    const output=await task;
+    if(Number(output?.statusCode)>=200&&Number(output?.statusCode)<300&&output?.body?.ok){
+      requestRepairReadyV1697.delete(key);
+      requestRepairReadyV1697.set(key,{savedAt:Date.now(),output});
+      pruneRequestRepairV1697();
+    }
+    return sendCapturedV1697(res,output,source);
+  }finally{
+    if(source==='fresh'&&requestRepairInflightV1697.get(key)===task)requestRepairInflightV1697.delete(key);
+  }
+}
+
