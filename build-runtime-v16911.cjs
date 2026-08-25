@@ -124,7 +124,7 @@ for (const token of [
   'Hafif önbellek ve tek istek denetleniyor',
   'eski büyük 5 Model kaydı okunmadan temizlenir',
   'persistentUntilClear:true',
-  'Kayıtlı sonuç açılıyor…',
+  'Kayıtlı · açmak için dokunun',
   'Kayıtlı · Bileşik · Tam · İkiz · Aile · Kariyer',
   'Kayıtlı sonuç · siz temizleyene kadar kullanılacak',
   'Günlük Arşiv açılıyor…',
