@@ -1,22 +1,24 @@
-/* AT AI Mobil — V16.9.1 Kupon Günlük Arşiv Kaynağı
+/* AT AI Mobil — V16.9.1 Günlük Arşiv Kaynağı + V16.9.9 Mobil Yield
    Kupon Veri Denetimi, Kariyer Yol Haritası ve 5 Model için önce telefondaki
-   mevcut Günlük Arşiv (IndexedDB) kayıtlarını kullanır. Yalnız arşivde gerçekten
-   eksik olan ayaklar daha sonra normal hesaplama yoluna bırakılır.
+   mevcut Günlük Arşiv (IndexedDB) kayıtlarını kullanır. V16.9.9, model kayıtlarını
+   tek büyük sessionStorage JSON'una çevirmek yerine ortak cache'e koşu koşu aktarır.
 */
 (()=>{
 'use strict';
-if(window.__AT_COUPON_DAILY_ARCHIVE_SOURCE_V1691__) return;
+if(window.__AT_COUPON_DAILY_ARCHIVE_SOURCE_V1691__)return;
 window.__AT_COUPON_DAILY_ARCHIVE_SOURCE_V1691__=true;
+window.__AT_COUPON_ARCHIVE_MOBILE_YIELD_V1699__=true;
 
 const VERSION='COUPON-DAILY-ARCHIVE-SOURCE-V16.9.1';
+const MOBILE_VERSION='COUPON-ARCHIVE-MOBILE-YIELD-V16.9.9';
 const DB_NAME='at_ai_daily_career_archive_v146';
 const STORE='entries';
-const MODEL_SESSION='at_ai_five_model_compact_v1687';
 let dbPromise=null;
 let running=null;
 
 const clean=v=>String(v??'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim();
 const fold=v=>clean(v).toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/İ/g,'I').replace(/[^A-Z0-9]+/g,'');
+const yieldTurn=()=>new Promise(resolve=>setTimeout(resolve,0));
 function cityName(){try{return typeof getCityName==='function'?clean(getCityName()):clean(document.querySelector('#citySelect option:checked')?.textContent);}catch{return'';}}
 function dateNow(){return clean(window.state?.date||document.getElementById('raceDate')?.value);}
 function cityId(){return clean(window.state?.city||document.getElementById('citySelect')?.value);}
@@ -30,15 +32,14 @@ function raceFingerprint(race){
 function recordMatchesRace(rec,race){
   if(!rec||!race)return false;
   const fp=clean(rec?.fingerprint)||raceFingerprint(rec?.race);
-  return !!fp && fp===raceFingerprint(race);
+  return !!fp&&fp===raceFingerprint(race);
 }
 function openDb(){
   if(dbPromise)return dbPromise;
   dbPromise=new Promise(resolve=>{
-    if(!('indexedDB' in window))return resolve(null);
+    if(!('indexedDB'in window))return resolve(null);
     let req;try{req=indexedDB.open(DB_NAME,1);}catch{return resolve(null);}
-    req.onsuccess=()=>resolve(req.result);req.onerror=()=>resolve(null);
-    req.onupgradeneeded=()=>{};
+    req.onsuccess=()=>resolve(req.result);req.onerror=()=>resolve(null);req.onupgradeneeded=()=>{};
   });
   return dbPromise;
 }
@@ -63,10 +64,7 @@ function sameCity(rec){
   if(name&&fold(rec?.cityName)===name)return true;
   return false;
 }
-function modelSessionLoad(){try{const x=JSON.parse(sessionStorage.getItem(MODEL_SESSION)||'{}');return x&&typeof x==='object'?x:{};}catch{return{};}}
-function modelSessionSave(x){try{sessionStorage.setItem(MODEL_SESSION,JSON.stringify(x));return true;}catch{return false;}}
-function modelSessionKey(raceNo){return [dateNow(),fold(cityName()),Number(raceNo)||0].join('|');}
-function validModel(d){return !!d&&Number(d?.no)>0&&Array.isArray(d?.horses)&&d.horses.length>0;}
+function validModel(d){return!!d&&Number(d?.no)>0&&Array.isArray(d?.horses)&&d.horses.length>0;}
 function restoreCareer(records){
   const current=window.state?.analyses?.career;
   const map=new Map();
@@ -99,21 +97,23 @@ async function hydrateCurrent(){
     }
     const careerLoaded=restoreCareer(careerRecords);
     let modelLoaded=0;
-    if(modelRecords.length){
-      const store=modelSessionLoad();
-      for(const rec of modelRecords){store[modelSessionKey(rec.raceNo)]={savedAt:Date.now(),source:'daily-archive-v146',data:rec.data};modelLoaded++;}
-      modelSessionSave(store);
-      try{await window.ATFiveModelSharedCacheV1685?.hydrateCurrent?.();}catch(e){console.warn('[AT AI] Kupon arşiv 5 Model hydrate uyarısı:',e);}
+    const shared=window.ATFiveModelSharedCacheV1685||window.ATFiveModelSharedCacheV1687;
+    for(const rec of modelRecords){
+      if(shared?.prime?.(rec.raceNo,rec.data,{persist:true}))modelLoaded++;
+      await yieldTurn();
+    }
+    if(modelLoaded){
+      try{await shared?.hydrateCurrent?.();}catch(e){console.warn('[AT AI] Kupon arşiv 5 Model hydrate uyarısı:',e);}
     }
     const careerSet=new Set(careerRecords.map(x=>String(x.raceNo))),modelSet=new Set(modelRecords.map(x=>String(x.raceNo)));
-    const result={version:VERSION,date,city:cityName(),careerLoaded,modelLoaded,careerMissing:program.filter(r=>!careerSet.has(String(r.no))).map(r=>Number(r.no)),modelMissing:program.filter(r=>!modelSet.has(String(r.no))).map(r=>Number(r.no)),archiveRows:rows.length};
+    const result={version:VERSION,mobileVersion:MOBILE_VERSION,date,city:cityName(),careerLoaded,modelLoaded,careerMissing:program.filter(r=>!careerSet.has(String(r.no))).map(r=>Number(r.no)),modelMissing:program.filter(r=>!modelSet.has(String(r.no))).map(r=>Number(r.no)),archiveRows:rows.length};
     window.__AT_COUPON_ARCHIVE_LAST_V1691__=result;
-    console.info('[AT AI]',VERSION,result);
+    console.info('[AT AI]',MOBILE_VERSION,result);
     return result;
   })();
   try{return await running;}finally{running=null;}
 }
 
 window.ATCouponDailyArchiveV1691={VERSION,hydrateCurrent,listDate,stats:()=>window.__AT_COUPON_ARCHIVE_LAST_V1691__||null};
-console.info('[AT AI]',VERSION,'aktif — Kupon önce Günlük Arşivden Kariyer + 5 Model alır.');
+console.info('[AT AI]',MOBILE_VERSION,'aktif — Günlük Arşiv 5 Model kayıtları koşu-bazlı ve arayüze sıra vererek yüklenir.');
 })();
