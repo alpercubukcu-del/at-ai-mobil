@@ -7,11 +7,12 @@ const BASE = path.join(ROOT, 'build-runtime-v16911.cjs');
 const APP = path.join(ROOT, 'public', 'at-ai-app-v142.js');
 const INDEX = path.join(ROOT, 'public', 'index.html');
 const PATCH = path.join(ROOT, 'five-model-main-thread-yield-v16912.js');
+const SKIP_BASE = process.env.AT_V16912_SKIP_BASE === '1';
 
-for (const file of [BASE, PATCH]) {
+for (const file of SKIP_BASE ? [PATCH] : [BASE, PATCH]) {
   if (!fs.existsSync(file)) throw new Error(`[V16.9.12] Eksik dosya: ${path.basename(file)}`);
 }
-execFileSync(process.execPath, [BASE], { cwd:ROOT, stdio:'inherit' });
+if (!SKIP_BASE) execFileSync(process.execPath, [BASE], { cwd:ROOT, stdio:'inherit' });
 for (const file of [APP, INDEX]) {
   if (!fs.existsSync(file)) throw new Error(`[V16.9.12] Build sonrası eksik dosya: ${path.relative(ROOT,file)}`);
 }
