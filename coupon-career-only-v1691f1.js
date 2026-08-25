@@ -124,9 +124,9 @@ function nextAllowed(ranking,index){
   return row.score>=Math.max(45,top-22);
 }
 function buildAdaptiveTicket(plan,type,budget,unitPrice,maxSingles){
-  if(!plan?.ok)return{version:'CAREER-COUPON-V16.9.1F1',type,modelId:'career',modelLabel:'Kariyer / Hazırlık',available:false,city:cityName(),date:state?.date,error:plan?.error||'Bahis başlangıcı bulunamadı.',source:SOURCE_ID};
+  if(!plan?.ok)return{version:TICKET_V11_VERSION,careerCouponVersion:'CAREER-COUPON-V16.9.1F1',type,modelId:'career',modelLabel:'Kariyer / Hazırlık',available:false,city:cityName(),date:state?.date,error:plan?.error||'Bahis başlangıcı bulunamadı.',source:SOURCE_ID};
   const legsData=plan.legs.map(race=>({race,ranking:scoreRows(race.no)}));
-  const noData=legsData.filter(x=>!x.ranking.length);if(noData.length)return{version:'CAREER-COUPON-V16.9.1F1',type,modelId:'career',modelLabel:'Kariyer / Hazırlık',available:false,city:cityName(),date:state?.date,startRace:plan.startRace,error:`${noData.map(x=>`${x.race.no}. koşu`).join(', ')} için Kariyer/Hazırlık puanı yok.`,source:SOURCE_ID};
+  const noData=legsData.filter(x=>!x.ranking.length);if(noData.length)return{version:TICKET_V11_VERSION,careerCouponVersion:'CAREER-COUPON-V16.9.1F1',type,modelId:'career',modelLabel:'Kariyer / Hazırlık',available:false,city:cityName(),date:state?.date,startRace:plan.startRace,error:`${noData.map(x=>`${x.race.no}. koşu`).join(', ')} için Kariyer/Hazırlık puanı yok.`,source:SOURCE_ID};
 
   const candidates=legsData.map((x,i)=>({i,...strongSingleInfo(x.ranking)})).filter(x=>x.qualified).sort((a,b)=>b.strength-a.strength).slice(0,Math.max(0,maxSingles));
   const singles=new Set(candidates.map(x=>x.i));
@@ -169,7 +169,7 @@ function buildAdaptiveTicket(plan,type,budget,unitPrice,maxSingles){
   if(maxSingles>0&&candidates.length<maxSingles)warnings.push(`İstenen en fazla ${maxSingles} tekten yalnız ${candidates.length} ayak güvenli tek eşiğini geçti; diğer ayaklar zorla teke indirilmedi.`);
   if(m.cost>budget)warnings.push(`En az 2 at kuralı korununca minimum kupon maliyeti bütçeyi aşıyor; ayaklar 1 ata zorlanmadı.`);
   if(plan.inferred)warnings.push('Bahis başlangıcı TJK etiketinden doğrulanamadı; sıra tahmini kullanıldı.');
-  return{version:'CAREER-COUPON-V16.9.1F1',scoreVersion:VERSION,type,modelId:'career',modelLabel:'Kariyer / Hazırlık',available:true,city:cityName(),date:state?.date,startRace:plan.startRace,startLabel:plan.startLabel,startInferred:plan.inferred,budget,unitPrice,requestedSingles:maxSingles,actualSingles:legs.filter(x=>x.single).length,combinations:m.combinations,cost:m.cost,overBudget:m.cost>budget,minimumCostExceeded:m.cost>budget,warnings,legs,source:SOURCE_ID,generatedAt:new Date().toISOString()};
+  return{version:TICKET_V11_VERSION,careerCouponVersion:'CAREER-COUPON-V16.9.1F1',scoreVersion:VERSION,type,modelId:'career',modelLabel:'Kariyer / Hazırlık',available:true,city:cityName(),date:state?.date,startRace:plan.startRace,startLabel:plan.startLabel,startInferred:plan.inferred,budget,unitPrice,requestedSingles:maxSingles,actualSingles:legs.filter(x=>x.single).length,combinations:m.combinations,cost:m.cost,overBudget:m.cost>budget,minimumCostExceeded:m.cost>budget,warnings,legs,source:SOURCE_ID,generatedAt:new Date().toISOString()};
 }
 
 function markText(el,text,key){if(!el||el.dataset?.[key]==='1')return;el.dataset[key]='1';if(el.textContent!==text)el.textContent=text}
