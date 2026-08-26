@@ -1,0 +1,18 @@
+const fs=require('fs');
+const path=require('path');
+const {execFileSync}=require('child_process');
+const ROOT=__dirname;
+const BASE=path.join(ROOT,'build-runtime-v1691f9.cjs');
+const PATCH=path.join(ROOT,'coupon-manual-no-five-model-v1691f10.js');
+const APP=path.join(ROOT,'public','at-ai-app-v142.js');
+const INDEX=path.join(ROOT,'public','index.html');
+for(const f of [BASE,PATCH])if(!fs.existsSync(f))throw new Error(`[V16.9.1F10] Eksik dosya: ${path.basename(f)}`);
+execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
+if(!fs.existsSync(APP)||!fs.existsSync(INDEX))throw new Error('[V16.9.1F10] Önceki build çıktısı bulunamadı.');
+let app=fs.readFileSync(APP,'utf8');
+app+=`\n${fs.readFileSync(PATCH,'utf8')}\n`;
+for(const token of ['COUPON-MANUAL-NO-FIVE-MODEL-V16.9.1F10','Hazır · 5 Model çalıştırılmayacak','COUPON-CAREER-DEBUT-CURRENT-V16.9.1F8','ARCHIVE-STATE-REUSE-V16.9.1F9'])if(!app.includes(token))throw new Error(`[V16.9.1F10] Doğrulama başarısız: ${token}`);
+new Function(app);fs.writeFileSync(APP,app,'utf8');
+let html=fs.readFileSync(INDEX,'utf8');html=html.replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169111');fs.writeFileSync(INDEX,html,'utf8');
+if(!html.includes('/at-ai-app-v142.js?v=169111'))throw new Error('[V16.9.1F10] cache-bust güncellenemedi.');
+console.log('[AT AI] V16.9.1F10 build tamamlandı: Manuel Kupon bahis seçimi 5 Model/Bileşik hazırlamaz; kupon doğrudan Kariyer/Hazırlık + debut Güncel akışına gider.');
