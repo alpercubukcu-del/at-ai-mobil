@@ -11,7 +11,7 @@ if (window.__AT_CAREER_STRICT_CLASS_GROUP_WEIGHT_V1691F12__) return;
 window.__AT_CAREER_STRICT_CLASS_GROUP_WEIGHT_V1691F12__=true;
 const VERSION='CAREER-STRICT-CLASS-GROUP-WEIGHT-V16.9.1F12';
 const GAP=-0.18, MATCH_BASE=0.35, MAX_SHOW=5;
-const esc=v=>typeof escapeHtml==='function'?escapeHtml(v):String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
+const esc=v=>typeof escapeHtml==='function'?escapeHtml(v):String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean=v=>String(v??'').replace(/\s+/g,' ').trim();
 const finite=v=>{if(v===null||v===undefined||v==='')return null;const n=Number(String(v).replace(',','.').match(/-?\d+(?:[.,]\d+)?/)?.[0]?.replace(',','.') ?? v);return Number.isFinite(n)?n:null};
 const clamp=v=>Math.max(0,Math.min(1,Number(v)||0));
@@ -21,7 +21,15 @@ const norm=v=>{
   return String(v??'').toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/İ/g,'I').replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();
 };
 const classValue=r=>norm(r?.class??r?.raceClass??r?.classRaw??r?.yaradi1??'');
-const groupValue=r=>norm(r?.ageGroup??r?.group??r?.groupRaw??r?.yaradi2??'');
+function canonicalGroup(v){
+  const raw=String(v??'').toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/İ/g,'I');
+  const n=norm(v),age=raw.match(/\d+/)?.[0]||'';
+  const plus=/\d\s*\+|\bVE\s+YUKARI\b|\bVE\s+UZERI\b|\bVE\s+USTU\b|\bYUKARI\b|\bUZERI\b/.test(raw);
+  const breed=/\bARAP/.test(raw)?'ARAP':(/\bING/.test(raw)?'INGILIZ':'');
+  const gender=/\bDISI\b/.test(raw)?' DISI':'';
+  return age&&breed?`${age}${plus?'+':''} ${breed}${gender}`:n;
+}
+const groupValue=r=>canonicalGroup(r?.ageGroup??r?.group??r?.groupRaw??r?.yaradi2??'');
 const carried=r=>finite(r?.weight??r?.siklet??r?.kilo??r?.carriedWeight??r?.kg);
 
 function strictCompatible(a,b){
@@ -108,7 +116,7 @@ function pairHtml(p,name,i){const w=weightSimilarity(p.a,p.b),parts=[['Mesafe',c
 async function loadStrict(btn,out){const item=currentItemFromButton(btn);if(!item)throw new Error('Aktif at bulunamadı.');const sim=item.galibiyetBenzerligi||{},year=btn.dataset.cpmYear,row=(sim.byYear||[]).find(x=>String(x?.year)===String(year));if(!row)throw new Error('Tarihsel yıl referansı bulunamadı.');const path=currentPath(item);if(!path.length)throw new Error('Bugünkü kariyer yolu yok.');out.innerHTML='<div class="cpm-loading-v1691f11">Tam sınıf/grup eşleşmeleri hazırlanıyor…</div>';const c=await refCareer(row),rp=refPath(c,modeOf(item,row));const tr=trace(path,rp),shown=[...tr.pairs].sort((x,y)=>y.local-x.local).slice(0,MAX_SHOW);out.innerHTML=`<div class="cpm-note-v1691f11"><b>${esc(year)} · ${esc(row.historicalHorse||'-')}</b><br>Sadece <b>aynı yarış sınıfı + aynı Yaş/Grup</b> satırları hizalandı. Farklı sınıf/grup yarışlar dışlandı. Taşınan sıklet mevcutsa puana dahildir. Eşleşen çift: ${esc(tr.pairs.length)} · boşluk: ${esc(tr.gaps)}.</div>${shown.length?shown.map((p,i)=>pairHtml(p,row.historicalHorse,i)).join(''):'<div class="cpm-loading-v1691f11">Tam sınıf + tam grup şartını sağlayan koşu çifti yok.</div>'}`}
 
 /* F11 butonunu capture aşamasında sahiplen: eski fuzzy açıklama çalışmasın. */
-document.addEventListener('click',e=>{const btn=e.target?.closest?.('[data-cpm-token][data-cpm-year]');if(!btn)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();const key=(btn.dataset.cpmToken||'')+'-'+(btn.dataset.cpmYear||''),out=[...document.querySelectorAll('[data-cpm-out]')].find(x=>x.getAttribute('data-cpm-out')===key);if(!out)return;if(out.dataset.strictLoaded==='1'){out.innerHTML='';out.dataset.strictLoaded='0';return}out.dataset.strictLoaded='1';loadStrict(btn,out).catch(err=>{out.innerHTML=`<div class="cpm-loading-v1691f11">⚠ ${esc(err?.message||err)}</div>`})},true);
+document.addEventListener('click',e=>{if(window.__AT_CAREER_PATH_EXPLAIN_STATE_FIX_V1691F13__||window.__AT_CAREER_PATH_EXPLAIN_STATE_FIX_V1691F14__)return;const btn=e.target?.closest?.('[data-cpm-token][data-cpm-year]');if(!btn)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();const key=(btn.dataset.cpmToken||'')+'-'+(btn.dataset.cpmYear||''),out=[...document.querySelectorAll('[data-cpm-out]')].find(x=>x.getAttribute('data-cpm-out')===key);if(!out)return;if(out.dataset.strictLoaded==='1'){out.innerHTML='';out.dataset.strictLoaded='0';return}out.dataset.strictLoaded='1';loadStrict(btn,out).catch(err=>{out.innerHTML=`<div class="cpm-loading-v1691f11">⚠ ${esc(err?.message||err)}</div>`})},true);
 
 /* Eski arşiv skorunun yeni kuraldan önce üretildiğini görünür belirt. */
 const renderBefore=typeof renderCareerAnalysis==='function'?renderCareerAnalysis:null;
