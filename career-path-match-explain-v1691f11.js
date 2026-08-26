@@ -59,7 +59,12 @@ function refPath(career,mode){
   return top5.length?top5:(career?.preparationPathBefore||career?.preparationPath||[]);
 }
 function localSimilarity(a,b){
-  try{return typeof careerRowSimilarity==='function'?clamp01x(careerRowSimilarity(a,b)):0}catch{return 0}
+  try{
+    if(typeof strictCareerCompatibleV1691F12==='function'&&!strictCareerCompatibleV1691F12(a,b))return -1;
+    if(typeof careerRowSimilarity!=='function')return 0;
+    const x=Number(careerRowSimilarity(a,b));
+    return Number.isFinite(x)?x:-1;
+  }catch{return -1}
 }
 function traceOrderedPath(a0,b0){
   const a=Array.isArray(a0)?a0:[],b=Array.isArray(b0)?b0:[];
@@ -139,11 +144,11 @@ async function loadExplain(token,year,out){
   const career=await getRefCareer(row),mode=modeOf(item,row),rp=refPath(career,mode);
   if(!rp.length)throw new Error(`${row.historicalHorse||'Referans'} için karşılaştırılabilir yarış öncesi yol bulunamadı.`);
   const trace=traceOrderedPath(path,rp);
-  const positive=trace.pairs.filter(x=>x.positive).sort((x,y)=>y.local-x.local);
-  const shown=(positive.length?positive:trace.pairs).slice(0,MAX_SHOW);
+  const positive=trace.pairs.filter(x=>x.positive&&x.local>=MATCH_BASE).sort((x,y)=>y.local-x.local);
+  const shown=positive.slice(0,MAX_SHOW);
   out.innerHTML=`<div class="cpm-result-v1691f11">
-    <div class="cpm-note-v1691f11"><b>${esc(row.year)} · ${esc(row.historicalHorse||'-')} · %${esc(row.pathScore??row.score??'-')}</b><br>Bu yüzde tek bir koşudan değil, iki kariyer yolunun sıralı hizalamasından oluşur. Aşağıda puanı en çok destekleyen ${esc(shown.length)} koşu çifti gösteriliyor. Toplam hizalanmış çift: ${esc(trace.pairs.length)} · boşluk: ${esc(trace.gaps)}.</div>
-    ${shown.length?shown.map((p,i)=>pairHtml(p,row.historicalHorse||'Referans',i)).join(''):'<div class="cpm-loading-v1691f11">Eşleşen koşu çifti bulunamadı.</div>'}
+    <div class="cpm-note-v1691f11"><b>${esc(row.year)} · ${esc(row.historicalHorse||'-')} · %${esc(row.pathScore??row.score??'-')}</b><br>Bu yüzde tek bir koşudan değil, iki kariyer yolunun sıralı hizalamasından oluşur. Aşağıda yalnız katı sınıf/yaş kuralını ve eşik puanını geçen ${esc(shown.length)} gerçek koşu çifti gösteriliyor. DP hizalaması: ${esc(trace.pairs.length)} · boşluk: ${esc(trace.gaps)}.</div>
+    ${shown.length?shown.map((p,i)=>pairHtml(p,row.historicalHorse||'Referans',i)).join(''):'<div class="cpm-loading-v1691f11">Katı sınıf/yaş kuralını geçen gerçek koşu çifti bulunamadı. Bu ekrandaki eski puanı temizlemek için Yeniden Hesapla kullanın.</div>'}
   </div>`;
 }
 function installStyle(){
