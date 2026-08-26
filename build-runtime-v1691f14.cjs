@@ -13,6 +13,6 @@ let app=fs.readFileSync(APP,'utf8');
 app+=`\n${fs.readFileSync(PATCH,'utf8')}\n`;
 for(const token of ['CAREER-PATH-EXPLAIN-STATE-FIX-V16.9.1F14','comparisonPathBefore','roadmapBefore','F12 KATI EŞLEŞME','CAREER-STRICT-CLASS-GROUP-WEIGHT-V16.9.1F12','carriedWeightSimilarityV1691F12(a,b)'])if(!app.includes(token))throw new Error(`[V16.9.1F14] Doğrulama başarısız: ${token}`);
 new Function(app);fs.writeFileSync(APP,app,'utf8');
-let html=fs.readFileSync(INDEX,'utf8');html=html.replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169115');fs.writeFileSync(INDEX,html,'utf8');
-if(!html.includes('/at-ai-app-v142.js?v=169115'))throw new Error('[V16.9.1F14] cache-bust güncellenemedi.');
+let html=fs.readFileSync(INDEX,'utf8');html=html.replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169116');fs.writeFileSync(INDEX,html,'utf8');
+if(!html.includes('/at-ai-app-v142.js?v=169116'))throw new Error('[V16.9.1F14] cache-bust güncellenemedi.');
 console.log('[AT AI] V16.9.1F14 build tamamlandı: açıklama sıklet yüzdesi gerçek satır eşleşmesiyle hesaplanır; hata sonrası tekrar deneme açık; F12 eski listener yeni açıklama patch varken aradan çekilir.');
