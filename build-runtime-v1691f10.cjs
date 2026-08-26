@@ -11,7 +11,7 @@ execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
 if(!fs.existsSync(APP)||!fs.existsSync(INDEX))throw new Error('[V16.9.1F10] Önceki build çıktısı bulunamadı.');
 let app=fs.readFileSync(APP,'utf8');
 app+=`\n${fs.readFileSync(PATCH,'utf8')}\n`;
-for(const token of ['COUPON-MANUAL-NO-FIVE-MODEL-V16.9.1F10','Hazır · 5 Model çalıştırılmayacak','COUPON-CAREER-DEBUT-CURRENT-V16.9.1F8','ARCHIVE-STATE-REUSE-V16.9.1F9'])if(!app.includes(token))throw new Error(`[V16.9.1F10] Doğrulama başarısız: ${token}`);
+for(const token of ['COUPON-MANUAL-NO-FIVE-MODEL-V16.9.1F10','Hazır · Kariyer/Hazırlık kullanılacak','COUPON-CAREER-DEBUT-CURRENT-V16.9.1F8','ARCHIVE-STATE-REUSE-V16.9.1F9'])if(!app.includes(token))throw new Error(`[V16.9.1F10] Doğrulama başarısız: ${token}`);
 new Function(app);fs.writeFileSync(APP,app,'utf8');
 let html=fs.readFileSync(INDEX,'utf8');html=html.replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169111');fs.writeFileSync(INDEX,html,'utf8');
 if(!html.includes('/at-ai-app-v142.js?v=169111'))throw new Error('[V16.9.1F10] cache-bust güncellenemedi.');
