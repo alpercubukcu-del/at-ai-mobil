@@ -14,6 +14,13 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 function legText(plan){
   return (Array.isArray(plan?.legs)?plan.legs:[]).map(r=>r?.no).filter(Boolean).join('-');
 }
+function scrubLegacyCopy(){
+  document.querySelectorAll('.five-model-note-v11').forEach(note=>{
+    note.innerHTML='<b>KARİYER / HAZIRLIK + MANUEL DÜZENLEME</b><span>Bahis türü resmi başlangıcı belirler</span><small>Ayaklarda sistemin Kariyer/Hazırlık sıralaması gelir; gerçek debut varsa Güncel Analiz desteği eklenir.</small>';
+  });
+  const source=$('signalSource');
+  if(source) source.innerHTML='<option value="career">Kariyer/Hazırlık</option>';
+}
 
 async function prepareNoFiveModel(force=false){
   try{
@@ -37,12 +44,12 @@ async function prepareNoFiveModel(force=false){
     if(box){
       box.classList.remove('empty');
       box.innerHTML=plan?.ok
-        ? `<div style="padding:14px 12px;line-height:1.45"><b>${esc(type)}</b><br><small>${esc(plan.startRace)}. koşudan başlar · Ayaklar ${esc(legText(plan))}</small><div style="margin-top:10px;padding:10px;border:1px solid rgba(114,213,255,.22);border-radius:10px;background:rgba(114,213,255,.06)"><b>Hazır · 5 Model çalıştırılmayacak</b><br><small>Kupon kaynağı Kariyer/Hazırlık. Gerçek debut at varsa yalnız Güncel Analiz puanı tamamlanır.</small></div></div>`
+        ? `<div style="padding:14px 12px;line-height:1.45"><b>${esc(type)}</b><br><small>${esc(plan.startRace)}. koşudan başlar · Ayaklar ${esc(legText(plan))}</small><div style="margin-top:10px;padding:10px;border:1px solid rgba(114,213,255,.22);border-radius:10px;background:rgba(114,213,255,.06)"><b>Hazır · Kariyer/Hazırlık kullanılacak</b><br><small>Kupon kaynağı Kariyer/Hazırlık. Gerçek debut at varsa yalnız Güncel Analiz puanı tamamlanır.</small></div></div>`
         : `<div style="padding:14px 12px">${esc(plan?.error||'Bahis türünü seç.')}</div>`;
     }
     const build=$('buildAllBtn');
     if(build&&type) build.textContent=`Kupon Oluştur · ${type}`;
-    try{if(typeof status==='function'&&plan?.ok)status(`${type} hazır · 5 Model beklenmeyecek.`);}catch{}
+    try{if(typeof status==='function'&&plan?.ok)status(`${type} hazır · Kariyer/Hazırlık kuponu hazır.`);}catch{}
     return plan;
   }catch(e){
     console.warn('[AT AI]',VERSION,e);
@@ -53,6 +60,7 @@ async function prepareNoFiveModel(force=false){
 try{prepareManualTicketV117=prepareNoFiveModel;}catch(e){console.warn('[AT AI]',VERSION,'prepare override',e);}
 
 function scrub(){
+  scrubLegacyCopy();
   const models=$('manualModelsV117');
   if(models){models.style.display='none';models.setAttribute('aria-hidden','true');}
   const box=$('manualPlanV117');
