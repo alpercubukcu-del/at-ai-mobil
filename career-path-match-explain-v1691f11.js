@@ -144,7 +144,8 @@ async function loadExplain(token,year,out){
   const career=await getRefCareer(row),mode=modeOf(item,row),rp=refPath(career,mode);
   if(!rp.length)throw new Error(`${row.historicalHorse||'Referans'} için karşılaştırılabilir yarış öncesi yol bulunamadı.`);
   const trace=traceOrderedPath(path,rp);
-  const positive=trace.pairs.filter(x=>x.positive&&x.local>=MATCH_BASE).sort((x,y)=>y.local-x.local);
+  const pairFloor=typeof careerPairSupportFloorV1691F17==='function'?careerPairSupportFloorV1691F17():MATCH_BASE;
+  const positive=trace.pairs.filter(x=>x.positive&&x.local>=pairFloor).sort((x,y)=>y.local-x.local);
   const shown=positive.slice(0,MAX_SHOW);
   out.innerHTML=`<div class="cpm-result-v1691f11">
     <div class="cpm-note-v1691f11"><b>${esc(row.year)} · ${esc(row.historicalHorse||'-')} · %${esc(row.pathScore??row.score??'-')}</b><br>Bu yüzde tek bir koşudan değil, iki kariyer yolunun sıralı hizalamasından oluşur. Aşağıda yalnız katı sınıf/yaş kuralını ve eşik puanını geçen ${esc(shown.length)} gerçek koşu çifti gösteriliyor. DP hizalaması: ${esc(trace.pairs.length)} · boşluk: ${esc(trace.gaps)}.</div>
