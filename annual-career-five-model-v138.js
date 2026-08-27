@@ -125,6 +125,7 @@ async function historicalRace(ctx, row) {
   return { ...h, ok: true, date: row.date, city: row.city, raceNo: row.raceNo, sourceYear: Number(row.year || row.date.slice(0, 4)), referenceType: type, raceConditionSimilarity: score, transferabilityScore: score, top3, top3Count: top3.length, annualArchiveId: row.id, annualReferenceRule: 'TOP3_ONLY' };
 }
 const ANNUAL_PARTIAL_SUPPORT_VERSION = 'ANNUAL-PARTIAL-SUPPORT-V16.9.1F19';
+const ANNUAL_LEGACY_YEARBEST_TOKEN_V1691F19 = 'ANNUAL_TOP3_YEAR_BEST_V14_1';
 function annualPartialScoreV1691F19(pathScore, condition, path, referencePath) {
   const cleanPathScore = Math.max(0, Math.min(100, Number(pathScore) || 0));
   const cleanCondition = Math.max(0, Math.min(100, Number(condition) || 0));
