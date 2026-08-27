@@ -131,6 +131,7 @@ async function historicalRace(ctx,row){
 }
 
 const ANNUAL_PARTIAL_SUPPORT_VERSION = 'ANNUAL-PARTIAL-SUPPORT-V16.9.1F19';
+const ANNUAL_LEGACY_YEARBEST_TOKEN_V1691F19 = 'ANNUAL_TOP3_YEAR_BEST_V14_1';
 function annualPartialScoreV1691F19(pathScore, condition, path, referencePath) {
   const cleanPathScore = Math.max(0, Math.min(100, Number(pathScore) || 0));
   const cleanCondition = Math.max(0, Math.min(100, Number(condition) || 0));
