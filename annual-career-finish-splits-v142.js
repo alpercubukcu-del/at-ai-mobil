@@ -130,6 +130,43 @@ async function historicalRace(ctx,row){
   return {...h,ok:true,date:row.date,city:row.city,raceNo:row.raceNo,sourceYear:Number(row.year||row.date.slice(0,4)),referenceType:type,raceConditionSimilarity:score,transferabilityScore:score,top3,top3Count:top3.length,annualArchiveId:row.id,annualReferenceRule:'TOP3_ONLY'};
 }
 
+const ANNUAL_PARTIAL_SUPPORT_VERSION = 'ANNUAL-PARTIAL-SUPPORT-V16.9.1F19';
+function annualPartialScoreV1691F19(pathScore, condition, path, referencePath) {
+  const cleanPathScore = Math.max(0, Math.min(100, Number(pathScore) || 0));
+  const cleanCondition = Math.max(0, Math.min(100, Number(condition) || 0));
+  const baseScore = Math.round(cleanPathScore * cleanCondition / 100);
+  let support = null;
+  try {
+    if (typeof window.careerPartialSupportV1691F18 === 'function') {
+      support = window.careerPartialSupportV1691F18(path, referencePath, cleanCondition);
+    }
+  } catch {}
+  const partialSupportScore = Math.max(0, Math.min(100, Number(support?.score) || 0));
+  return {
+    score: Math.max(baseScore, partialSupportScore),
+    baseScore,
+    partialSupportScore,
+    partialSupportUsed: partialSupportScore > baseScore,
+    partialSupport: support || { score: 0, pairCount: 0, topPairAvg: 0, coveragePct: 0, gaps: 0 }
+  };
+}
+function annualBetterReferenceV1691F19(item, prev) {
+  if (!prev) return true;
+  if (item.score !== prev.score) return item.score > prev.score;
+  if (Number(item.baseScore || 0) !== Number(prev.baseScore || 0)) return Number(item.baseScore || 0) > Number(prev.baseScore || 0);
+  if (Number(item.partialSupportScore || 0) !== Number(prev.partialSupportScore || 0)) return Number(item.partialSupportScore || 0) > Number(prev.partialSupportScore || 0);
+  if (Number(item.pathScore || 0) !== Number(prev.pathScore || 0)) return Number(item.pathScore || 0) > Number(prev.pathScore || 0);
+  return Number(item.historicalFinish || 99) < Number(prev.historicalFinish || 99);
+}
+function annualSortReferencesV1691F19(a, b) {
+  return Number(b.score || 0) - Number(a.score || 0) ||
+    Number(b.baseScore || 0) - Number(a.baseScore || 0) ||
+    Number(b.partialSupportScore || 0) - Number(a.partialSupportScore || 0) ||
+    Number(b.pathScore || 0) - Number(a.pathScore || 0) ||
+    Number(a.historicalFinish || 99) - Number(b.historicalFinish || 99) ||
+    Number(b.year || 0) - Number(a.year || 0);
+}
+
 function annualYearBestScore(currentCareer,races,useCondition,finishFilter=null){
   const path=currentCareer?.fullPathBefore||currentCareer?.roadmap||[];
   const byYear=new Map(); let referencesEvaluated=0;
@@ -148,15 +185,15 @@ function annualYearBestScore(currentCareer,races,useCondition,finishFilter=null)
       const raw=typeof orderedPathSimilarity==='function'?orderedPathSimilarity(path,rp):0;
       const pathScore=Math.round(Math.max(0,Math.min(1,Number(raw)||0))*100);
       const condition=useCondition?Math.max(0,Math.min(100,Number(race?.transferabilityScore??race?.raceConditionSimilarity??100)||0)):100;
-      const score=Math.round(pathScore*condition/100);
-      const item={year,score,pathScore,conditionScore:condition,historicalHorse:ref?.horseName||'',historicalHorseId:ref?.horseId||'',historicalFinish:finishNo(ref),raceDate:race?.date||'',raceCity:race?.city||'',raceNo:race?.raceNo||'',referenceType:race?.referenceType||'',currentPathCount:path.length,referencePathCount:rp.length,sourceRule:finishFilter===null?'ANNUAL_TOP3_YEAR_BEST_V14_1':`ANNUAL_FINISH_${finishFilter}_YEAR_BEST_V14_2`};
+      const scored=annualPartialScoreV1691F19(pathScore,condition,path,rp);
+      const item={year,score:scored.score,baseScore:scored.baseScore,pathScore,conditionScore:condition,partialSupportScore:scored.partialSupportScore,partialSupportUsed:scored.partialSupportUsed,partialSupport:scored.partialSupport,partialSupportVersion:ANNUAL_PARTIAL_SUPPORT_VERSION,historicalHorse:ref?.horseName||'',historicalHorseId:ref?.horseId||'',historicalFinish:finishNo(ref),raceDate:race?.date||'',raceCity:race?.city||'',raceNo:race?.raceNo||'',referenceType:race?.referenceType||'',currentPathCount:path.length,referencePathCount:rp.length,sourceRule:finishFilter===null?'ANNUAL_TOP3_YEAR_BEST_WITH_PARTIAL_V19':`ANNUAL_FINISH_${finishFilter}_YEAR_BEST_WITH_PARTIAL_V19`};
       const prev=byYear.get(year);
-      if(!prev||item.score>prev.score||(item.score===prev.score&&item.pathScore>prev.pathScore)||(item.score===prev.score&&item.pathScore===prev.pathScore&&Number(item.historicalFinish||99)<Number(prev.historicalFinish||99)))byYear.set(year,item);
+      if(annualBetterReferenceV1691F19(item,prev))byYear.set(year,item);
     }
   }
   const rows=[...byYear.values()].sort((a,b)=>b.year-a.year);
-  const strongest=rows.length?[...rows].sort((a,b)=>b.score-a.score||b.pathScore-a.pathScore||b.year-a.year)[0]:null;
-  return{score:strongest?.score??null,strongest,rows,coverageYears:rows.length,strongYears:rows.filter(x=>x.score>=85).length,supportYears:rows.filter(x=>x.score>=70).length,latestScore:rows[0]?.score??null,referencesEvaluated,finishFilter,yearAggregation:'BEST_REFERENCE_PER_YEAR',referenceRule:finishFilter===null?'EACH_HISTORICAL_RACE_TOP3_PRE_RACE_CAREER':`ONLY_HISTORICAL_FINISH_${finishFilter}_PRE_RACE_CAREER`};
+  const strongest=rows.length?[...rows].sort(annualSortReferencesV1691F19)[0]:null;
+  return{score:strongest?.score??null,strongest,rows,baseScore:strongest?.baseScore??null,partialSupportScore:strongest?.partialSupportScore??0,partialSupportUsed:!!strongest?.partialSupportUsed,partialSupport:strongest?.partialSupport??null,partialSupportVersion:ANNUAL_PARTIAL_SUPPORT_VERSION,coverageYears:rows.length,strongYears:rows.filter(x=>x.score>=85).length,supportYears:rows.filter(x=>x.score>=70).length,latestScore:rows[0]?.score??null,referencesEvaluated,finishFilter,yearAggregation:'BEST_REFERENCE_PER_YEAR',referenceRule:finishFilter===null?'EACH_HISTORICAL_RACE_TOP3_PRE_RACE_CAREER':`ONLY_HISTORICAL_FINISH_${finishFilter}_PRE_RACE_CAREER`};
 }
 function composite(ch){
   try{if(typeof compositeScoreV11==='function')return compositeScoreV11(ch);}catch{}
@@ -174,13 +211,18 @@ function channelSet(c,models,finishFilter=null){
 }
 function modelScores(c,models){return{...channelSet(c,models,null),byFinish:{1:channelSet(c,models,1),2:channelSet(c,models,2),3:channelSet(c,models,3)}};}
 function scoreObj(x,id,finish=null){return finish===null?x?.scores?.[id]:x?.scores?.byFinish?.[finish]?.[id];}
-function ranking(data,id,finish=null){return data.horses.map(x=>({...x,displayScore:finite(scoreObj(x,id,finish)?.score)})).filter(x=>x.displayScore!==null).sort((a,b)=>b.displayScore-a.displayScore||Number(a.horse.no||999)-Number(b.horse.no||999));}
+function ranking(data,id,finish=null){
+  return data.horses.map(x=>{
+    const detail=scoreObj(x,id,finish)||{};
+    return {...x,displayScore:finite(detail.score),displayBaseScore:finite(detail.baseScore),displayPartialSupportScore:finite(detail.partialSupportScore),displayStrongYears:Number(detail.strongYears||0),displaySupportYears:Number(detail.supportYears||0)};
+  }).filter(x=>x.displayScore!==null).sort((a,b)=>b.displayScore-a.displayScore||b.displayStrongYears-a.displayStrongYears||b.displaySupportYears-a.displaySupportYears||Number(b.displayBaseScore||0)-Number(a.displayBaseScore||0)||Number(b.displayPartialSupportScore||0)-Number(a.displayPartialSupportScore||0)||Number(a.horse.no||999)-Number(b.horse.no||999));
+}
 function modelLabel(id){return({composite:'Bileşik',exact:'Tam',twin:'İkiz',family:'Aile',career:'Kariyer'})[id]||id;}
 function rankHtml(data,id,finish=null){
   const rank=ranking(data,id,finish);
   return rank.length?rank.map((x,n)=>{
-    const detail=scoreObj(x,id,finish)||{};const best=detail?.strongest;
-    return `<div class="career-model-rank-v112" style="display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:8px"><span class="career-model-rank-no-v112">${n+1}</span><div class="career-model-rank-horse-v112"><b>${esc(x.horse.no)}. ${esc(x.horse.name)}</b><small>${x.career?.fullPathBeforeCount||0} kariyer yarışı${best?` · en iyi: ${esc(best.year)} ${esc(best.historicalHorse)} (${esc(best.historicalFinish)}.)`:''}${finish!==null?` · yalnız ${finish}. referanslar`:''}</small></div><div class="career-model-rank-score-v112"><strong>%${esc(x.displayScore)}</strong></div></div>`;
+    const detail=scoreObj(x,id,finish)||{};const best=detail?.strongest;const partial=detail?.partialSupportUsed?` · parça %${esc(detail.partialSupportScore)}; tam yol %${esc(detail.baseScore)}`:'' ;
+    return `<div class="career-model-rank-v112" style="display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:8px"><span class="career-model-rank-no-v112">${n+1}</span><div class="career-model-rank-horse-v112"><b>${esc(x.horse.no)}. ${esc(x.horse.name)}</b><small>${x.career?.fullPathBeforeCount||0} kariyer yarışı${best?` · en iyi: ${esc(best.year)} ${esc(best.historicalHorse)} (${esc(best.historicalFinish)}.)`:''}${partial}${finish!==null?` · yalnız ${finish}. referanslar`:''}</small></div><div class="career-model-rank-score-v112"><strong>%${esc(x.displayScore)}</strong></div></div>`;
   }).join(''):'<div class="career-model-empty-v112">Bu alt model için karşılaştırılabilir veri yok.</div>';
 }
 function render(data,ctx,rows){
@@ -228,7 +270,7 @@ window.addEventListener('click',event=>{
 
 function installExport(){
   const old=window.ATAnnualCareerFiveModelV138||{};
-  window.ATAnnualCareerFiveModelV138={...old,version:VERSION,run,scoringRule:'TOP3_YEARBEST_PLUS_FINISH_1_2_3_SPLITS'};
+  window.ATAnnualCareerFiveModelV138={...old,version:VERSION,run,scoringRule:'TOP3_YEARBEST_PLUS_FINISH_1_2_3_SPLITS_WITH_PARTIAL_SUPPORT_F19'};
 }
 window.addEventListener('at-ai:annual-archive-created',installExport);
 window.addEventListener('at-ai:annual-archive-open',installExport);
