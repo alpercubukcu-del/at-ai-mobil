@@ -456,14 +456,16 @@ try { if (typeof careerModelCacheV112 !== 'undefined') careerModelCacheV112.clea
 function staleTicketModelsV1691F18() {
   if (typeof state === 'undefined') return false;
   const ticketResult = state?.analyses?.ticketV11;
-  if (ticketResult && ticketResult.partialSupportVersion !== VERSION) return true;
-  return Array.isArray(state?.tickets) && state.tickets.some(ticket => ticket && ticket.partialSupportVersion !== VERSION);
+  if (!ticketResult) return false;
+  const source = String(ticketResult.source || '');
+  const version = String(ticketResult.version || '');
+  if (source === 'CAREER_PREPARATION_RANKING' || version === 'CAREER-COUPON-V16.9.1F1') return false;
+  return ticketResult.partialSupportVersion !== VERSION;
 }
 
 try {
   if (staleTicketModelsV1691F18()) {
     if (state?.analyses) state.analyses.ticketV11 = {};
-    if (Array.isArray(state?.tickets)) state.tickets = [];
     if (typeof save === 'function') save();
   }
 } catch {}
