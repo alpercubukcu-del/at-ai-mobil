@@ -1,6 +1,6 @@
 /* AT AI Mobil - V16.9.1F27 CAREER STUCK GUARD
    - A slow TJK career/fallback response must not hold the whole Career window.
-   - A slow historical roadmap response is converted to an explicit data error.
+   - A slow historical roadmap response is given enough time before converting to an explicit data error.
    - Scoring formulas are not changed; only request lifetime and UI failure handling are guarded.
 */
 (() => {
@@ -10,7 +10,7 @@ window.__AT_CAREER_STUCK_GUARD_V1691F27__ = true;
 
 const VERSION = 'CAREER-STUCK-GUARD-V16.9.1F27';
 const CAREER_TIMEOUT_MS = 22000;
-const ROADMAP_TIMEOUT_MS = 32000;
+const ROADMAP_TIMEOUT_MS = 90000;
 
 const clean = v => String(v ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
 const esc = v => {
@@ -182,5 +182,5 @@ window.ATCareerStuckGuardV1691F27 = {
   careerTimeoutMs:CAREER_TIMEOUT_MS,
   roadmapTimeoutMs:ROADMAP_TIMEOUT_MS
 };
-console.info('[AT AI]', VERSION, 'active - slow career/roadmap requests no longer block the Career window.');
+console.info('[AT AI]', VERSION, 'active - slow career/roadmap requests stay guarded without cutting off valid model responses.');
 })();
