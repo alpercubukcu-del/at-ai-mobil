@@ -1,7 +1,7 @@
-/* AT AI Mobil — V14.10 Compact Direct Career PDF
+/* AT AI Mobil — V14.11 Dynamic Name Width Direct Career PDF
    - Kariyer/Hazırlık sıralamasını her koşuda en üste alır.
-   - 5 model tablolarını birbirine karıştırmadan iki sütunda yan yana yerleştirir.
-   - En sondaki Tüm Analiz Sıralaması korunur.
+   - 5 model tablolarında at sütunu koşudaki en uzun ada göre daralır.
+   - Uygun koşulda 3 veya 4 modeli aynı satıra alır; Tüm Analiz Sıralaması korunur.
    - html2canvas/html2pdf kullanmaz; arşivlenmiş sonuçları pdfMake ile doğrudan üretir.
    - Puan/formül değiştirmez.
 */
@@ -10,7 +10,7 @@
 if (window.__AT_DAILY_CAREER_PDF_V1410__) return;
 window.__AT_DAILY_CAREER_PDF_V1410__ = true;
 
-const VERSION = 'DAILY-CAREER-PDF-V14.10-COMPACT';
+const VERSION = 'DAILY-CAREER-PDF-V14.11-DYNAMIC-NAME-WIDTH';
 const DB_NAME = 'at_ai_daily_career_archive_v146';
 const STORE = 'entries';
 const MODEL_IDS = ['composite','exact','twin','family','career'];
@@ -181,7 +181,59 @@ function tableLayout() {
   return { hLineColor:'#d9d9d9', vLineColor:'#d9d9d9', hLineWidth:()=>0.5, vLineWidth:()=>0.5, paddingLeft:()=>3, paddingRight:()=>3, paddingTop:()=>2, paddingBottom:()=>2 };
 }
 
-function rankingTable(title,rows,career=false,compact=false) {
+function compactTableLayout() {
+  return { hLineColor:'#d9d9d9', vLineColor:'#d9d9d9', hLineWidth:()=>0.45, vLineWidth:()=>0.45, paddingLeft:()=>1.4, paddingRight:()=>1.4, paddingTop:()=>1.4, paddingBottom:()=>1.4 };
+}
+
+function horseLabel(h={}) {
+  const no = clean(h?.no);
+  const name = clean(h?.name);
+  return [no ? `${no}.` : '', name].filter(Boolean).join(' ');
+}
+
+function textUnits(value='') {
+  let total = 0;
+  for (const ch of Array.from(clean(value))) {
+    if (ch === ' ') total += 0.35;
+    else if ('ilıIİ.,:;'.includes(ch)) total += 0.48;
+    else if ('MWŞĞÜÖÇQ'.includes(ch)) total += 1.12;
+    else total += 0.82;
+  }
+  return total;
+}
+
+function modelNameWidth(labels=[]) {
+  const maxUnits = Math.max(7, ...labels.map(textUnits));
+  return Math.max(48, Math.min(126, Math.ceil(maxUnits * 3.35 + 7)));
+}
+
+function modelGridConfig(race={},rowsById={}) {
+  const labels = [];
+  for (const item of Array.isArray(race.horses) ? race.horses : []) {
+    const label = horseLabel(item?.horse || item);
+    if (label) labels.push(label);
+  }
+  for (const rows of Object.values(rowsById)) {
+    for (const row of Array.isArray(rows) ? rows : []) {
+      const label = horseLabel(row?.horse || {});
+      if (label) labels.push(label);
+    }
+  }
+  const nameWidth = modelNameWidth(labels);
+  const tableWidth = 17 + nameWidth + 27;
+  const columnGap = 4;
+  const contentWidth = 551;
+  let columnsPerRow = 2;
+  for (let count = 4; count >= 2; count--) {
+    if (count * tableWidth + (count - 1) * columnGap <= contentWidth) {
+      columnsPerRow = count;
+      break;
+    }
+  }
+  return { nameWidth, tableWidth, columnGap, columnsPerRow };
+}
+
+function rankingTable(title,rows,career=false,compact=false,options={}) {
   const body = [[
     {text:'Sıra',style:'th'}, {text:'At',style:'th'}, {text:'Puan',style:'th'},
     ...(career ? [{text:'Yol',style:'th'},{text:'Kariyer yarışı',style:'th'}] : [])
@@ -191,28 +243,38 @@ function rankingTable(title,rows,career=false,compact=false) {
   } else {
     rows.forEach((r,i)=>body.push([
       {text:String(i+1),alignment:'center'},
-      {text:`${clean(r.horse?.no)}. ${clean(r.horse?.name)}`,bold:true},
+      {text:horseLabel(r.horse),bold:true},
       {text:r.score===null?'—':`%${r.score}`,alignment:'center'},
       ...(career ? [{text:modeText(r.mode)},{text:String(r.careerCount ?? 0),alignment:'center'}] : [])
     ]));
   }
-  const widths = career ? [28,'*',40,86,58] : compact ? [24,'*',34] : [34,'*',52];
+  const dynamicNameWidth = finite(options.nameWidth);
+  const widths = career ? [28,'*',40,86,58] : compact ? [17,dynamicNameWidth || '*',27] : [34,'*',52];
   return {
     stack:[
-      {text:title,style:'tableTitle',margin:[0,compact?3:6,0,2]},
-      {table:{headerRows:1,widths,body},layout:tableLayout(),fontSize:compact?6.7:8,margin:[0,0,0,3]}
+      {text:title,style:'tableTitle',margin:[0,compact?2:6,0,2]},
+      {table:{headerRows:1,widths,body},layout:compact?compactTableLayout():tableLayout(),fontSize:compact?6.3:8,margin:[0,0,0,3]}
     ]
   };
 }
 
-function modelPair(leftId,rightId,modelData) {
-  const leftRows=modelData ? modelRanking(modelData,leftId) : [];
-  const left={width:'*',stack:[rankingTable(`${MODEL_NAMES[leftId]} Sıralaması`,leftRows,false,true)]};
-  if (!rightId) return {columns:[left,{width:'*',text:''}],columnGap:9,margin:[0,1,0,2]};
-  const rightRows=modelData ? modelRanking(modelData,rightId) : [];
-  const right={width:'*',stack:[rankingTable(`${MODEL_NAMES[rightId]} Sıralaması`,rightRows,false,true)]};
-  return {columns:[left,right],columnGap:9,margin:[0,1,0,2]};
+
+
+function modelGrid(modelData,race={}) {
+  const rowsById = Object.fromEntries(MODEL_IDS.map(id => [id, modelData ? modelRanking(modelData,id) : []]));
+  const cfg = modelGridConfig(race, rowsById);
+  const blocks = MODEL_IDS.map(id => ({
+    width:cfg.tableWidth,
+    stack:[rankingTable(`${MODEL_NAMES[id]} Sıralaması`,rowsById[id],false,true,{nameWidth:cfg.nameWidth})]
+  }));
+  const out = [];
+  for (let i = 0; i < blocks.length; i += cfg.columnsPerRow) {
+    out.push({columns:blocks.slice(i,i+cfg.columnsPerRow),columnGap:cfg.columnGap,margin:[0,1,0,2]});
+  }
+  return out;
 }
+
+
 
 function raceContent(pair,index) {
   const rec=pair.race || {};
@@ -224,9 +286,7 @@ function raceContent(pair,index) {
     {text:meta,color:'#555555',fontSize:8.5,margin:[0,0,0,4]},
     rankingTable('Kariyer / Hazırlık Sıralaması',careerRanking(race),true,false),
     {text:'5 Model Kariyer Sıralamaları',style:'modelsTitle',margin:[0,4,0,1]},
-    modelPair('composite','exact',modelData),
-    modelPair('twin','family',modelData),
-    modelPair('career',null,modelData)
+    ...modelGrid(modelData,race)
   ];
   return out;
 }
@@ -323,5 +383,5 @@ window.addEventListener('click',event=>{
 },true);
 
 window.ATDailyCareerPdfV1410={version:VERSION,exportDay,exportOne};
-console.info('[AT AI]',VERSION,'aktif — K/H başta, modeller ayrı yan yana, tüm analiz özeti korunuyor');
+console.info('[AT AI]',VERSION,'aktif — 5 model tabloları at adı genişliğine göre 3/4 sütuna paketleniyor');
 })();
