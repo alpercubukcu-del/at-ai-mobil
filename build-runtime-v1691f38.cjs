@@ -51,13 +51,18 @@ function compactModelPayload(content) {
     /TJK-MODEL-ROADMAP-V11\.(?:12-FAST-FULL-CLASS|13-YAMAK-ALIAS|14-YAMAK-YEAR-WINDOW)/g,
     'TJK-MODEL-ROADMAP-V11.15-COMPACT-MOBILE'
   );
-  const start = model.indexOf('function careerEnvelope(career={}){');
-  const end = model.indexOf('\n\nfunction normalizeCandidate', start);
+  const careerStart = model.indexOf('function careerEnvelope(career={}){');
+  const helperStart = careerStart >= 0 ? model.lastIndexOf('function numberOrNull(v){', careerStart) : -1;
+  const start = helperStart >= 0 ? helperStart : careerStart;
+  const end = model.indexOf('\n\nfunction normalizeCandidate', careerStart);
   if (start >= 0 && end > start) {
     model = model.slice(0, start) + COMPACT_BLOCK + model.slice(end);
   }
   if (!model.includes('COMPACT_MODEL_PAYLOAD_V1691F38')) {
     throw new Error('[V16.9.1F38] Compact model marker was not written.');
+  }
+  if ((model.match(/function numberOrNull\(v\)/g) || []).length !== 1) {
+    throw new Error('[V16.9.1F38] Compact helper was duplicated.');
   }
   if (model.includes('historyBefore:full') || model.includes('roadmapBefore:full') || model.includes('comparisonPathBefore:full')) {
     throw new Error('[V16.9.1F38] Duplicate full-path aliases still exist.');
