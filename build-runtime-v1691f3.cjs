@@ -20,7 +20,8 @@ for(const token of [
   'DAILY-FIVE-MODEL-ARCHIVE-PREP-V16.9.1F3',
   'YEAR_BY_YEAR_2000_PLUS',
   'TOP3_PRE_RACE_FULL_CAREER',
-  'MODEL_ARCHIVE_FIRST',
+  'MODEL_COMPUTE_FIRST_ARCHIVE_ASYNC',
+  'PREPARE_RACE_MODELS_DIRECT',
   'COUPON-CAREER-ONLY-V16.9.1F1',
   'ANNUAL_TOP3_YEAR_BEST_V14_1',
   'V16.9.1F-MANUAL-FIVE-MODEL-NO-BOOT-RESUME'
@@ -35,4 +36,4 @@ html=html.replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169104');
 fs.writeFileSync(INDEX,html,'utf8');
 if(!html.includes('/at-ai-app-v142.js?v=169104'))throw new Error('[V16.9.1F3] cache-bust güncellenemedi.');
 
-console.log('[AT AI] V16.9.1F3 build tamamlandı: Tam Analiz/5 Model 2000+ yıl yıl kaynak kullanır; Excel ekranından günün 5 Model arşivi önceden hazırlanır; 5 Model archive-first açılır.');
+console.log('[AT AI] V16.9.1F3/F56 build tamamlandı: 5 Model 2000+ motoru doğrudan hesaplanır; kalıcı arşiv yazımı hesap tamamlanmasını bloklamaz.');
