@@ -1,27 +1,3 @@
-[AT AI] V16.7.6 build tamamlandı: Android mobil ana sayfa viewport içine sabitlendi; masaüstü görünümüne gerek kalmaz.
-[AT AI] V16.7.7/V16.8.0 build tamamlandı: Kupon Veri Denetimi mobilde body kilitlemeden üstten açılır.
-[AT AI] V16.8.8 build tamamlandı: 5 Model/Kazanan Yolu session reuse + mevcut tarihsel 5 Model roadmap endpointinde Vercel CDN cache; ekstra function yok; cache v=16880.
-[AT AI] V16.8.9 build tamamlandı: Menü 2 kaldırıldı; kupon yalnız Güncel Analiz + Kariyer Yol Haritası 5 Model kullanıyor.
-[AT AI] V16.9.0 build tamamlandı: eski Menü 2 HTML’den fiziksel olarak kaldırıldı; görünür sıra 1–7 ile uyumlu.
-[AT AI] V16.9.1 build tamamlandı: Kupon Veri Denetimi Kariyer + 5 Model için Günlük Arşiv öncelikli çalışır; yalnız gerçek eksikler hesaplanır.
-[AT AI] V16.9.1F build tamamlandı: V16.9.1 sıralama/tarihsel tarama korunur; boot auto-resume ve Kariyer açılışındaki otomatik 5 Model kapalı.
-[AT AI] V16.9.1F1 build tamamlandı: V16.9.1F sıralama/tarihsel tarama korunur; kupon yalnız Kariyer/Hazırlık sıralamasından ve adaptif 1/2/3/4/5+ at kuralıyla üretilir.
-[AT AI] V16.9.1F2 build tamamlandı: Yıllık Arşiv her geçmiş yarışın ilk 3 atını ayrı kariyer yollarıyla karşılaştırır; her yıl yalnız en güçlü referans tutulur.
-[AT AI] V16.9.1F3 build tamamlandı: Tam Analiz/5 Model 2000+ yıl yıl kaynak kullanır; Excel ekranından günün 5 Model arşivi önceden hazırlanır; 5 Model archive-first açılır.
-[AT AI] V16.9.1F4 build tamamlandı: Kariyer koşu seçicisi input/change ile görünür sonucu senkronlar; eski koşu DOMu bırakılmaz.
-[AT AI] V16.9.1F5 build tamamlandı: TJK Yıllık Arşiv 5 Model ana sıralaması korunur; Bileşik/Tam/İkiz/Aile/Kariyer altında 1.-2.-3. referans alt sıralamaları ayrı gösterilir.
-[AT AI] V16.9.1F6 build tamamlandı: Kariyer/Hazırlık kuponu mevcut sonuç çizicisiyle uyumlu ve görünür.
-[AT AI] V16.9.1F8 build tamamlandı: kupon 5 Model beklemez; kariyerli at K/H puanı, gerçek debut Güncel Analiz puanı kullanır; F6 kupon görünürlüğü ve mobil kalibrasyon korunur.
-[AT AI] V16.9.1F9 build tamamlandı: Günlük Arşiv state köprüsü aktif; program/şehir/Kariyer/Kupon açılışında arşiv otomatik hydrate edilir; mevcut analiz tekrar hesaplanmaz.
-[AT AI] V16.9.1F10 build tamamlandı: Manuel Kupon bahis seçimi 5 Model/Bileşik hazırlamaz; kupon doğrudan Kariyer/Hazırlık + debut Güncel akışına gider.
-[AT AI] V16.9.1F11 build tamamlandı: Kariyer/Hazırlık puanı değişmeden, tarihsel referansla uyumu oluşturan en güçlü koşu çiftleri kullanıcı isteğiyle lazy gösterilir.
-[AT AI] V16.9.1F12 build tamamlandı: Kariyer satır eşleşmesi TAM sınıf + TAM Yaş/Grup kapılı; taşınan sıklet puana, galibiyet profiline ve geçmiş döküme eklendi.
-[AT AI] V16.9.1F14 build tamamlandı: açıklama sıklet yüzdesi gerçek satır eşleşmesiyle hesaplanır; hata sonrası tekrar deneme açık; F12 eski listener yeni açıklama patch varken aradan çekilir.
-[AT AI] V16.9.1F15 build tamamlandi: Kariyer eslesmelerinde bitiris derecesi ve HP farki performans katsayisi olarak puana eklendi.
-[AT AI] V16.9.1F16 build tamamlandi: Sifir puanli ve kati sinif/yas kuralini gecmeyen kosu ciftleri aciklamada eslesme olarak gosterilmez.
-[AT AI] V16.9.1F17 build tamamlandi: Tam kariyer yolu zayif olsa bile guclu katı parca eslesmeleri dusuk guvenli sinirli destek puani uretir.
-[AT AI] V16.9.1F18 build tamamlandi: Detaydaki parca destek 5-model ve podium ham siralama hesabina baglandi.
-[AT AI] V16.9.1F19 build tamamlandi: Yillik arsiv 5-model F18 parca destek hesabina baglandi.
 [AT AI] V16.9.1F20 build tamamlandi: Ana kariyer siralamasi model-roadmap kaynakli hibrit aday destek skoru kullanir.
 [AT AI] V16.9.1F21 build tamamlandi: Ana kariyer siralamasi bugunku kosu uygunluk tabaniyla desteklenir.
 [AT AI] V16.9.1F22 build tamamlandi: 2 yasli Maiden tek guclu hazirlik kosusu kariyer skoruna taban destek verir.
@@ -65,20 +41,25 @@
 > Task :android-app:mergeDebugShaders
 > Task :android-app:compileDebugShaders NO-SOURCE
 > Task :android-app:generateDebugAssets UP-TO-DATE
-> Task :android-app:mergeDebugAssets
 > Task :android-app:processDebugResources
+> Task :android-app:mergeDebugAssets
 > Task :android-app:compressDebugAssets
+> Task :android-app:desugarDebugFileDependencies
+> Task :android-app:checkDebugDuplicateClasses
+
+> Task :android-app:compileDebugKotlin
+e: file:///home/runner/work/at-ai-mobil/at-ai-mobil/android-app/src/main/java/com/ataimobil/MainActivity.kt:41:48 Unresolved reference 'BuildConfig'.
+
 > Task :android-app:compileDebugKotlin FAILED
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1788004557998.json
+> Task :android-app:mergeExtDexDebug
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1788004904136.json
 
 FAILURE: Build failed with an exception.
 
 * What went wrong:
 Execution failed for task ':android-app:compileDebugKotlin'.
-> Inconsistent JVM-target compatibility detected for tasks 'compileDebugJavaWithJavac' (1.8) and 'compileDebugKotlin' (17).
-  
-  Consider using JVM Toolchain: https://kotl.in/gradle/jvm/toolchain
-  Learn more about JVM-target validation: https://kotl.in/gradle/jvm/target-validation 
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
 
 * Try:
 > Run with --info or --debug option to get more log output.
@@ -118,30 +99,18 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':android
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
-Caused by: org.gradle.api.InvalidUserCodeException: Inconsistent JVM-target compatibility detected for tasks 'compileDebugJavaWithJavac' (1.8) and 'compileDebugKotlin' (17).
-
-Consider using JVM Toolchain: https://kotl.in/gradle/jvm/toolchain
-Learn more about JVM-target validation: https://kotl.in/gradle/jvm/target-validation 
-	at org.jetbrains.kotlin.gradle.plugin.diagnostics.RenderReportedDiagnosticsKt.createAnExceptionForFatalDiagnostic(renderReportedDiagnostics.kt:44)
-	at org.jetbrains.kotlin.gradle.plugin.diagnostics.RenderReportedDiagnosticsKt.renderReportedDiagnostic(renderReportedDiagnostics.kt:32)
-	at org.jetbrains.kotlin.gradle.plugin.diagnostics.KotlinToolingDiagnosticsCollector.report(KotlinToolingDiagnosticsCollector.kt:46)
-	at org.jetbrains.kotlin.gradle.plugin.diagnostics.KotlinToolingDiagnosticsCollector.report(KotlinToolingDiagnosticsCollector.kt:40)
-	at org.jetbrains.kotlin.gradle.plugin.diagnostics.UsesKotlinToolingDiagnostics$DefaultImpls.reportDiagnostic(UsesKotlinToolingDiagnostics.kt:29)
-	at org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompile.reportDiagnostic(AbstractKotlinCompile.kt:48)
-	at org.jetbrains.kotlin.gradle.tasks.KotlinCompile.validateKotlinAndJavaHasSameTargetCompatibility(KotlinCompile.kt:380)
-	at org.jetbrains.kotlin.gradle.tasks.KotlinCompile.callCompilerAsync$kotlin_gradle_plugin_common(KotlinCompile.kt:313)
-	at org.jetbrains.kotlin.gradle.tasks.KotlinCompile.callCompilerAsync$kotlin_gradle_plugin_common(KotlinCompile.kt:55)
-	at org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompile.executeImpl(AbstractKotlinCompile.kt:314)
-	at org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompile.execute(AbstractKotlinCompile.kt:264)
-	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
-	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
-	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
-	at org.gradle.internal.reflect.JavaMethod.invoke(JavaMethod.java:125)
-	at org.gradle.api.internal.project.taskfactory.IncrementalTaskAction.doExecute(IncrementalTaskAction.java:45)
-	at org.gradle.api.internal.project.taskfactory.StandardTaskAction.execute(StandardTaskAction.java:51)
-	at org.gradle.api.internal.project.taskfactory.IncrementalTaskAction.execute(IncrementalTaskAction.java:26)
-	at org.gradle.api.internal.project.taskfactory.StandardTaskAction.execute(StandardTaskAction.java:29)
-	at org.gradle.api.internal.tasks.execution.TaskExecution$3.run(TaskExecution.java:244)
+Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+	at org.gradle.workers.internal.DefaultWorkerExecutor$WorkItemExecution.waitForCompletion(DefaultWorkerExecutor.java:287)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.lambda$waitForItemsAndGatherFailures$2(DefaultAsyncWorkTracker.java:130)
+	at org.gradle.internal.Factories$1.create(Factories.java:31)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLocks(DefaultWorkerLeaseService.java:335)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLocks(DefaultWorkerLeaseService.java:318)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLock(DefaultWorkerLeaseService.java:323)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForItemsAndGatherFailures(DefaultAsyncWorkTracker.java:126)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForItemsAndGatherFailures(DefaultAsyncWorkTracker.java:92)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForAll(DefaultAsyncWorkTracker.java:78)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForCompletion(DefaultAsyncWorkTracker.java:66)
+	at org.gradle.api.internal.tasks.execution.TaskExecution$3.run(TaskExecution.java:252)
 	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:29)
 	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:26)
 	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
@@ -254,7 +223,38 @@ Learn more about JVM-target validation: https://kotl.in/gradle/jvm/target-valida
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
+Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
+	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
+	at org.jetbrains.kotlin.compilerRunner.GradleKotlinCompilerWork.run(GradleKotlinCompilerWork.kt:119)
+	at org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction.execute(GradleCompilerRunnerWithWorkers.kt:76)
+	at org.gradle.workers.internal.DefaultWorkerServer.execute(DefaultWorkerServer.java:63)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:66)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:62)
+	at org.gradle.internal.classloader.ClassLoaderUtils.executeInClassloader(ClassLoaderUtils.java:100)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.lambda$execute$0(NoIsolationWorkerFactory.java:62)
+	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:44)
+	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:41)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.workers.internal.AbstractWorker.executeWrappedInBuildOperation(AbstractWorker.java:41)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.execute(NoIsolationWorkerFactory.java:59)
+	at org.gradle.workers.internal.DefaultWorkerExecutor.lambda$submitWork$0(DefaultWorkerExecutor.java:174)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runExecution(DefaultConditionalExecutionQueue.java:194)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.access$700(DefaultConditionalExecutionQueue.java:127)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner$1.run(DefaultConditionalExecutionQueue.java:169)
+	at org.gradle.internal.Factories$1.create(Factories.java:31)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:263)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:132)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runBatch(DefaultConditionalExecutionQueue.java:164)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.run(DefaultConditionalExecutionQueue.java:133)
+	... 2 more
 
 
-BUILD FAILED in 1m 45s
-19 actionable tasks: 19 executed
+BUILD FAILED in 2m 1s
+22 actionable tasks: 22 executed
