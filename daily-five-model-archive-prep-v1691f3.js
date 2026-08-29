@@ -1,27 +1,27 @@
-/* AT AI Mobil — V16.9.1F3 Günlük 5 Model Arşiv Hazırlayıcı
-   - Kariyer Excel ekranından seçili koşu veya günün tüm programı önceden hazırlanır.
-   - Mevcut 5 Model motorunu kullanır; formül üretmez/değiştirmez.
-   - Motor minYear=2000 + yıl yıl ±45 gün tarihsel tarama kullanır.
-   - Her tarihsel yarışın gerçek ilk 3 atı ve yarış öncesi tam kariyeri mevcut model motorunda kullanılır.
-   - Sonuç mevcut Günlük Kariyer Arşivi model kaydına yazılır; sonraki açılış archive-first olur.
-   - Tüm koşular telefonda ana thread'i yormamak için sırayla hazırlanır.
+/* AT AI Mobil — V16.9.1F56 Günlük 5 Model Arşiv Hazırlayıcı
+   - Manuel 5 Model hazırlama, günlük IndexedDB arşiv wrapper'ını beklemez.
+   - Mevcut prepareRaceModelsV11 motorunu doğrudan kullanır; puan/formül değiştirmez.
+   - V16.8.7 paylaşılan cache/session katmanı yine kullanılır.
+   - Takılmış shared inflight varsa F40 resetRace ile beklemeden temizlenir.
+   - Hesap sonucu doğrulanır doğrulanmaz UI tamamlanır; IndexedDB yazımı arka planda yapılır.
+   - Yeni timeout/watchdog eklenmez.
 */
 (() => {
 'use strict';
 if (window.__AT_DAILY_FIVE_MODEL_ARCHIVE_PREP_V1691F3__) return;
 window.__AT_DAILY_FIVE_MODEL_ARCHIVE_PREP_V1691F3__ = true;
 
-const VERSION = 'DAILY-FIVE-MODEL-ARCHIVE-PREP-V16.9.1F3';
+const VERSION = 'DAILY-FIVE-MODEL-ARCHIVE-PREP-V16.9.1F56-NONBLOCKING-STORAGE';
 const RULE = 'YEAR_BY_YEAR_2000_PLUS';
 const SOURCE = 'TOP3_PRE_RACE_FULL_CAREER';
-const READ_MODE = 'MODEL_ARCHIVE_FIRST';
+const READ_MODE = 'MODEL_COMPUTE_FIRST_ARCHIVE_ASYNC';
+const EXECUTION_MODE = 'PREPARE_RACE_MODELS_DIRECT';
 const DB_NAME = 'at_ai_daily_career_archive_v146';
 const STORE = 'entries';
 let busy = false;
 let dbPromise = null;
 
-const clean = v => String(v ?? '').replace(/\s+/g, ' ').trim();
-const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clean = v => String(v ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const frame = () => new Promise(resolve => requestAnimationFrame(() => resolve()));
 
@@ -41,30 +41,62 @@ function selectedRace() {
   return programRaces().find(r => String(r.no) === String(n)) || null;
 }
 function modelKey(raceNo) { return `model|${currentDate()}|${currentCityKey()}|${clean(raceNo)}`; }
+function modelEngine() {
+  try { return typeof CAREER_MODEL_TABS_VERSION !== 'undefined' ? CAREER_MODEL_TABS_VERSION : 'CAREER-MODEL'; }
+  catch { return 'CAREER-MODEL'; }
+}
+function raceFingerprint(race) {
+  if (!race) return '';
+  const horses = (Array.isArray(race.horses) ? race.horses : [])
+    .map(h => [clean(h?.no), clean(h?.id), clean(h?.name).toLocaleUpperCase('tr-TR')].join(':'))
+    .sort();
+  return [
+    clean(race.no),
+    clean(race.class || race.yaradi1),
+    clean(race.ageGroup || race.yaradi2),
+    clean(race.distance || race.mesafe),
+    clean(race.track || race.pist),
+    horses.join('|')
+  ].join('||');
+}
 
 function openDb() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise(resolve => {
     if (!('indexedDB' in window)) return resolve(null);
     let q;
-    try { q = indexedDB.open(DB_NAME); } catch { return resolve(null); }
+    try { q = indexedDB.open(DB_NAME, 1); } catch { return resolve(null); }
+    q.onupgradeneeded = () => {
+      try {
+        const db = q.result;
+        const store = db.objectStoreNames.contains(STORE)
+          ? q.transaction.objectStore(STORE)
+          : db.createObjectStore(STORE, { keyPath:'key' });
+        if (!store.indexNames.contains('date')) store.createIndex('date', 'date', { unique:false });
+        if (!store.indexNames.contains('kind')) store.createIndex('kind', 'kind', { unique:false });
+      } catch {}
+    };
     q.onsuccess = () => resolve(q.result);
     q.onerror = () => { dbPromise = null; resolve(null); };
+    q.onblocked = () => { dbPromise = null; resolve(null); };
   });
   return dbPromise;
 }
-async function dbGet(key) {
-  const db = await openDb(); if (!db || !db.objectStoreNames.contains(STORE)) return null;
+async function dbPut(record) {
+  const db = await openDb();
+  if (!db || !db.objectStoreNames.contains(STORE)) return false;
   return new Promise(resolve => {
     try {
-      const q = db.transaction(STORE,'readonly').objectStore(STORE).get(key);
-      q.onsuccess = () => resolve(q.result || null);
-      q.onerror = () => resolve(null);
-    } catch { resolve(null); }
+      const tx = db.transaction(STORE,'readwrite');
+      tx.objectStore(STORE).put(record);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = tx.onabort = () => resolve(false);
+    } catch { resolve(false); }
   });
 }
 async function dbDelete(key) {
-  const db = await openDb(); if (!db || !db.objectStoreNames.contains(STORE)) return false;
+  const db = await openDb();
+  if (!db || !db.objectStoreNames.contains(STORE)) return false;
   return new Promise(resolve => {
     try {
       const tx = db.transaction(STORE,'readwrite');
@@ -90,31 +122,103 @@ function setButtons(disabled) {
 function archiveFolderLabel(race) {
   return `${currentDate()} / ${currentCityName() || currentCityKey()} / ${race?.no}. Koşu`;
 }
+function sharedCache() {
+  return window.ATFiveModelSharedCacheV1687 || window.ATFiveModelSharedCacheV1685 || null;
+}
+function sharedReady(raceNo) {
+  try { return Boolean(sharedCache()?.has?.(raceNo)); } catch { return false; }
+}
+function clearOnlyStuckShared(race) {
+  try {
+    const shared = sharedCache();
+    if (!shared?.pending?.(race?.no)) return false;
+    if (window.ATCareerFiveModelStaleRecoveryV1691F40?.resetRace) {
+      window.ATCareerFiveModelStaleRecoveryV1691F40.resetRace(race);
+      console.info('[AT AI]', VERSION, 'takılmış shared 5 Model inflight beklenmeden temizlendi', { raceNo:race?.no });
+      return true;
+    }
+  } catch (e) {
+    console.warn('[AT AI]', VERSION, 'shared inflight temizleme uyarısı:', e?.message || e);
+  }
+  return false;
+}
+function queueArchiveWrite(race, data) {
+  const date = currentDate();
+  const city = currentCityKey();
+  const key = modelKey(race?.no);
+  const record = {
+    key,
+    kind:'model',
+    schemaVersion:'DAILY-CAREER-ARCHIVE-V14.6',
+    engine:modelEngine(),
+    date,
+    city,
+    cityName:currentCityName(),
+    raceNo:clean(race?.no),
+    fingerprint:raceFingerprint(race),
+    data,
+    archivedAt:new Date().toISOString(),
+    asyncArchiveVersion:VERSION
+  };
+  Promise.resolve()
+    .then(() => dbPut(record))
+    .then(ok => {
+      if (!ok) console.warn('[AT AI]', VERSION, '5 Model hesaplandı fakat kalıcı IndexedDB arşiv yazımı tamamlanamadı.', { raceNo:race?.no });
+      else {
+        try { window.dispatchEvent(new CustomEvent('at-ai:daily-five-model-archive-updated', { detail:{ version:VERSION, date, city, raceNo:clean(race?.no) } })); } catch {}
+      }
+    })
+    .catch(e => console.warn('[AT AI]', VERSION, 'arka plan arşiv yazımı hata:', e?.message || e));
+}
 
 async function prepareOne(race, progressText='') {
   if (!race) throw new Error('Koşu bulunamadı.');
-  if (typeof getCareerRaceModelsV112 !== 'function') throw new Error('5 Model motoru bulunamadı.');
-  const key = modelKey(race.no);
-  const before = await dbGet(key);
+  const direct = typeof prepareRaceModelsV11 === 'function';
+  const legacy = typeof getCareerRaceModelsV112 === 'function';
+  if (!direct && !legacy) throw new Error('5 Model motoru bulunamadı.');
+
+  const cachedBefore = sharedReady(race.no);
+  clearOnlyStuckShared(race);
+
   const started = performance.now();
-  const data = await getCareerRaceModelsV112(race);
+  const progress = message => {
+    const prefix = progressText ? `${progressText} · ` : '';
+    setStatus(`${prefix}${clean(message) || `${race.no}. Koşu 5 Model hesaplanıyor…`}`);
+  };
+
+  progress(`${race.no}. Koşu · hesap motoru başlatıldı; arşiv yazımı hesabı bloklamayacak.`);
+
+  /*
+    Kritik F56 değişikliği:
+    Manuel hazırlama getCareerRaceModelsV112 üzerinden gitmez. O fonksiyon günlük IndexedDB
+    archive-first wrapper'ını da taşır. Burada aynı puan motoru prepareRaceModelsV11 doğrudan
+    çağrılır; böylece IndexedDB okuma/yazma hesabın tamamlanmasını tutamaz.
+  */
+  const data = direct
+    ? await prepareRaceModelsV11(race, progress)
+    : await getCareerRaceModelsV112(race);
+
   const elapsed = Math.max(0, Math.round((performance.now() - started) / 1000));
   const horseCount = Array.isArray(data?.horses) ? data.horses.length : 0;
   const expected = Array.isArray(race?.horses) ? race.horses.length : 0;
+
   if (!data || data?.roadmapOk === false || (expected && horseCount !== expected)) {
-    /* Başarısız/eksik sonucu kalıcı arşivde tutma; sonraki açılış yeniden deneyebilsin. */
-    await dbDelete(key);
+    /* Başarısız sonucu arka planda sil; silme işlemi de UI'yi bekletmez. */
+    void dbDelete(modelKey(race.no));
     try { if (typeof careerModelCacheV112 !== 'undefined') careerModelCacheV112.delete([currentDate(), currentCityKey(), race.no].join('|')); } catch {}
     throw new Error(data?.roadmapError || `5 Model eksik (${horseCount}/${expected} at).`);
   }
-  const saved = await dbGet(key);
-  if (!saved?.data) throw new Error('5 Model hesaplandı fakat günlük arşiv kaydı doğrulanamadı.');
+
+  queueArchiveWrite(race, data);
+
   return {
     raceNo:String(race.no),
-    cachedBefore:Boolean(before?.data),
+    cachedBefore,
     elapsed,
     modelCounts:data?.modelCounts || {},
-    folder:archiveFolderLabel(race)
+    folder:archiveFolderLabel(race),
+    archiveQueued:true,
+    executionMode:EXECUTION_MODE
   };
 }
 
@@ -132,23 +236,23 @@ async function prepareList(races, button) {
     for (let i=0; i<list.length; i++) {
       const race = list[i];
       if (button) button.textContent = `${i+1}/${list.length} hazırlanıyor…`;
-      setStatus(`${i+1}/${list.length} · ${race.no}. Koşu · 2000+ tarihsel ilk 3/kariyer arşivi hazırlanıyor…`);
+      const stage = `${i+1}/${list.length} · ${race.no}. Koşu`;
+      setStatus(`${stage} · 2000+ tarihsel ilk 3/kariyer modeli hesaplanıyor…`);
       try {
-        const r = await prepareOne(race);
+        const r = await prepareOne(race, stage);
         ok++;
         if (r.cachedBefore) hit++;
-        setStatus(`${i+1}/${list.length} · ${race.no}. Koşu hazır${r.cachedBefore?' · arşivden':' · yeni'} · ${r.elapsed} sn`);
+        setStatus(`${stage} hazır${r.cachedBefore?' · cache kullanıldı':' · yeni hesap'} · ${r.elapsed} sn · arşiv yazımı arka planda`, 'ok');
       } catch (e) {
         failed++;
         errors.push(`${race.no}.K: ${e?.message || e}`);
-        setStatus(`${i+1}/${list.length} · ${race.no}. Koşu alınamadı; sıradaki koşuya geçiliyor…`,'warn');
+        setStatus(`${stage} alınamadı; sıradaki koşuya geçiliyor…`,'warn');
       }
-      /* Mobilde uzun hazırlık sırasında UI'ya nefes ver. */
       await frame();
       await wait(180);
     }
     const fresh = ok - hit;
-    const msg = `Günlük 5 Model arşivi: ${ok}/${list.length} hazır · ${hit} zaten arşivde · ${fresh} yeni${failed?` · ${failed} hata`:''}.`;
+    const msg = `Günlük 5 Model: ${ok}/${list.length} hesap hazır · ${hit} cache · ${fresh} yeni${failed?` · ${failed} hata`:''}. Kalıcı arşiv yazımı hesabı bekletmez.`;
     setStatus(msg, failed && !ok ? 'error' : failed ? 'warn' : 'ok');
     if (errors.length) console.warn('[AT AI]', VERSION, 'hazırlama hataları:', errors);
   } finally {
@@ -172,7 +276,7 @@ function inject() {
       <button id="ceDaily5AllV1691F3" class="primary small">Günün Tüm Koşularını Hazırla</button>
       <button id="ceDaily5OneV1691F3" class="secondary small">Seçili Koşuyu Hazırla</button>
     </div>
-    <small>Arşiv yapısı: <b>Tarih / Şehir / Koşu No</b>. Sonraki 5 Model açılışlarında önce günlük arşiv okunur; yalnız eksik veya geçersiz kayıt yeniden hesaplanır. Hazırlama mobil donmayı azaltmak için koşuları sırayla işler.</small>
+    <small>F56: hesap motoru kalıcı arşiv yazımından ayrıldı. Model sonucu hazır olduğunda işlem tamamlanır; IndexedDB kaydı arka planda yapılır. Yeni bir zaman aşımı eklenmemiştir.</small>
     <div id="ceDaily5StatusV1691F3" style="margin-top:10px;font-size:12px;line-height:1.45;opacity:.9"></div>`;
   const full = document.getElementById('ceFullAnalysisV160')?.closest?.('.ce-block');
   if (full?.parentNode === body) full.insertAdjacentElement('afterend', section); else body.appendChild(section);
@@ -182,7 +286,7 @@ function inject() {
     if (!r) return setStatus('Önce üstten bir koşu seçin.','error');
     prepareList([r], e.currentTarget);
   };
-  setStatus(`${currentDate() || 'Tarih'} · ${currentCityName() || 'Şehir'} · ${programRaces().length} koşu programda. 5 Model arşivi hazırlandığında panel tekrar tarihsel tarama yapmayacak.`);
+  setStatus(`${currentDate() || 'Tarih'} · ${currentCityName() || 'Şehir'} · ${programRaces().length} koşu programda. F56 hesap/arşiv ayrımı aktif.`);
   return true;
 }
 
@@ -198,11 +302,12 @@ window.ATDailyFiveModelArchivePrepV1691F3 = {
   rule:RULE,
   source:SOURCE,
   readMode:READ_MODE,
+  executionMode:EXECUTION_MODE,
   prepareAll:() => prepareList(programRaces(), document.getElementById('ceDaily5AllV1691F3')),
   prepareSelected:() => {
     const r=selectedRace();
     return r ? prepareList([r], document.getElementById('ceDaily5OneV1691F3')) : Promise.resolve(false);
   }
 };
-console.info('[AT AI]', VERSION, 'aktif — 2000+ yıl yıl, ilk 3 yarış öncesi tam kariyer, günlük model archive-first');
+console.info('[AT AI]', VERSION, 'aktif — 5 Model hesap motoru doğrudan; IndexedDB arşiv yazımı non-blocking');
 })();
