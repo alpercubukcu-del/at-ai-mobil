@@ -43,3 +43,4 @@ fs.writeFileSync(INDEX, html, 'utf8');
 if (!html.includes('/at-ai-app-v142.js?v=169146')) throw new Error('[V16.9.1F45] Cache bust update failed.');
 
 console.log('[AT AI] V16.9.1F45 build complete: old flexible Career archive rows refresh before reuse.');
+
