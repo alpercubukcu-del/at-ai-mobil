@@ -17,6 +17,11 @@ android {
 
     sourceSets["main"].assets.srcDir(rootProject.layout.projectDirectory.dir("public"))
 
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
     buildTypes {
         debug {
             isDebuggable = true
