@@ -1,12 +1,24 @@
-self.addEventListener('install', (event) => {
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
-});
-
-self.addEventListener('fetch', (event) => {
-  // Basit: ağı kullan, hata olursa hiçbir şey yapma
-  event.respondWith(fetch(event.request).catch(() => undefined));
-});
+{
+  "name": "AT AI Mobil",
+  "short_name": "AT AI",
+  "description": "TJK at yarışı analiz ve kupon uygulaması",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07111f",
+  "theme_color": "#07111f",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
