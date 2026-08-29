@@ -57,7 +57,7 @@ function installStyle() {
       #analysisDialog[open] #analysisContent details *,
       #analysisDialog[open] #analysisContent .career-horse-accordion-v104,
       #analysisDialog[open] #analysisContent .career-horse-accordion-v104 * {
-        touch-action: pan-y manipulation;
+        touch-action: pan-y;
       }
     }
   `;
@@ -85,7 +85,7 @@ function releaseStaleTouchCapture() {
     const overlay = document.getElementById('overlay');
     if (!drawer?.classList?.contains('open')) {
       overlay?.classList?.remove('show');
-      if (overlay) overlay.style.pointerEvents = 'none';
+      overlay?.style?.removeProperty('pointer-events');
     }
   } catch {}
 
