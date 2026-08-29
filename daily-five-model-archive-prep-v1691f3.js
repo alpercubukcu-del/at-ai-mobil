@@ -11,7 +11,7 @@
 if (window.__AT_DAILY_FIVE_MODEL_ARCHIVE_PREP_V1691F3__) return;
 window.__AT_DAILY_FIVE_MODEL_ARCHIVE_PREP_V1691F3__ = true;
 
-const VERSION = 'DAILY-FIVE-MODEL-ARCHIVE-PREP-V16.9.1F56-NONBLOCKING-STORAGE';
+const VERSION = 'DAILY-FIVE-MODEL-ARCHIVE-PREP-V16.9.1F3+F56-NONBLOCKING-STORAGE';
 const RULE = 'YEAR_BY_YEAR_2000_PLUS';
 const SOURCE = 'TOP3_PRE_RACE_FULL_CAREER';
 const READ_MODE = 'MODEL_COMPUTE_FIRST_ARCHIVE_ASYNC';
@@ -203,7 +203,6 @@ async function prepareOne(race, progressText='') {
   const expected = Array.isArray(race?.horses) ? race.horses.length : 0;
 
   if (!data || data?.roadmapOk === false || (expected && horseCount !== expected)) {
-    /* Başarısız sonucu arka planda sil; silme işlemi de UI'yi bekletmez. */
     void dbDelete(modelKey(race.no));
     try { if (typeof careerModelCacheV112 !== 'undefined') careerModelCacheV112.delete([currentDate(), currentCityKey(), race.no].join('|')); } catch {}
     throw new Error(data?.roadmapError || `5 Model eksik (${horseCount}/${expected} at).`);
