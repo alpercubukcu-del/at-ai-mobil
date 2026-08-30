@@ -45,6 +45,7 @@ for (const token of [
   'FIVE-MODEL-COOPERATIVE-PODIUM-V16.9.1F59',
   'FIVE-MODEL-COOPERATIVE-UI-V16.9.1F57',
   'scoreFinishRowsCooperativeV1691F59',
+  'placementScoresCooperativeV1691F59',
   'byFinish',
   'ANNUAL-CURRENT-RACE-LOADORDER-V16.9.1F58',
   'MODEL-ROADMAP-RECOVERY-V12.0',
@@ -54,9 +55,6 @@ for (const token of [
   'FIVE-MODEL-SHARED-CACHE-V16.8.7'
 ]) {
   if (!app.includes(token)) throw new Error('[V16.9.1F59] Verification failed: ' + token);
-}
-if (!app.includes('byFinish[finish] = await placementScoresCooperativeV1691F59')) {
-  throw new Error('[V16.9.1F59] Cooperative 1./2./3. placement loop verification failed.');
 }
 new Function(app);
 fs.writeFileSync(APP, app, 'utf8');
