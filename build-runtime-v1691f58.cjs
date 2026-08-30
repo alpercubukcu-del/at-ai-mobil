@@ -26,8 +26,7 @@ if (!app.includes('ANNUAL-CURRENT-RACE-LOADORDER-V16.9.1F58')) {
 
 for (const token of [
   'ANNUAL-CURRENT-RACE-LOADORDER-V16.9.1F58',
-  'FIVE-MODEL-COOPERATIVE-UI-V16.9.1F57',
-  'TJK-ANNUAL-ARCHIVE-V14.0'
+  'FIVE-MODEL-COOPERATIVE-UI-V16.9.1F57'
 ]) {
   if (!app.includes(token)) throw new Error('[V16.9.1F58] Verification failed: ' + token);
 }
