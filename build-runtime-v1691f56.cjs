@@ -20,15 +20,16 @@ for (const token of [
   'MODEL_COMPUTE_FIRST_ARCHIVE_ASYNC',
   'PREPARE_RACE_MODELS_DIRECT',
   'CAREER-FIVE-MODEL-PREP-CONTROLS-V16.9.1F55',
-  'CAREER-FIVE-MODEL-STALE-RECOVERY-V16.9.1F40'
+  'CAREER-FIVE-MODEL-STALE-RECOVERY-V16.9.1F40',
+  'FIVE-MODEL-SHARED-CACHE-V16.8.7+F56.1-ROADMAP-GUARD'
 ]) {
   if (!app.includes(token)) throw new Error('[V16.9.1F56] Verification failed: ' + token);
 }
 new Function(app);
 
 let html = fs.readFileSync(INDEX, 'utf8');
-html = html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=169160');
+html = html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=169161');
 fs.writeFileSync(INDEX, html, 'utf8');
-if (!html.includes('/at-ai-app-v142.js?v=169160')) throw new Error('[V16.9.1F56] Cache bust could not be updated.');
+if (!html.includes('/at-ai-app-v142.js?v=169161')) throw new Error('[V16.9.1F56] Cache bust could not be updated.');
 
-console.log('[AT AI] V16.9.1F56 build complete: manual 5 Model compute is independent of IndexedDB archive persistence; no new timeout added.');
+console.log('[AT AI] V16.9.1F56/F56.1 build complete: manual 5 Model compute is independent of IndexedDB archive persistence; failed roadmap results are rejected from session cache; no new timeout added.');
