@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'CAREER-FOREIGN-TJK-V1.0';
+const VERSION = 'CAREER-FOREIGN-TJK-V1.1';
 const BASE_URL = 'https://www.tjk.org/TR/YarisSever/Query/ConnectedPage/AtKosuBilgileri_Y';
 const TIMEOUT_MS = 20000;
 const MAX_YEAR_FETCH = 12;
@@ -59,15 +59,27 @@ function normalizeHeader(v = '') {
   };
   return aliases[k] || k.toLowerCase();
 }
-function normalizeAgeGroup(v = '') { return clean(v); }
+function normalizeAgeGroup(v = '') {
+  const x = clean(v).toLocaleUpperCase('tr-TR').replace(/\s+/g, '');
+  const map = {
+    '2İ':'2 Yaşlı İngilizler','2I':'2 Yaşlı İngilizler',
+    '3İ':'3 Yaşlı İngilizler','3I':'3 Yaşlı İngilizler',
+    '3+İ':'3 ve Yukarı İngilizler','3+I':'3 ve Yukarı İngilizler',
+    '4İ':'4 Yaşlı İngilizler','4I':'4 Yaşlı İngilizler',
+    '4+İ':'4 ve Yukarı İngilizler','4+I':'4 ve Yukarı İngilizler',
+    '2A':'2 Yaşlı Araplar','3A':'3 Yaşlı Araplar','4A':'4 Yaşlı Araplar',
+    '4+A':'4 ve Yukarı Araplar','5+A':'5 ve Yukarı Araplar'
+  };
+  return map[x] || clean(v);
+}
 function normalizeClass(v = '') { return clean(v).replace(/\s*\/\s*/g,'/').replace(/\s+/g,' '); }
 function splitTrack(v = '') {
   const raw = clean(v);
   const n = upper(raw);
   let surface = '';
-  if (n.includes('TURF') || n.includes('CIM')) surface = 'Çim';
-  else if (n.includes('DIRT') || n.includes('KUM')) surface = 'Kum';
-  else if (n.includes('SENTETIK') || n.includes('SYNTHETIC') || n.includes('ALL WEATHER') || n.includes('ALLWEATHER') || n.includes('POLYTRACK') || n.includes('TAPETA') || /^AW\b/.test(n)) surface = 'Sentetik';
+  if (/^C(?::|$)/.test(n) || n.includes('TURF') || n.includes('CIM')) surface = 'Çim';
+  else if (/^K(?::|$)/.test(n) || n.includes('DIRT') || n.includes('KUM')) surface = 'Kum';
+  else if (/^[TS](?::|$)/.test(n) || n.includes('SENTETIK') || n.includes('SYNTHETIC') || n.includes('ALL WEATHER') || n.includes('ALLWEATHER') || n.includes('POLYTRACK') || n.includes('TAPETA') || /^AW\b/.test(n)) surface = 'Sentetik';
   return { surface:surface || raw, condition:raw.includes(':') ? clean(raw.split(':').slice(1).join(':')) : '' };
 }
 function createSession() { return { cookie:'' }; }
@@ -239,7 +251,7 @@ async function collectHistory(horseId) {
   const history = uniqueHistory([...union.values()]);
   const collectedTotal = history.length;
   const careerTotal = Number.isFinite(metadata.careerTotal) ? metadata.careerTotal : null;
-  let coverageStatus = collectedTotal ? (careerTotal !== null && collectedTotal >= careerTotal ? 'TAM' : 'KISMİ') : 'HATA';
+  const coverageStatus = collectedTotal ? (careerTotal !== null && collectedTotal >= careerTotal ? 'TAM' : 'KISMİ') : 'HATA';
   let warning = null;
   if (careerTotal !== null && collectedTotal < careerTotal) warning = `TJK yabancı kariyer toplamı ${careerTotal}, doğrulanan kayıt ${collectedTotal}.`;
   else if (careerTotal === null && collectedTotal) warning = 'TJK yabancı kariyer toplamı okunamadı; sayfada sağlanan geçmiş kayıtlar kullanıldı.';
@@ -247,7 +259,7 @@ async function collectHistory(horseId) {
   return {
     horseName:parsedFirst.horseName,
     history,
-    audit:{ ...metadata, collectedTotal, missingCount:careerTotal===null?null:Math.max(0,careerTotal-collectedTotal), strategy:'TJK_FOREIGN_PAGE_PLUS_YEAR_OPTIONS_V1', coverageStatus, warning, yearCounts:countsByYear(history), yearDiagnostics, parsedHeaders:parsedFirst.headers }
+    audit:{ ...metadata, collectedTotal, missingCount:careerTotal===null?null:Math.max(0,careerTotal-collectedTotal), strategy:'TJK_FOREIGN_PAGE_PLUS_YEAR_OPTIONS_V1_1', coverageStatus, warning, yearCounts:countsByYear(history), yearDiagnostics, parsedHeaders:parsedFirst.headers }
   };
 }
 function applyBefore(rows, beforeIso) { return beforeIso ? rows.filter(r=>r.isoDate < beforeIso) : rows; }
@@ -291,7 +303,7 @@ export default async function handler(req, res) {
       durationMs:Date.now()-startedAt
     });
   } catch (e) {
-    console.error('tjk-career foreign V1:', e);
+    console.error('tjk-career foreign V1.1:', e);
     return res.status(500).json({ ok:false, version:VERSION, errorType:'RETRIEVAL_ERROR', error:e?.message||'Yabancı at kariyer geçmişi alınamadı.', durationMs:Date.now()-startedAt });
   }
 }
