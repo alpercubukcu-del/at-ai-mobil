@@ -35,3 +35,4 @@ fs.writeFileSync(INDEX, html, 'utf8');
 if (!html.includes('/at-ai-app-v142.js?v=169177')) throw new Error('[V16.9.1F60.2] Cache bust could not be updated.');
 
 console.log('[AT AI] V16.9.1F60.2 build complete: foreign TJK cities use direct full-career scoring when historical model-roadmap is unavailable; debut remains unscored.');
+// deploy marker: F60.2 scoring runtime
