@@ -4,6 +4,7 @@
    - Sonuç, yalnız kupon/ranking için gerekli skor alanlarıyla sessionStorage'a kompakt yazılır.
    - Sayfa yenilense bile aynı sekmede kompakt sonuç yeniden kullanılır.
    - Kupon menüsü açılırken mevcut kompakt kayıtlar karar motorunun private model belleğine sessizce hydrate edilir.
+   - roadmapOk:false olan başarısız sonuçlar cache kabul edilmez ve ilgili koşu kaydı kendini temizler.
    - Puanlama/model formüllerine dokunmaz; yalnız hesap sonucunu yeniden kullanır.
 */
 (() => {
@@ -11,7 +12,7 @@
 if (window.__AT_FIVE_MODEL_SHARED_CACHE_V1687__) return;
 window.__AT_FIVE_MODEL_SHARED_CACHE_V1687__ = true;
 
-const VERSION='FIVE-MODEL-SHARED-CACHE-V16.8.7';
+const VERSION='FIVE-MODEL-SHARED-CACHE-V16.8.7+F56.1-ROADMAP-GUARD';
 const SESSION_KEY='at_ai_five_model_compact_v1687';
 const MAX_RECORDS=24;
 const resolved=new Map();
@@ -27,11 +28,21 @@ function city(){
 function dateNow(){return clean(window.state?.date||document.getElementById('raceDate')?.value);}
 function key(raceNo){return [dateNow(),fold(city()),Number(raceNo)||0].join('|');}
 function valid(d){return !!d && Number(d?.no)>0 && Array.isArray(d?.horses) && d.horses.length>0;}
+function usable(d){return valid(d) && d?.roadmapOk!==false;}
 
 function sessionLoad(){
   try{const x=JSON.parse(sessionStorage.getItem(SESSION_KEY)||'{}');return x&&typeof x==='object'?x:{};}catch{return{};}
 }
 function sessionSave(store){try{sessionStorage.setItem(SESSION_KEY,JSON.stringify(store));return true;}catch{return false;}}
+function dropPersisted(k,store=null){
+  if(!k)return false;
+  try{
+    const s=store&&typeof store==='object'?store:sessionLoad();
+    if(!Object.prototype.hasOwnProperty.call(s,k))return false;
+    delete s[k];
+    return sessionSave(s);
+  }catch{return false;}
+}
 function compactChannel(src={}){
   const out={};
   const scalarKeys=['score','rawScore','decisionScore','coverageYears','strongYears','supportYears','latestScore','mode','analysisMode','modeRank','modeSize','coverage','usedWeight','modeAware','targetFinish'];
@@ -86,12 +97,18 @@ function compactModel(d={}){
   };
 }
 function persisted(k){
-  const rec=sessionLoad()?.[k];
+  const store=sessionLoad();
+  const rec=store?.[k];
   const d=rec?.data||rec;
-  return valid(d)?d:null;
+  if(usable(d))return d;
+  if(rec)dropPersisted(k,store);
+  return null;
 }
 function persist(k,d){
-  if(!k||!valid(d))return false;
+  if(!k||!usable(d)){
+    if(k)dropPersisted(k);
+    return false;
+  }
   const store=sessionLoad();
   store[k]={savedAt:Date.now(),data:compactModel(d)};
   const keys=Object.keys(store);
@@ -111,12 +128,14 @@ if(!base){
 prepareRaceModelsV11=async function(race,progressCb){
   const k=key(race?.no);
   const ready=resolved.get(k);
-  if(valid(ready)){
+  if(usable(ready)){
     try{progressCb?.(`Koşu ${race?.no}: daha önce hesaplanan 5 Model kullanılıyor.`);}catch{}
     return ready;
   }
+  if(ready)resolved.delete(k);
+
   const stored=persisted(k);
-  if(valid(stored)){
+  if(usable(stored)){
     resolved.set(k,stored);
     try{progressCb?.(`Koşu ${race?.no}: oturumdaki kompakt 5 Model sonucu kullanılıyor; kariyerler yeniden çağrılmıyor.`);}catch{}
     return stored;
@@ -127,9 +146,12 @@ prepareRaceModelsV11=async function(race,progressCb){
   }
   const p=(async()=>{
     const d=await base(race,progressCb);
-    if(valid(d)){
+    if(usable(d)){
       resolved.set(k,d);
       persist(k,d);
+    }else{
+      resolved.delete(k);
+      dropPersisted(k);
     }
     return d;
   })();
@@ -144,7 +166,7 @@ function importManual(){
     if(!(map instanceof Map)) return 0;
     let n=0;
     for(const [raceNo,d] of map.entries()){
-      if(!valid(d)) continue;
+      if(!usable(d)) continue;
       const k=key(raceNo);
       if(!resolved.has(k)){resolved.set(k,d);n++;}
       persist(k,d);
@@ -157,7 +179,7 @@ async function hydrateCurrent(){
   if(hydrating)return 0;
   const races=Array.isArray(window.state?.races)?window.state.races:[];
   if(!races.length)return 0;
-  const ready=races.filter(r=>valid(persisted(key(r?.no))));
+  const ready=races.filter(r=>usable(persisted(key(r?.no))));
   if(!ready.length)return 0;
   hydrating=true;
   let count=0;
@@ -165,7 +187,7 @@ async function hydrateCurrent(){
     // Burada global prepareRaceModelsV11 çağrılır. V16.7.1 karar kapısı daha sonra bu fonksiyonu
     // sardığı için, çağrı aynı zamanda private modelMem'i de doldurur. Ağ çağrısı yapılmaz.
     for(const race of ready){
-      try{const d=await prepareRaceModelsV11(race);if(valid(d))count++;}catch{}
+      try{const d=await prepareRaceModelsV11(race);if(usable(d))count++;}catch{}
     }
     return count;
   }finally{hydrating=false;}
@@ -179,14 +201,18 @@ function clearOtherContext(){
 function has(raceNo){
   importManual();
   const k=key(raceNo);
-  return valid(resolved.get(k))||valid(persisted(k));
+  const ready=resolved.get(k);
+  if(ready&&!usable(ready))resolved.delete(k);
+  return usable(resolved.get(k))||usable(persisted(k));
 }
 function get(raceNo){
   importManual();
   const k=key(raceNo);
+  const ready=resolved.get(k);
+  if(ready&&!usable(ready))resolved.delete(k);
   const d=resolved.get(k)||persisted(k)||null;
-  if(valid(d)&&!resolved.has(k))resolved.set(k,d);
-  return d;
+  if(usable(d)&&!resolved.has(k))resolved.set(k,d);
+  return usable(d)?d:null;
 }
 function clear(){
   resolved.clear();inflight.clear();
@@ -202,5 +228,5 @@ document.addEventListener('click',e=>{
   if(e.target?.closest?.('#buildAllBtn'))void hydrateCurrent();
 },true);
 window.addEventListener('pageshow',()=>{clearOtherContext();importManual();setTimeout(()=>void hydrateCurrent(),0);},{passive:true});
-console.info('[AT AI]',VERSION,'aktif — 5 Model kompakt sonucu sessionStorage ile sayfa yenilemesinde de tekrar kullanılır.');
+console.info('[AT AI]',VERSION,'aktif — başarısız roadmap sonucu cache edilmez; eski bozuk koşu kaydı gerektiğinde otomatik temizlenir.');
 })();
