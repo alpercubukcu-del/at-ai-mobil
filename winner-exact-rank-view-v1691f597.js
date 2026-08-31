@@ -93,7 +93,6 @@ function scheduleRender(){requestAnimationFrame(()=>void renderExactRanks())}
 const api=window.ATExactMatchCalibrationV1691F594;
 if(api?.render){const prev=api.render.bind(api);api.render=function(...args){const r=prev(...args);scheduleRender();return r}}
 window.addEventListener('change',e=>{if(e.target?.closest?.('#xcalRace'))scheduleRender()},true);
-window.addEventListener('click',e=>{if(e.target?.closest?.('#xcalRunSelected,#xcalRunAll,#xcalApplyCandidates'))setTimeout(scheduleRender,0)},true);
 window.addEventListener('at-ai:annual-archive-selection',scheduleRender);
 if(document.querySelector('#analysisContent .xcal-wrap'))scheduleRender();
 
