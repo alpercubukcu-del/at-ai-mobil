@@ -22,7 +22,7 @@ for (const token of [
   'EXACT-MATCH-CALIBRATION-MENU-V16.9.1F59.4',
   'CAREER-FIVE-MODEL-MAIN-DISPLAY-V16.9.1F59.3',
   'FIVE-MODEL-SHARED-CACHE-V16.8.7+F56.1-ROADMAP-GUARD',
-  'TJK-ANNUAL-ARCHIVE-V14.0'
+  'ATAnnualArchiveV13'
 ]) {
   if (!app.includes(token)) throw new Error('[V16.9.1F59.4] Verification failed: ' + token);
 }
