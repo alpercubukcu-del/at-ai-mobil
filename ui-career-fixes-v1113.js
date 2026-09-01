@@ -141,6 +141,7 @@ fetchCareer = async function(horseId, before) {
   if (fast?.ok) return fast;
   return emptyCareerErrorV1113(`${full?.error || 'Tam kariyer alınamadı.'} | ${fast?.error || 'Hızlı doğrulama alınamadı.'}`);
 };
+window.__AT_CAREER_FETCH_POLICY_V608__ = 'PRIMARY_THEN_FALLBACK';
 window.__AT_CAREER_FETCH_POLICY_V6010__ = 'PRIMARY_THEN_VALIDATED_FALLBACK';
 
 /* Stale hata/debut kariyerlerini model cache'inden tekrar kullanma. */
