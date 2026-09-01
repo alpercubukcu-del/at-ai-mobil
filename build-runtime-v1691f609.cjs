@@ -22,7 +22,7 @@ new Function(app);
 fs.writeFileSync(APP, app, 'utf8');
 
 let html = fs.readFileSync(INDEX, 'utf8');
-html = html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=169183');
+html = html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=169184');
 fs.writeFileSync(INDEX, html, 'utf8');
 
-console.log('[AT AI] V16.9.1F60.9 build complete: visibility-safe scoring yield; F60.8 sequential fallback preserved.');
+console.log('[AT AI] V16.9.1F60.11 build complete: cache-busted daily archive KH/current fusion; F60.9 background safety preserved.');
