@@ -18,16 +18,59 @@
   ],
   "headers": [
     {
+      "source": "/api/tjk-career-v10",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, s-maxage=21600, stale-while-revalidate=86400" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "public, max-age=21600, stale-while-revalidate=86400" },
+        { "key": "CDN-Cache-Control", "value": "public, max-age=21600, stale-while-revalidate=86400" }
+      ]
+    },
+    {
+      "source": "/api/tjk-career",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, s-maxage=21600, stale-while-revalidate=86400" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "public, max-age=21600, stale-while-revalidate=86400" },
+        { "key": "CDN-Cache-Control", "value": "public, max-age=21600, stale-while-revalidate=86400" }
+      ]
+    },
+    {
+      "source": "/api/tjk-history",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, s-maxage=43200, stale-while-revalidate=86400" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "public, max-age=43200, stale-while-revalidate=86400" },
+        { "key": "CDN-Cache-Control", "value": "public, max-age=43200, stale-while-revalidate=86400" }
+      ]
+    },
+    {
+      "source": "/api/tjk-career-fallback-v1113",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, s-maxage=21600, stale-while-revalidate=86400" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "public, max-age=21600, stale-while-revalidate=86400" },
+        { "key": "CDN-Cache-Control", "value": "public, max-age=21600, stale-while-revalidate=86400" }
+      ]
+    },
+    {
       "source": "/api/tjk-model-roadmap-v11",
       "headers": [
-        {
-          "key": "Vercel-CDN-Cache-Control",
-          "value": "public, max-age=21600, stale-while-revalidate=86400"
-        },
-        {
-          "key": "CDN-Cache-Control",
-          "value": "public, max-age=21600, stale-while-revalidate=86400"
-        }
+        { "key": "Cache-Control", "value": "public, max-age=0, s-maxage=21600, stale-while-revalidate=86400" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "public, max-age=21600, stale-while-revalidate=86400" },
+        { "key": "CDN-Cache-Control", "value": "public, max-age=21600, stale-while-revalidate=86400" }
+      ]
+    },
+    {
+      "source": "/api/tjk-adaptive-roadmap-v10",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, s-maxage=21600, stale-while-revalidate=86400" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "public, max-age=21600, stale-while-revalidate=86400" },
+        { "key": "CDN-Cache-Control", "value": "public, max-age=21600, stale-while-revalidate=86400" }
+      ]
+    },
+    {
+      "source": "/api/tjk-adaptive-roadmap-v102",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, s-maxage=21600, stale-while-revalidate=86400" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "public, max-age=21600, stale-while-revalidate=86400" },
+        { "key": "CDN-Cache-Control", "value": "public, max-age=21600, stale-while-revalidate=86400" }
       ]
     },
     {
