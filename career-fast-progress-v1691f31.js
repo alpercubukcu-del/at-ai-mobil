@@ -17,13 +17,22 @@ const clean = v => String(v ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const nextFrame = () => new Promise(resolve => {
   try {
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+      setTimeout(resolve, 0);
+      return;
+    }
     if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(() => resolve());
+      const fallback = setTimeout(resolve, 120);
+      requestAnimationFrame(() => {
+        clearTimeout(fallback);
+        resolve();
+      });
       return;
     }
   } catch {}
   setTimeout(resolve, 0);
 });
+window.__AT_CAREER_BACKGROUND_SAFE_V609__ = 'VISIBILITY_SAFE_YIELD';
 
 function contentEl() {
   try { return document.getElementById('analysisContent'); } catch { return null; }
