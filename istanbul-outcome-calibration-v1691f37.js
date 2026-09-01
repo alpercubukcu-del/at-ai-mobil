@@ -121,7 +121,10 @@ function cityName() {
 
 function selectedTypes() {
   try {
-    return [...document.querySelectorAll('.bet-check:checked')].map(x => clean(x.value)).filter(Boolean);
+    const manual = typeof manualTicketV117 !== 'undefined' ? clean(manualTicketV117?.betType) : '';
+    if (manual) return [manual];
+    const checked = [...document.querySelectorAll('.bet-check:checked')].map(x => clean(x.value)).filter(Boolean);
+    return [...new Set(checked)];
   } catch {
     return [];
   }
@@ -733,6 +736,7 @@ async function buildCalibratedTickets() {
       return;
     }
     const raceNos = baseAudit.raceNos?.length ? baseAudit.raceNos : requiredRaceNos();
+    if (!raceNos.length) throw new Error('Önce bahis türünü seçin; kupon ayakları belirlenemedi.');
     await ensureCurrentAllF6011(raceNos);
 
     const empty = raceNos.filter(no => !calibratedScoreRows(no).length);
@@ -812,7 +816,7 @@ function patchCouponText() {
       note.innerHTML = '<b>Kupon kaynağı: Günlük Arşiv Kariyer/Hazırlık + Güncel Analiz</b><span>K/H %70 + Güncel %30; kariyer yoksa Güncel %100. 5 Model kupona girmez.</span>';
     }
     const button = $('buildAllBtn');
-    if (button) button.textContent = 'Birleşik Kariyer Kuponu Oluştur';
+    if (button && button.textContent !== 'Birleşik Kariyer Kuponu Oluştur') button.textContent = 'Birleşik Kariyer Kuponu Oluştur';
   } catch {}
 }
 
@@ -864,6 +868,22 @@ document.addEventListener('click', event => {
 }, true);
 
 patchCouponText();
+try {
+  const couponDialogF6013 = $('couponCenterDialog');
+  if (couponDialogF6013 && !couponDialogF6013.__fusionTextObserverF6013) {
+    let scheduledF6013 = false;
+    const observerF6013 = new MutationObserver(() => {
+      if (scheduledF6013) return;
+      scheduledF6013 = true;
+      setTimeout(() => {
+        scheduledF6013 = false;
+        patchCouponText();
+      }, 0);
+    });
+    observerF6013.observe(couponDialogF6013, { childList:true, subtree:true, characterData:true });
+    couponDialogF6013.__fusionTextObserverF6013 = observerF6013;
+  }
+} catch {}
 window.ATIstanbulOutcomeCalibrationV1691F37 = {
   version:VERSION,
   source:SOURCE,
@@ -877,5 +897,5 @@ window.ATIstanbulOutcomeCalibrationV1691F37 = {
   profile:() => ({ ...BACKTEST })
 };
 
-console.info('[AT AI]', VERSION, 'F60.12 active - buildAll direct binding; archive hydrated before audit.');
+console.info('[AT AI]', VERSION, 'F60.13 active - manual bet type drives fusion legs; UI text locked.');
 })();
