@@ -723,16 +723,16 @@ async function buildCalibratedTickets() {
   if (busy) return;
   busy = true;
   try {
+    await window.ATArchiveStateReuseV1691F9?.hydrate?.('coupon-f6012-before-audit');
     const api = window.ATCouponCareerOnlyV1691F1;
     const baseAudit = api?.audit?.() || { raceNos:requiredRaceNos(), issues:[] };
     const hard = hardIssues(baseAudit);
     if (hard.length) {
       await window.ATCouponDecisionV1671?.open?.();
-      decorateGate();
+      decorateGate('Veri denetimi gerekli · eksikleri tamamlayıp tekrar oluşturun.');
       return;
     }
     const raceNos = baseAudit.raceNos?.length ? baseAudit.raceNos : requiredRaceNos();
-    await window.ATArchiveStateReuseV1691F9?.hydrate?.('coupon-f6011-daily-archive');
     await ensureCurrentAllF6011(raceNos);
 
     const empty = raceNos.filter(no => !calibratedScoreRows(no).length);
@@ -839,6 +839,14 @@ if (window.ATCouponDecisionV1671 && previousGateOpen) {
 }
 
 document.addEventListener('click', event => {
+  const direct = event.target?.closest?.('#buildAllBtn');
+  if (!direct) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  void buildCalibratedTickets();
+}, true);
+
+document.addEventListener('click', event => {
   const build = event.target?.closest?.('#careerOnlyBuildV1691F1');
   if (!build) return;
   event.preventDefault();
@@ -869,5 +877,5 @@ window.ATIstanbulOutcomeCalibrationV1691F37 = {
   profile:() => ({ ...BACKTEST })
 };
 
-console.info('[AT AI]', VERSION, 'F60.11 active - daily archive KH 70 + current 30; no career uses current 100.');
+console.info('[AT AI]', VERSION, 'F60.12 active - buildAll direct binding; archive hydrated before audit.');
 })();
