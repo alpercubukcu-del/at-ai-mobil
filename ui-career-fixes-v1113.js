@@ -3,7 +3,7 @@
    This file keeps only active data-state, fetch, podium, daily-program and manual-bet behavior.
    Puan formulleri ve sinif eslestirme kurallari DEGISTIRILMEZ. */
 
-const UI_CAREER_FIX_V1113 = 'UI-CAREER-FIX-V11.13-PRUNED';
+const UI_CAREER_FIX_V1113 = 'UI-CAREER-FIX-V11.13-F60.10';
 
 function emptyCareerErrorV1113(message, errorType = 'RETRIEVAL_ERROR') {
   return {
@@ -69,6 +69,30 @@ function repairCareerModeV1113(input = {}) {
   return career;
 }
 
+function horseHasRaceEvidenceV6010(horseId, horseHint = null) {
+  const candidates = [];
+  if (horseHint && typeof horseHint === 'object') candidates.push(horseHint);
+  try {
+    for (const race of Array.isArray(state?.races) ? state.races : []) {
+      for (const horse of Array.isArray(race?.horses) ? race.horses : []) {
+        if (String(horse?.id ?? horse?.AtId ?? '') === String(horseId ?? '')) candidates.push(horse);
+      }
+    }
+  } catch {}
+  return candidates.some(horse => {
+    const last6 = String(horse?.last6 ?? horse?.son6 ?? horse?.Son6Yaris ?? '').replace(/[^0-9]/g, '');
+    const best = String(horse?.best ?? horse?.enIyiDerece ?? horse?.EnIyiDerece ?? '').trim();
+    const hp = Number(horse?.hp ?? horse?.HP ?? horse?.handikapPuani);
+    const kgs = Number(horse?.kgs ?? horse?.KGS);
+    return last6.length > 0 || /\d+[.:]\d+/.test(best) || (Number.isFinite(hp) && hp > 0) || (Number.isFinite(kgs) && kgs > 0);
+  });
+}
+
+function suspiciousZeroCareerV6010(career, horseId, horseHint = null) {
+  const repaired = repairCareerModeV1113(career || {});
+  return Boolean(repaired?.ok && repaired.analysisMode === 'DEBUT' && horseHasRaceEvidenceV6010(horseId, horseHint));
+}
+
 function careerCompleteV1113(career = {}) {
   if (!career?.ok) return false;
   const totalRaw = career?.audit?.careerTotal ?? career?.counts?.tjkCareerTotal;
@@ -110,13 +134,14 @@ fetchCareer = async function(horseId, before) {
     .then(() => fetchCareerBeforeV1113(horseId, before))
     .then(repairCareerModeV1113)
     .catch(e => emptyCareerErrorV1113(e?.message || 'Tam kariyer sorgusu başarısız.'));
-  if (full?.ok) return full;
+  // F60.10: Programda geçmiş yarış kanıtı varsa boş/debut cevap geçerli değildir.
+  if (full?.ok && !suspiciousZeroCareerV6010(full, horseId)) return full;
 
   const fast = await fetchCareerFallbackV1113(horseId, before);
   if (fast?.ok) return fast;
   return emptyCareerErrorV1113(`${full?.error || 'Tam kariyer alınamadı.'} | ${fast?.error || 'Hızlı doğrulama alınamadı.'}`);
 };
-window.__AT_CAREER_FETCH_POLICY_V608__ = 'PRIMARY_THEN_FALLBACK';
+window.__AT_CAREER_FETCH_POLICY_V6010__ = 'PRIMARY_THEN_VALIDATED_FALLBACK';
 
 /* Stale hata/debut kariyerlerini model cache'inden tekrar kullanma. */
 const cachedCareerBeforeV1113 = typeof cachedCareerV11 === 'function' ? cachedCareerV11 : null;
@@ -125,7 +150,8 @@ if (cachedCareerBeforeV1113) {
     const cached = cachedCareerBeforeV1113(raceNo, horse);
     if (!cached?.ok) return null;
     const repaired = repairCareerModeV1113(cached);
-    return repaired.analysisMode === 'DATA_ERROR' ? null : repaired;
+    if (repaired.analysisMode === 'DATA_ERROR' || suspiciousZeroCareerV6010(repaired, horse?.id ?? horse?.AtId, horse)) return null;
+    return repaired;
   };
 }
 
@@ -149,6 +175,9 @@ function repairStoredCareerV1113(result) {
   for (const race of result.races) {
     for (const item of Array.isArray(race?.horses) ? race.horses : []) {
       item.career = repairCareerModeV1113(item.career || {});
+      if (suspiciousZeroCareerV6010(item.career, item?.horse?.id ?? item?.horse?.AtId, item?.horse)) {
+        item.career = emptyCareerErrorV1113('Programda geçmiş yarış kanıtı var; boş kariyer kaydı yeniden çekilecek.', 'STALE_ZERO_CACHE');
+      }
       const mode = item.career.analysisMode;
       if (!item.galibiyetBenzerligi || typeof item.galibiyetBenzerligi !== 'object') {
         item.galibiyetBenzerligi = { score:null, byYear:[], referenceCount:0 };
