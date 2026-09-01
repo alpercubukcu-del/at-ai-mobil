@@ -10,7 +10,9 @@ window.__AT_ISTANBUL_OUTCOME_CALIBRATION_V1691F37__ = true;
 
 const VERSION = 'ISTANBUL-OUTCOME-CALIBRATION-V16.9.1F37';
 const SCORE_VERSION = 'CAREER-COUPON-V16.9.1F37-ISTANBUL-OUTCOME';
-const SOURCE = 'CAREER_PREPARATION_ISTANBUL_OUTCOME_CALIBRATION';
+const SOURCE = 'DAILY_ARCHIVE_CAREER_PREPARATION_PLUS_CURRENT_F6011';
+const CAREER_WEIGHT_F6011 = 0.70;
+const CURRENT_WEIGHT_F6011 = 0.30;
 const BODY_ID = 'cdgBodyV1671';
 const BACKTEST = {
   date:'2025-08-29',
@@ -295,30 +297,91 @@ function raceTags(no, ranking = []) {
   return [...new Set(tags)];
 }
 
+function currentScoreRowsF6011(no) {
+  const race = currentRace(no);
+  return (Array.isArray(race?.horses) ? race.horses : [])
+    .map(row => {
+      const score = finite(row?.programAnalizSkoru ?? row?.score ?? row?.puan);
+      if (score === null) return null;
+      return { row, horse:row?.horse || row, score };
+    })
+    .filter(Boolean);
+}
+
 function deriveRows(no) {
   const race = careerRace(no);
-  const horses = Array.isArray(race?.horses) ? race.horses : [];
-  return horses
-    .map(item => {
-      const score = finite(item?.galibiyetBenzerligi?.score);
-      if (score === null) return null;
-      return { item, horse:item?.horse || {}, score, scoreSource:'CAREER_PREPARATION' };
-    })
-    .filter(Boolean)
-    .sort((a, b) => b.score - a.score || (horseNo(a) ?? 999) - (horseNo(b) ?? 999));
+  const careerItems = Array.isArray(race?.horses) ? race.horses : [];
+  const currentRows = currentScoreRowsF6011(no);
+  const programHorses = Array.isArray(programRace(no)?.horses) ? programRace(no).horses : [];
+  const seeds = programHorses.length ? programHorses : careerItems.map(item => item?.horse || item);
+
+  return seeds.map(horse => {
+    const item = careerItems.find(candidate => sameHorse(candidate?.horse || candidate, horse)) || null;
+    const cur = currentRows.find(candidate => sameHorse(candidate?.horse || candidate?.row, horse)) || null;
+    const careerScore = finite(item?.galibiyetBenzerligi?.score);
+    const currentScore = finite(cur?.score);
+
+    if (careerScore === null && currentScore === null) return null;
+    const hasCareer = careerScore !== null;
+    const score = hasCareer && currentScore !== null
+      ? Math.round(careerScore * CAREER_WEIGHT_F6011 + currentScore * CURRENT_WEIGHT_F6011)
+      : hasCareer ? Math.round(careerScore) : Math.round(currentScore);
+
+    return {
+      item,
+      horse:item?.horse || cur?.horse || horse || {},
+      currentRow:cur?.row || null,
+      careerScoreF6011:careerScore,
+      currentScoreF6011:currentScore,
+      fusionWeightsF6011:hasCareer && currentScore !== null ? { career:70, current:30 } : { career:0, current:100 },
+      score,
+      debut:!hasCareer,
+      scoreSource:hasCareer && currentScore !== null
+        ? 'DAILY_ARCHIVE_CAREER_PREPARATION_70+CURRENT_ANALYSIS_30'
+        : hasCareer
+          ? 'DAILY_ARCHIVE_CAREER_PREPARATION'
+          : 'CURRENT_ANALYSIS_NO_CAREER'
+    };
+  })
+  .filter(Boolean)
+  .sort((a, b) => b.score - a.score || (horseNo(a) ?? 999) - (horseNo(b) ?? 999));
 }
 
 function baseScoreRows(no) {
-  for (const fn of [previousHybridScoreRows, previousCareerScoreRows]) {
-    if (typeof fn !== 'function') continue;
-    try {
-      const rows = fn(no);
-      if (Array.isArray(rows) && rows.length) return rows.slice();
-    } catch (error) {
-      console.warn('[AT AI]', VERSION, 'base scoreRows failed', error);
-    }
-  }
   return deriveRows(no);
+}
+
+async function runCurrentRaceF6011(no) {
+  if (typeof runAnalysis !== 'function') throw new Error('Güncel Analiz hesaplama fonksiyonu bulunamadı.');
+  const dialog = $('analysisDialog');
+  const select = $('analysisRace');
+  const oldView = dialog?.dataset?.view;
+  const oldValue = select?.value;
+  try {
+    if (dialog) dialog.dataset.view = 'current';
+    if (select) {
+      select.value = String(no);
+      if (select.value !== String(no)) throw new Error(`${no}.K Güncel Analiz seçicisinde bulunamadı.`);
+    }
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await runAnalysis();
+    await new Promise(resolve => setTimeout(resolve, 0));
+  } finally {
+    if (dialog) {
+      if (oldView) dialog.dataset.view = oldView;
+      else delete dialog.dataset.view;
+    }
+    if (select && oldValue !== undefined) select.value = oldValue;
+  }
+}
+
+async function ensureCurrentAllF6011(raceNos) {
+  for (const no of raceNos || []) {
+    const programCount = Array.isArray(programRace(no)?.horses) ? programRace(no).horses.length : 0;
+    const readyCount = currentScoreRowsF6011(no).length;
+    if (programCount > 0 && readyCount >= programCount) continue;
+    await runCurrentRaceF6011(no);
+  }
 }
 
 function marketBoost(odds, agf) {
@@ -497,7 +560,7 @@ function buildTicket(plan, type, budget, unitPrice, maxSingles) {
       careerCouponVersion:SCORE_VERSION,
       type,
       modelId:'career',
-      modelLabel:'Kariyer/Hazırlık · İstanbul kalibrasyonu',
+      modelLabel:'Günlük Arşiv K/H %70 + Güncel %30',
       available:false,
       city:cityName(),
       date:currentState()?.date,
@@ -650,6 +713,7 @@ function buildTicket(plan, type, budget, unitPrice, maxSingles) {
     warnings,
     legs,
     source:SOURCE,
+    fusionRule:'CAREER_PREPARATION_70_CURRENT_30; NO_CAREER_CURRENT_100',
     backtest:BACKTEST,
     generatedAt:new Date().toISOString()
   };
@@ -668,7 +732,8 @@ async function buildCalibratedTickets() {
       return;
     }
     const raceNos = baseAudit.raceNos?.length ? baseAudit.raceNos : requiredRaceNos();
-    if (previousHybridEnsureDebut) await previousHybridEnsureDebut(raceNos);
+    await window.ATArchiveStateReuseV1691F9?.hydrate?.('coupon-f6011-daily-archive');
+    await ensureCurrentAllF6011(raceNos);
 
     const empty = raceNos.filter(no => !calibratedScoreRows(no).length);
     if (empty.length) throw new Error(`${empty.map(no => `${no}.K`).join(', ')} için K/H veya debut Güncel puanı yok.`);
@@ -688,6 +753,8 @@ async function buildCalibratedTickets() {
         version:SCORE_VERSION,
         scoreVersion:VERSION,
         source:SOURCE,
+        fusionRule:'CAREER_PREPARATION_70_CURRENT_30; NO_CAREER_CURRENT_100',
+        dailyArchiveFirst:true,
         fiveModelUsed:false,
         calibrationBacktest:BACKTEST.note,
         khTop2:`${BACKTEST.kh.top2}/${BACKTEST.kh.usable}`,
@@ -700,7 +767,7 @@ async function buildCalibratedTickets() {
     try { if (typeof save === 'function') save(); } catch {}
     if (typeof renderTicketsV11 === 'function') renderTicketsV11();
     else if (typeof renderTickets === 'function') renderTickets();
-    decorateGate('Kupon hazır · F37 İstanbul kalibrasyonu uygulandı.');
+    decorateGate('Kupon hazır · Günlük Arşiv K/H + Güncel Analiz birleştirildi.');
     setTimeout(() => {
       try { $('cdgCloseV1671')?.click(); } catch {}
       try { $('tickets')?.scrollIntoView?.({ behavior:'smooth', block:'start' }); } catch {}
@@ -720,8 +787,8 @@ function decorateGate(message = '') {
   if (!body) return;
   let card = $('couponIstanbulCalibrationF37');
   const html = `
-    ${message ? `<h3>${esc(message)}</h3>` : '<h3>F37 İstanbul kalibrasyonu aktif</h3>'}
-    <p>K/H ilk 2 sinyali güçlendi. 2 yaş KV, genç satış/şartlı, handikap ve kısa mesafe güçlü favori risklerinde kupon ayağı otomatik genişler.</p>
+    ${message ? `<h3>${esc(message)}</h3>` : '<h3>Birleşik kupon kaynağı aktif</h3>'}
+    <p>Günlük Arşiv Kariyer/Hazırlık %70 + Güncel Analiz %30. Kariyer verisi hiç yoksa Güncel Analiz %100 kullanılır.</p>
     <div class="cdg-chipbox">
       <span class="cdg-chip">K/H ilk 2: ${BACKTEST.kh.top2}/${BACKTEST.kh.usable}</span>
       <span class="cdg-chip">K/H ilk 5: ${BACKTEST.kh.top5}/${BACKTEST.kh.usable}</span>
@@ -742,10 +809,10 @@ function patchCouponText() {
   try {
     const note = document.querySelector('#couponCenterDialog .five-model-note-v11');
     if (note) {
-      note.innerHTML = '<b>Kupon kaynağı: Kariyer/Hazırlık + F37 kalibrasyon</b><span>5 Model puanı kupona girmez; K/H, debut Güncel ve risk genişliği kullanılır.</span>';
+      note.innerHTML = '<b>Kupon kaynağı: Günlük Arşiv Kariyer/Hazırlık + Güncel Analiz</b><span>K/H %70 + Güncel %30; kariyer yoksa Güncel %100. 5 Model kupona girmez.</span>';
     }
     const button = $('buildAllBtn');
-    if (button) button.textContent = 'Kalibre Kariyer Kuponu Oluştur';
+    if (button) button.textContent = 'Birleşik Kariyer Kuponu Oluştur';
   } catch {}
 }
 
@@ -793,6 +860,8 @@ window.ATIstanbulOutcomeCalibrationV1691F37 = {
   version:VERSION,
   source:SOURCE,
   backtest:BACKTEST,
+  fusionRule:'CAREER_PREPARATION_70_CURRENT_30; NO_CAREER_CURRENT_100',
+  ensureCurrent:ensureCurrentAllF6011,
   scoreRows:calibratedScoreRows,
   build:buildCalibratedTickets,
   minWidthForRace,
@@ -800,5 +869,5 @@ window.ATIstanbulOutcomeCalibrationV1691F37 = {
   profile:() => ({ ...BACKTEST })
 };
 
-console.info('[AT AI]', VERSION, 'active - Istanbul outcome calibration protects KH top2, market anchors, and risky race coverage.');
+console.info('[AT AI]', VERSION, 'F60.11 active - daily archive KH 70 + current 30; no career uses current 100.');
 })();
