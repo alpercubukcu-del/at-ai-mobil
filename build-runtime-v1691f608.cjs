@@ -12,25 +12,15 @@ execFileSync(process.execPath, [BASE], { cwd: ROOT, stdio: 'inherit' });
 
 let app = fs.readFileSync(APP, 'utf8');
 
-const parallel = `  const fullPromise = Promise.resolve()
-    .then(() => fetchCareerBeforeV1113(horseId, before))
-    .then(repairCareerModeV1113)
-    .catch(e => emptyCareerErrorV1113(e?.message || 'Tam kariyer sorgusu başarısız.'));
-  const fastPromise = fetchCareerFallbackV1113(horseId, before);
-  const first = await Promise.race([
-    fullPromise.then(value => ({ source:'full', value })),
-    fastPromise.then(value => ({ source:'fast', value }))
-  ]);
-  if (first.source === 'full') {
-    if (first.value?.ok) return first.value;
-    const fast = await fastPromise;
-    return fast?.ok ? fast : emptyCareerErrorV1113(\`\${first.value?.error || 'Tam kariyer alınamadı.'} | \${fast?.error || 'Hızlı doğrulama alınamadı.'}\`);
-  }
-  if (first.value?.ok && careerCompleteV1113(first.value)) return first.value;
-  const full = await fullPromise;
-  if (full?.ok) return full;
-  if (first.value?.ok) return first.value;
-  return emptyCareerErrorV1113(\`\${full?.error || 'Tam kariyer alınamadı.'} | \${first.value?.error || 'Hızlı doğrulama alınamadı.'}\`);`;
+const functionMarker = 'fetchCareer = async function(horseId, before) {';
+const functionStart = app.indexOf(functionMarker);
+const bodyStart = app.indexOf('  const fullPromise = Promise.resolve()', functionStart);
+const bodyEndMarker = '\n};\n\n/* Stale hata/debut kariyerlerini';
+const bodyEnd = app.indexOf(bodyEndMarker, bodyStart);
+if (functionStart < 0 || bodyStart < 0 || bodyEnd < 0) {
+  throw new Error('[V16.9.1F60.8] V11.13 Career wrapper boundaries not found.');
+}
+const parallel = app.slice(bodyStart, bodyEnd);
 
 const sequential = `  // F60.8: Ana kariyer isteğini gereksiz fallback yüküyle yarışa sokma.
   // Fallback yalnız ana servis gerçekten başarısız olursa çağrılır.
@@ -44,8 +34,8 @@ const sequential = `  // F60.8: Ana kariyer isteğini gereksiz fallback yüküyl
   if (fast?.ok) return fast;
   return emptyCareerErrorV1113(\`\${full?.error || 'Tam kariyer alınamadı.'} | \${fast?.error || 'Hızlı doğrulama alınamadı.'}\`);`;
 
-if (!app.includes(parallel)) throw new Error('[V16.9.1F60.8] Parallel fallback block not found.');
-app = app.replace(parallel, sequential);
+if (!parallel.includes('Promise.race') || !parallel.includes('fetchCareerFallbackV1113')) throw new Error('[V16.9.1F60.8] Parallel fallback signature not found.');
+app = app.slice(0, bodyStart) + sequential + app.slice(bodyEnd);
 
 app = app.replace(
   'F60.7 hizli ve guvenli puanlama aktif: uzun kariyer yolları mobil icin sinirlandi.',
