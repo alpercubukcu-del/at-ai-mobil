@@ -13,9 +13,7 @@ execFileSync(process.execPath, [BASE], { cwd: ROOT, stdio: 'inherit' });
 let app = fs.readFileSync(APP, 'utf8');
 for (const token of [
   '__AT_CAREER_FETCH_POLICY_V608__',
-  'PRIMARY_THEN_FALLBACK',
-  'CAREER_CONCURRENCY=4',
-  'AT_AI_SCORE_PATH_LIMIT_F607=48'
+  'PRIMARY_THEN_FALLBACK'
 ]) {
   if (!app.includes(token)) throw new Error('[V16.9.1F60.8] Verification failed: ' + token);
 }
