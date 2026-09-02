@@ -107,6 +107,10 @@ async function stats(){
 }
 async function decorate(){
   const wrap=document.querySelector('#analysisContent .xcal-wrap');if(!wrap)return;
+  if($('analysisDialog')?.dataset?.dailyCalibrationF6018==='1'){
+    const existing=$('xcalCleanupCardF599');if(existing)existing.style.display='none';
+    return;
+  }
   ensureStyle();
   let card=$('xcalCleanupCardF599');
   if(!card){card=document.createElement('div');card.id='xcalCleanupCardF599';card.className='xcal-card xcal-cleanup-f599';wrap.prepend(card);}
