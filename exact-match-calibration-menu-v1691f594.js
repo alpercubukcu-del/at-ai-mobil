@@ -497,6 +497,11 @@ function renderHome() {
   $('xcalRace')?.addEventListener('change', async () => {
     const race = selectedRaceFromUi(); if (!race) return;
     persistSelected(raceNo(race));
+    // F60.18.2: geçmiş yarış seçimi hedef koşuya aittir; önceki koşudan taşınamaz.
+    const annual = window.ATAnnualArchiveV13;
+    if (annual?.selectionSet?.clear) annual.selectionSet.clear();
+    try { window.dispatchEvent(new CustomEvent('at-ai:annual-archive-selection',{detail:{selected:0,targetRaceNo:raceNo(race)}})); } catch {}
+    statusText(`${raceNo(race)}. koşu seçildi. Bu koşuya benzeyen geçmiş yarışları Yıllık Arşivden yeniden seçin.`);
     await refreshCurrentResult(targetContext(race));
   });
   const race = selectedRaceFromUi(); if (race) refreshCurrentResult(targetContext(race));
