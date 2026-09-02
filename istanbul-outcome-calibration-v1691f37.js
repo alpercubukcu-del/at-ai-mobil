@@ -149,6 +149,10 @@ function cityName() {
   return clean($('citySelect')?.selectedOptions?.[0]?.textContent || currentState()?.city || '');
 }
 
+function outcomeCalibrationActiveF6017() {
+  return normalizeText(cityName()).includes('istanbul');
+}
+
 function selectedTypes() {
   try {
     const manual = typeof manualTicketV117 !== 'undefined' ? clean(manualTicketV117?.betType) : '';
@@ -443,18 +447,19 @@ function calibratedScoreRows(no) {
     const baseScore = finite(row?.score) ?? 0;
     const tags = raceTags(no, base);
     const baseRank = index + 1;
-    let adjustment = marketBoost(odds, agf);
+    const outcomeActiveF6017 = outcomeCalibrationActiveF6017();
+    let adjustment = outcomeActiveF6017 ? marketBoost(odds, agf) : 0;
 
-    if (tags.includes('YOUNG_MAIDEN_OR_SALES') || tags.includes('YOUNG_SARTLI')) {
+    if (outcomeActiveF6017 && tags.includes('YOUNG_MAIDEN_OR_SALES') || tags.includes('YOUNG_SARTLI')) {
       if (baseRank <= 2) adjustment += 3;
       else if (baseRank <= 4) adjustment += 1;
     }
-    if (tags.includes('HANDICAP')) {
+    if (outcomeActiveF6017 && tags.includes('HANDICAP')) {
       if (baseRank <= 3) adjustment += 1;
       if (odds !== null && odds <= 3.5) adjustment += 2;
     }
-    if (tags.includes('JUVENILE_KV_FILLY') && baseRank <= 6) adjustment += 2;
-    if (tags.includes('SPRINT_MARKET_ANCHOR') && odds !== null && odds <= 1.8) adjustment += 8;
+    if (outcomeActiveF6017 && tags.includes('JUVENILE_KV_FILLY') && baseRank <= 6) adjustment += 2;
+    if (outcomeActiveF6017 && tags.includes('SPRINT_MARKET_ANCHOR') && odds !== null && odds <= 1.8) adjustment += 8;
 
     const score = Number(clamp(Math.round(baseScore + adjustment), 0, 99).toFixed(0));
     return {
@@ -492,6 +497,7 @@ function calibrationRiskMeta(no) {
 }
 
 function minWidthForRace(no, ranking) {
+  if (!outcomeCalibrationActiveF6017()) return Math.min(Math.max(1, ranking.length), 2);
   const tags = raceTags(no, ranking);
   const meta = calibrationRiskMeta(no);
   let min = 2;
@@ -516,7 +522,7 @@ function riskyTags(tags) {
 
 function singleInfo(no, ranking) {
   if (ranking.length === 1) return { qualified:true, strength:999, gap:999 };
-  const tags = raceTags(no, ranking);
+  const tags = outcomeCalibrationActiveF6017() ? raceTags(no, ranking) : [];
   const top = ranking[0]?.score ?? 0;
   const second = ranking[1]?.score ?? 0;
   const gap = top - second;
@@ -528,7 +534,7 @@ function singleInfo(no, ranking) {
 function naturalWidth(no, ranking) {
   const n = ranking.length;
   if (n <= 2) return n;
-  const tags = raceTags(no, ranking);
+  const tags = outcomeCalibrationActiveF6017() ? raceTags(no, ranking) : [];
   const min = minWidthForRace(no, ranking);
   const top = ranking[0]?.score ?? 0;
   const gap = top - (ranking[1]?.score ?? 0);
@@ -571,7 +577,7 @@ function nextAllowed(no, ranking, index) {
 }
 
 function legWarning(no, ranking, count) {
-  const tags = raceTags(no, ranking);
+  const tags = outcomeCalibrationActiveF6017() ? raceTags(no, ranking) : [];
   const pieces = [];
   if (tags.includes('YOUNG_MAIDEN_OR_SALES')) pieces.push('genç/satış/maiden riskinde min 3 at');
   if (tags.includes('YOUNG_SARTLI')) pieces.push('genç şartlı riskinde min 3 at');
@@ -593,7 +599,7 @@ function buildTicket(plan, type, budget, unitPrice, maxSingles) {
       careerCouponVersion:SCORE_VERSION,
       type,
       modelId:'career',
-      modelLabel:'Günlük Arşiv K/H %70 + Güncel %30',
+      modelLabel:outcomeCalibrationActiveF6017() ? 'K/H + Güncel · İstanbul F37' : 'Günlük Arşiv K/H %70 + Güncel %30',
       available:false,
       city:cityName(),
       date:currentState()?.date,
@@ -625,9 +631,8 @@ function buildTicket(plan, type, budget, unitPrice, maxSingles) {
 
   const candidates = legsData
     .map((item, index) => ({ index, ...singleInfo(item.race.no, item.ranking) }))
-    .filter(item => item.qualified)
-    .sort((a, b) => b.strength - a.strength)
-    .slice(0, Math.max(0, maxSingles));
+    .sort((a, b) => Number(b.qualified) - Number(a.qualified) || b.strength - a.strength)
+    .slice(0, Math.min(Math.max(0, maxSingles), legsData.length));
   const singles = new Set(candidates.map(item => item.index));
   const counts = legsData.map((item, index) => singles.has(index) ? 1 : naturalWidth(item.race.no, item.ranking));
   let m = money(counts, unitPrice);
@@ -710,12 +715,14 @@ function buildTicket(plan, type, budget, unitPrice, maxSingles) {
     };
   });
 
-  const warnings = [
-    'F37 İstanbul kalibrasyonu: K/H ilk 2 sinyali güçlendi; riskli koşul tiplerinde ayak dar bırakılmaz.',
-    `Backtest: K/H kazananı ilk 2'de ${BACKTEST.kh.top2}/${BACKTEST.kh.usable}, ilk 5'te ${BACKTEST.kh.top5}/${BACKTEST.kh.usable} yakaladı.`
-  ];
+  const warnings = outcomeCalibrationActiveF6017()
+    ? [
+        'F37 İstanbul kalibrasyonu: yalnız İstanbul koşularında aktif.',
+        `Backtest: K/H kazananı ilk 2'de ${BACKTEST.kh.top2}/${BACKTEST.kh.usable}, ilk 5'te ${BACKTEST.kh.top5}/${BACKTEST.kh.usable} yakaladı.`
+      ]
+    : ['Şehre özel İstanbul F37 kalibrasyonu uygulanmadı; birleşik K/H + Güncel sıralaması kullanıldı.'];
   if (maxSingles > 0 && candidates.length < maxSingles) {
-    warnings.push(`En fazla ${maxSingles} tekten ${candidates.length} ayak güvenli tek eşiğini geçti.`);
+    warnings.push(`İstenen ${maxSingles} tekten ${candidates.length} ayak oluşturulabildi.`);
   }
   if (m.cost > budget) {
     warnings.push('Kalibrasyon minimum genişlikleri korununca kupon maliyeti bütçeyi aşıyor.');
@@ -933,5 +940,5 @@ window.ATIstanbulOutcomeCalibrationV1691F37 = {
   profile:() => ({ ...BACKTEST })
 };
 
-console.info('[AT AI]', VERSION, 'F60.16 active - coupon reads already hydrated archive state; no second hydrate/audit lock.');
+console.info('[AT AI]', VERSION, 'F60.17 active - F37 Istanbul-only; requested single count honored exactly.');
 })();
