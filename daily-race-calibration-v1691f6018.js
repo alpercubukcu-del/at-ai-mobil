@@ -96,6 +96,16 @@ function openDailyCalibration(event){
 
 window.addEventListener('click',openDailyCalibration,true);
 document.addEventListener('at-ai:annual-archive-selection',()=>setTimeout(decorate,50));
+document.addEventListener('change',event=>{
+  if(event.target?.matches?.('#xcalRace,#analysisRace')) setTimeout(decorate,120);
+},true);
+document.addEventListener('click',event=>{
+  if(event.target?.closest?.('#runAnalysis,#xcalRunSelected,#xcalRunAll,#xcalRetryIncompleteF6018')) {
+    setTimeout(decorate,180);
+    setTimeout(decorate,900);
+  }
+},true);
+window.addEventListener('focus',()=>setTimeout(decorate,80));
 patchMenu();
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',patchMenu,{once:true});
 window.ATDailyRaceCalibrationV6018={version:VERSION,open:()=>{document.querySelector('[data-view="scenario"]')?.click()}};
