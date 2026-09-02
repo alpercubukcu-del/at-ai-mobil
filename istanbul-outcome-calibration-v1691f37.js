@@ -849,6 +849,7 @@ async function buildDualTicketsF6018() {
     const st = currentState();
     const baseline = (Array.isArray(st?.tickets) ? st.tickets : []).map(ticket => ({
       ...ticket,
+      type:`${ticket.type} · Kalibresiz`,
       modelLabel:'1. Kalibresiz · Kariyer/Hazırlık + Güncel Analiz',
       calibrationVariant:'UNCALIBRATED_SELECTED_HISTORY',
       warnings:[
@@ -863,6 +864,7 @@ async function buildDualTicketsF6018() {
     await calibrationApi.build();
     const calibrated = (Array.isArray(st?.tickets) ? st.tickets : []).map(ticket => ({
       ...ticket,
+      type:`${ticket.type} · Kalibreli`,
       modelLabel:'2. Kalibreli · Seçilen Geçmiş Yarışlar',
       calibrationVariant:'SELECTED_HISTORY_TOP1_TOP2_TOP3_TOP5',
       warnings:[
