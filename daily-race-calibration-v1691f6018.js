@@ -20,6 +20,32 @@ function patchMenu(){
   if(calibration && calibration.style.display!=='none') calibration.style.display='none';
 }
 
+
+function stateRef(){try{if(typeof state==='object'&&state)return state}catch{}return window.state||null}
+function currentCityName(){
+  try{if(typeof getCityName==='function')return String(getCityName()||'').trim()}catch{}
+  return String($('citySelect')?.selectedOptions?.[0]?.textContent||stateRef()?.city||'').trim();
+}
+async function retryIncomplete(){
+  const no=Number($('xcalRace')?.value||0), st=stateRef();
+  if(!no||!st?.date) return;
+  const api=window.ATExactMatchCalibrationV1691F594;
+  const entry=await api?.getForRace?.(st.date,currentCityName(),no);
+  const ids=Array.isArray(entry?.selectedHistoricalIds)?entry.selectedHistoricalIds.filter(Boolean):[];
+  if(!ids.length){
+    const status=$('xcalStatus');if(status)status.textContent='Bu koşunun yeniden denenecek önceki geçmiş yarış seçimi bulunamadı.';
+    return;
+  }
+  const annual=window.ATAnnualArchiveV13;
+  if(!annual?.selectionSet) return;
+  annual.selectionSet.clear();
+  ids.forEach(id=>annual.selectionSet.add(id));
+  try{window.dispatchEvent(new CustomEvent('at-ai:annual-archive-selection',{detail:{selected:ids.length,targetRaceNo:no,retry:true}}))}catch{}
+  const status=$('xcalStatus');
+  if(status)status.textContent=`${no}. koşu: ${entry?.errorCount||0} hata yeniden deneniyor; başarılı ${entry?.validCount||0} yarış cache’den korunacak.`;
+  $('xcalRunSelected')?.click();
+}
+
 function decorate(){
   if($('dialogEyebrow')) $('dialogEyebrow').textContent='SEÇİLMİŞ GEÇMİŞ YARIŞ BACKTESTİ';
   if($('dialogTitle')) $('dialogTitle').textContent='Günün Koşu Kalibrasyonu';
@@ -37,6 +63,16 @@ function decorate(){
   }
   const status=$('xcalStatus');
   if(status) status.textContent='Önce hedef bugünkü koşuyu, sonra Yıllık Arşivden benzer geçmiş yarışları seç. Kalibrasyon tamamlandığında Kupon Oluştur menüsü hem kalibresiz hem kalibreli kupon üretir.';
+  const grid=$('xcalRunSelected')?.parentElement;
+  if(grid&&!$('xcalRetryIncompleteF6018')){
+    const retry=document.createElement('button');
+    retry.id='xcalRetryIncompleteF6018';
+    retry.className='xcal-secondary';
+    retry.type='button';
+    retry.textContent='Eksik / Hatalı Yarışları Yeniden Dene';
+    retry.addEventListener('click',()=>void retryIncomplete());
+    grid.appendChild(retry);
+  }
   document.querySelectorAll('#analysisContent button').forEach(button=>{
     const t=button.textContent||'';
     if(t.includes('Yıllık Arşivde Tam Eşleşmeleri Aç')) button.textContent='Yıllık Arşivde Benzer Geçmiş Yarışları Seç';
