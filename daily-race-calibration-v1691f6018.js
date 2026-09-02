@@ -13,10 +13,11 @@ function patchMenu(){
   const button=document.querySelector('[data-view="scenario"]');
   if(button){
     const prefix=(button.textContent.match(/^\s*\d+\./)||[''])[0];
-    button.textContent=`${prefix ? prefix+' ' : ''}Günün Koşu Kalibrasyonu`;
+    const next=`${prefix ? prefix+' ' : ''}Günün Koşu Kalibrasyonu`;
+    if(button.textContent!==next) button.textContent=next;
   }
   const calibration=document.querySelector('[data-view="calibration"]');
-  if(calibration) calibration.style.display='none';
+  if(calibration && calibration.style.display!=='none') calibration.style.display='none';
 }
 
 function decorate(){
@@ -59,8 +60,6 @@ function openDailyCalibration(event){
 
 window.addEventListener('click',openDailyCalibration,true);
 document.addEventListener('at-ai:annual-archive-selection',()=>setTimeout(decorate,50));
-const observer=new MutationObserver(()=>{patchMenu();if($('analysisDialog')?.dataset.dailyCalibrationF6018==='1')decorate()});
-observer.observe(document.documentElement,{childList:true,subtree:true});
 patchMenu();
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',patchMenu,{once:true});
 window.ATDailyRaceCalibrationV6018={version:VERSION,open:()=>{document.querySelector('[data-view="scenario"]')?.click()}};
