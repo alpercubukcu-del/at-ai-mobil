@@ -253,9 +253,18 @@ async function backtestHistorical(row, progress) {
     }
 
     progress?.(`Gerçek kazanan doğrulanıyor…`);
-    const hres = await fetch(`/api/tjk-history?date=${encodeURIComponent(row.date)}&city=${encodeURIComponent(row.city)}&raceNo=${encodeURIComponent(row.raceNo)}`, { cache:'no-store' });
-    const history = await hres.json();
-    if (!hres.ok || history?.ok === false) return { ok:false, error:history?.error || `Tarihsel sonuç ${hres.status}`, row };
+    let hres=null, history=null, historyError=null;
+    for (let attempt=1; attempt<=3; attempt++) {
+      try {
+        progress?.(`Gerçek kazanan doğrulanıyor… (${attempt}/3)`);
+        hres = await fetch(`/api/tjk-history?date=${encodeURIComponent(row.date)}&city=${encodeURIComponent(row.city)}&raceNo=${encodeURIComponent(row.raceNo)}&retry=${attempt}`, { cache:'no-store' });
+        history = await hres.json();
+        if (hres.ok && history?.ok !== false) { historyError=null; break; }
+        historyError = new Error(history?.error || `Tarihsel sonuç ${hres.status}`);
+      } catch (error) { historyError=error; }
+      if (attempt<3) await new Promise(resolve=>setTimeout(resolve, attempt*600));
+    }
+    if (historyError || !hres?.ok || history?.ok === false) return { ok:false, error:`HISTORY · /api/tjk-history · ${historyError?.message || history?.error || hres?.status || 'Failed to fetch'} (3 deneme)`, row };
     const winner = historyWinner(history);
     if (!winner) return { ok:false, error:'Gerçek kazanan bulunamadı.', row };
 
