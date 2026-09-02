@@ -862,7 +862,13 @@ async function buildDualTicketsF6018() {
     const calibrationApi = window.ATExactMatchCalibrationCouponV1691F595;
     if (typeof calibrationApi?.build !== 'function') throw new Error('Günün koşu kalibrasyonu motoru hazır değil.');
     await calibrationApi.build();
-    const calibrated = (Array.isArray(st?.tickets) ? st.tickets : []).map(ticket => ({
+    const calibratedSource = Array.isArray(st?.tickets) ? st.tickets : [];
+    const calibratedCompleted = calibratedSource.length && calibratedSource.every(ticket =>
+      String(ticket?.careerCouponVersion||'').includes('F59.5-EXACT-CALIBRATED') ||
+      Object.prototype.hasOwnProperty.call(ticket||{},'calibratedLegs')
+    );
+    if (!calibratedCompleted) throw new Error('Kalibreli kupon motoru tamamlanmadı; kalibresiz sonuç ikinci kart olarak kopyalanmadı.');
+    const calibrated = calibratedSource.map(ticket => ({
       ...ticket,
       type:`${ticket.type} · Kalibreli`,
       modelLabel:'2. Kalibreli · Seçilen Geçmiş Yarışlar',
