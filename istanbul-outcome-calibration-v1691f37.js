@@ -861,8 +861,8 @@ async function buildDualTicketsF6018() {
     setBuildStatusF6015('2/2 · Seçili geçmiş yarışlarla kalibreli kupon hazırlanıyor…');
     const calibrationApi = window.ATExactMatchCalibrationCouponV1691F595;
     if (typeof calibrationApi?.build !== 'function') throw new Error('Günün koşu kalibrasyonu motoru hazır değil.');
-    await calibrationApi.build();
-    const calibratedSource = Array.isArray(st?.tickets) ? st.tickets : [];
+    const calibratedResult = await calibrationApi.build({skipAudit:true,caller:'F60.18-DUAL'});
+    const calibratedSource = Array.isArray(calibratedResult) ? calibratedResult : (Array.isArray(st?.tickets) ? st.tickets : []);
     const calibratedCompleted = calibratedSource.length && calibratedSource.every(ticket =>
       String(ticket?.careerCouponVersion||'').includes('F59.5-EXACT-CALIBRATED') ||
       Object.prototype.hasOwnProperty.call(ticket||{},'calibratedLegs')
