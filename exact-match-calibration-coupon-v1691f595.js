@@ -275,6 +275,8 @@ try{buildTickets=buildExactCalibratedTickets}catch{}
 // Window capture, eski F37 document-capture tıklama yakalayıcısından önce çalışır.
 window.addEventListener('click',event=>{
   const build=event.target?.closest?.('#careerOnlyBuildV1691F1');
+  const dualActive=typeof window.ATIstanbulOutcomeCalibrationV1691F37?.build==='function';
+  if(dualActive&&(build||event.target?.closest?.('#buildAllBtn'))) return;
   if(build){event.preventDefault();event.stopImmediatePropagation();void buildExactCalibratedTickets();return}
   if(event.target?.closest?.('[data-view="calibration"]')){requestAnimationFrame(()=>{patchMenuLabel();decorateCalibrationHome()})}
   if(event.target?.closest?.('#buildAllBtn')){event.preventDefault();event.stopImmediatePropagation();void window.ATCouponDecisionV1671?.open?.();return}
