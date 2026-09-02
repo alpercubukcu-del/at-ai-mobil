@@ -759,26 +759,8 @@ async function buildCalibratedTickets() {
   }
   busy = true;
   try {
-    setBuildStatusF6015('1/3 · Günlük Arşiv yükleniyor…');
-    try {
-      await timeoutF6015(
-        window.ATArchiveStateReuseV1691F9?.hydrate?.('coupon-f6015-before-audit'),
-        5000,
-        'Günlük Arşiv'
-      );
-    } catch (archiveError) {
-      console.warn('[AT AI] F60.15 archive hydrate skipped:', archiveError?.message || archiveError);
-      setBuildStatusF6015('1/3 · Arşiv beklemesi aşıldı; hazır verilerle devam ediliyor…', 'warn');
-    }
-    const api = window.ATCouponCareerOnlyV1691F1;
-    const baseAudit = api?.audit?.() || { raceNos:requiredRaceNos(), issues:[] };
-    const hard = hardIssues(baseAudit);
-    if (hard.length) {
-      await window.ATCouponDecisionV1671?.open?.();
-      decorateGate('Veri denetimi gerekli · eksikleri tamamlayıp tekrar oluşturun.');
-      return;
-    }
-    const raceNos = baseAudit.raceNos?.length ? baseAudit.raceNos : requiredRaceNos();
+    setBuildStatusF6015('1/3 · Günlük Arşiv hazır; kupon ayakları belirleniyor…');
+    const raceNos = requiredRaceNos();
     if (!raceNos.length) throw new Error('Önce bahis türünü seçin; kupon ayakları belirlenemedi.');
     setBuildStatusF6015(`2/3 · Güncel Analiz hazırlanıyor (0/${raceNos.length})…`);
     for (let index = 0; index < raceNos.length; index++) {
@@ -938,22 +920,6 @@ document.addEventListener('click', event => {
 }, true);
 
 patchCouponText();
-try {
-  const couponDialogF6013 = $('couponCenterDialog');
-  if (couponDialogF6013 && !couponDialogF6013.__fusionTextObserverF6013) {
-    let scheduledF6013 = false;
-    const observerF6013 = new MutationObserver(() => {
-      if (scheduledF6013) return;
-      scheduledF6013 = true;
-      setTimeout(() => {
-        scheduledF6013 = false;
-        patchCouponText();
-      }, 0);
-    });
-    observerF6013.observe(couponDialogF6013, { childList:true, subtree:true, characterData:true });
-    couponDialogF6013.__fusionTextObserverF6013 = observerF6013;
-  }
-} catch {}
 window.ATIstanbulOutcomeCalibrationV1691F37 = {
   version:VERSION,
   source:SOURCE,
@@ -967,5 +933,5 @@ window.ATIstanbulOutcomeCalibrationV1691F37 = {
   profile:() => ({ ...BACKTEST })
 };
 
-console.info('[AT AI]', VERSION, 'F60.15 active - bounded archive/current waits with visible coupon progress.');
+console.info('[AT AI]', VERSION, 'F60.16 active - coupon reads already hydrated archive state; no second hydrate/audit lock.');
 })();
