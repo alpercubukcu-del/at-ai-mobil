@@ -842,6 +842,14 @@ if (window.ATCouponDecisionV1671 && previousGateOpen) {
   };
 }
 
+window.addEventListener('click', event => {
+  const build = event.target?.closest?.('#buildAllBtn,#careerOnlyBuildV1691F1');
+  if (!build) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  void buildCalibratedTickets();
+}, true);
+
 document.addEventListener('click', event => {
   const direct = event.target?.closest?.('#buildAllBtn');
   if (!direct) return;
@@ -897,5 +905,5 @@ window.ATIstanbulOutcomeCalibrationV1691F37 = {
   profile:() => ({ ...BACKTEST })
 };
 
-console.info('[AT AI]', VERSION, 'F60.13 active - manual bet type drives fusion legs; UI text locked.');
+console.info('[AT AI]', VERSION, 'F60.14 active - window capture starts fusion before legacy coupon listeners.');
 })();
