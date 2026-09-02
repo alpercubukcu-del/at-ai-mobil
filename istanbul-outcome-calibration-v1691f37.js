@@ -150,7 +150,9 @@ function cityName() {
 }
 
 function outcomeCalibrationActiveF6017() {
-  return normalizeText(cityName()).includes('istanbul');
+  // F60.18: 29.08.2025 sabit İstanbul profili otomatik uygulanmaz.
+  // Kalibrasyon yalnız kullanıcının Günün Koşu Kalibrasyonu menüsünde seçtiği geçmiş yarışlardan gelir.
+  return false;
 }
 
 function selectedTypes() {
@@ -831,9 +833,65 @@ async function buildCalibratedTickets() {
     setTimeout(() => {
       const button = $('buildAllBtn') || $('careerOnlyBuildV1691F1');
       if (button && button.dataset.fusionStatus !== 'ok' && button.dataset.fusionStatus !== 'error') {
-        button.textContent = 'Birleşik Kariyer Kuponu Oluştur';
+        button.textContent = 'Kalibresiz + Kalibreli İki Kupon Oluştur';
       }
     }, 500);
+  }
+}
+
+let dualBuildBusyF6018 = false;
+async function buildDualTicketsF6018() {
+  if (dualBuildBusyF6018) return;
+  dualBuildBusyF6018 = true;
+  try {
+    setBuildStatusF6015('1/2 · Kalibresiz kupon hazırlanıyor…');
+    await buildCalibratedTickets();
+    const st = currentState();
+    const baseline = (Array.isArray(st?.tickets) ? st.tickets : []).map(ticket => ({
+      ...ticket,
+      modelLabel:'1. Kalibresiz · Kariyer/Hazırlık + Güncel Analiz',
+      calibrationVariant:'UNCALIBRATED_SELECTED_HISTORY',
+      warnings:[
+        'Kalibresiz kupon: seçilmiş geçmiş yarış kalibrasyonu uygulanmadı.',
+        ...(Array.isArray(ticket?.warnings) ? ticket.warnings.filter(w => !clean(w).includes('F37')) : [])
+      ]
+    }));
+
+    setBuildStatusF6015('2/2 · Seçili geçmiş yarışlarla kalibreli kupon hazırlanıyor…');
+    const calibrationApi = window.ATExactMatchCalibrationCouponV1691F595;
+    if (typeof calibrationApi?.build !== 'function') throw new Error('Günün koşu kalibrasyonu motoru hazır değil.');
+    await calibrationApi.build();
+    const calibrated = (Array.isArray(st?.tickets) ? st.tickets : []).map(ticket => ({
+      ...ticket,
+      modelLabel:'2. Kalibreli · Seçilen Geçmiş Yarışlar',
+      calibrationVariant:'SELECTED_HISTORY_TOP1_TOP2_TOP3_TOP5',
+      warnings:[
+        `Kalibreli kupon: ${Number(ticket?.calibratedLegs)||0}/${Array.isArray(ticket?.legs)?ticket.legs.length:0} ayakta seçili geçmiş yarış profili kullanıldı.`,
+        ...(Array.isArray(ticket?.warnings) ? ticket.warnings : [])
+      ]
+    }));
+
+    if (st) {
+      st.tickets = [...baseline, ...calibrated];
+      st.analyses = st.analyses || {};
+      st.analyses.ticketV11 = {
+        ...(st.analyses.ticketV11 || {}),
+        version:'CAREER-COUPON-V16.9.1F60.18-DUAL',
+        f37Applied:false,
+        variants:['UNCALIBRATED','SELECTED_HISTORY_CALIBRATED'],
+        generatedAt:new Date().toISOString()
+      };
+    }
+    try { if (typeof save === 'function') save(); } catch {}
+    if (typeof renderTicketsV11 === 'function') renderTicketsV11();
+    else if (typeof renderTickets === 'function') renderTickets();
+    setBuildStatusF6015('Hazır · 1 kalibresiz + 1 kalibreli kupon oluşturuldu.', 'ok');
+  } catch (error) {
+    console.error('[AT AI] F60.18 çift kupon', error);
+    setBuildStatusF6015(`Kupon oluşturulamadı: ${error?.message || error}`, 'error');
+    try { alert(`Kupon oluşturulamadı: ${error?.message || error}`); } catch {}
+  } finally {
+    dualBuildBusyF6018 = false;
   }
 }
 
@@ -864,25 +922,25 @@ function patchCouponText() {
   try {
     const note = document.querySelector('#couponCenterDialog .five-model-note-v11');
     if (note) {
-      note.innerHTML = '<b>Kupon kaynağı: Günlük Arşiv Kariyer/Hazırlık + Güncel Analiz</b><span>K/H %70 + Güncel %30; kariyer yoksa Güncel %100. 5 Model kupona girmez.</span>';
+      note.innerHTML = '<b>İki kupon birlikte oluşturulur</b><span>1) Kalibresiz K/H + Güncel. 2) Günün Koşu Kalibrasyonu menüsünde seçilen geçmiş yarışlarla kalibreli.</span>';
     }
     const button = $('buildAllBtn');
-    if (button && button.textContent !== 'Birleşik Kariyer Kuponu Oluştur') button.textContent = 'Birleşik Kariyer Kuponu Oluştur';
+    if (button && button.textContent !== 'Kalibresiz + Kalibreli İki Kupon Oluştur') button.textContent = 'Kalibresiz + Kalibreli İki Kupon Oluştur';
   } catch {}
 }
 
 const oldApi = window.ATCouponCareerOnlyV1691F1;
 if (oldApi) {
   oldApi.scoreRows = calibratedScoreRows;
-  oldApi.buildCareerTickets = buildCalibratedTickets;
+  oldApi.buildCareerTickets = buildDualTicketsF6018;
 }
 const oldHybrid = window.ATCouponHybridV1691F8;
 if (oldHybrid) {
   oldHybrid.scoreRows = calibratedScoreRows;
-  oldHybrid.build = buildCalibratedTickets;
+  oldHybrid.build = buildDualTicketsF6018;
 }
-try { buildTicketsV11 = buildCalibratedTickets; } catch {}
-try { buildTickets = buildCalibratedTickets; } catch {}
+try { buildTicketsV11 = buildDualTicketsF6018; } catch {}
+try { buildTickets = buildDualTicketsF6018; } catch {}
 
 if (window.ATCouponDecisionV1671 && previousGateOpen) {
   window.ATCouponDecisionV1671.open = async function(...args) {
@@ -898,7 +956,7 @@ window.addEventListener('click', event => {
   if (!build) return;
   event.preventDefault();
   event.stopImmediatePropagation();
-  void buildCalibratedTickets();
+  void buildDualTicketsF6018();
 }, true);
 
 document.addEventListener('click', event => {
@@ -906,7 +964,7 @@ document.addEventListener('click', event => {
   if (!direct) return;
   event.preventDefault();
   event.stopImmediatePropagation();
-  void buildCalibratedTickets();
+  void buildDualTicketsF6018();
 }, true);
 
 document.addEventListener('click', event => {
@@ -914,7 +972,7 @@ document.addEventListener('click', event => {
   if (!build) return;
   event.preventDefault();
   event.stopImmediatePropagation();
-  void buildCalibratedTickets();
+  void buildDualTicketsF6018();
 }, true);
 
 document.addEventListener('click', event => {
@@ -934,11 +992,11 @@ window.ATIstanbulOutcomeCalibrationV1691F37 = {
   fusionRule:'CAREER_PREPARATION_70_CURRENT_30; NO_CAREER_CURRENT_100',
   ensureCurrent:ensureCurrentAllF6011,
   scoreRows:calibratedScoreRows,
-  build:buildCalibratedTickets,
+  build:buildDualTicketsF6018,
   minWidthForRace,
   raceTags,
   profile:() => ({ ...BACKTEST })
 };
 
-console.info('[AT AI]', VERSION, 'F60.17 active - F37 Istanbul-only; requested single count honored exactly.');
+console.info('[AT AI]', VERSION, 'F60.18 active - static F37 disabled; selected-history calibrated and uncalibrated coupons enabled.');
 })();
