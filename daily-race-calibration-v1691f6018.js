@@ -100,7 +100,7 @@ document.addEventListener('change',event=>{
   if(event.target?.matches?.('#xcalRace,#analysisRace')) setTimeout(decorate,120);
 },true);
 document.addEventListener('click',event=>{
-  if(event.target?.closest?.('#runAnalysis,#xcalRunSelected,#xcalRunAll,#xcalRetryIncompleteF6018')) {
+  if(event.target?.closest?.('#runAnalysis')) {
     setTimeout(decorate,180);
     setTimeout(decorate,900);
   }
