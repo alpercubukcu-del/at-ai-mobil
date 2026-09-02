@@ -25,7 +25,7 @@ new Function(app);
 fs.writeFileSync(APP, app, 'utf8');
 
 let html = fs.readFileSync(INDEX, 'utf8');
-html = html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=169195');
+html = html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=169196');
 fs.writeFileSync(INDEX, html, 'utf8');
 
-console.log('[AT AI] V16.9.1F60.18.4 build complete: dynamic daily calibration and dual coupons; static F37 disabled.');
+console.log('[AT AI] V16.9.1F60.18.5 build complete: dynamic daily calibration and dual coupons; static F37 disabled.');
