@@ -51,6 +51,8 @@ function decorate(){
   if($('dialogTitle')) $('dialogTitle').textContent='Günün Koşu Kalibrasyonu';
   const wrap=document.querySelector('#analysisContent .xcal-wrap');
   if(!wrap) return;
+  const cleanup=$('xcalCleanupCardF599');
+  if(cleanup) cleanup.style.display='none';
   const heading=wrap.querySelector('h2,h3');
   if(heading) heading.textContent='Günün Koşu Kalibrasyonu';
   let intro=$('dailyCalibrationIntroF6018');
