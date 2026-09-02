@@ -25,6 +25,36 @@ const BACKTEST = {
 
 let busy = false;
 
+function timeoutF6015(promise, ms, label) {
+  let timer;
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} ${Math.round(ms / 1000)} saniyede tamamlanmadı.`)), ms);
+    })
+  ]).finally(() => clearTimeout(timer));
+}
+
+function setBuildStatusF6015(text, kind = '') {
+  const button = $('buildAllBtn') || $('careerOnlyBuildV1691F1');
+  if (button) {
+    button.textContent = text;
+    button.dataset.fusionStatus = kind;
+  }
+  let status = $('couponFusionStatusF6015');
+  const host = $('couponCenterDialog')?.querySelector?.('.coupon-menu-panel-v1681') || $('couponCenterDialog');
+  if (!status && host) {
+    status = document.createElement('div');
+    status.id = 'couponFusionStatusF6015';
+    status.style.cssText = 'margin:10px 0;padding:11px;border:1px solid rgba(114,213,255,.32);border-radius:10px;line-height:1.45;font-weight:700;';
+    host.appendChild(status);
+  }
+  if (status) {
+    status.textContent = text;
+    status.style.color = kind === 'error' ? '#ff9cab' : kind === 'ok' ? '#7ee2a8' : '#dcefff';
+  }
+}
+
 const previousHybridScoreRows = (() => {
   try {
     return window.ATCouponHybridV1691F8?.scoreRows?.bind(window.ATCouponHybridV1691F8) || null;
@@ -367,7 +397,7 @@ async function runCurrentRaceF6011(no) {
       if (select.value !== String(no)) throw new Error(`${no}.K Güncel Analiz seçicisinde bulunamadı.`);
     }
     await new Promise(resolve => setTimeout(resolve, 0));
-    await runAnalysis();
+    await timeoutF6015(runAnalysis(), 45000, `${no}.K Güncel Analiz`);
     await new Promise(resolve => setTimeout(resolve, 0));
   } finally {
     if (dialog) {
@@ -723,10 +753,23 @@ function buildTicket(plan, type, budget, unitPrice, maxSingles) {
 }
 
 async function buildCalibratedTickets() {
-  if (busy) return;
+  if (busy) {
+    setBuildStatusF6015('Önceki kupon işlemi sıfırlandı; yeniden başlatılıyor.', 'warn');
+    busy = false;
+  }
   busy = true;
   try {
-    await window.ATArchiveStateReuseV1691F9?.hydrate?.('coupon-f6012-before-audit');
+    setBuildStatusF6015('1/3 · Günlük Arşiv yükleniyor…');
+    try {
+      await timeoutF6015(
+        window.ATArchiveStateReuseV1691F9?.hydrate?.('coupon-f6015-before-audit'),
+        5000,
+        'Günlük Arşiv'
+      );
+    } catch (archiveError) {
+      console.warn('[AT AI] F60.15 archive hydrate skipped:', archiveError?.message || archiveError);
+      setBuildStatusF6015('1/3 · Arşiv beklemesi aşıldı; hazır verilerle devam ediliyor…', 'warn');
+    }
     const api = window.ATCouponCareerOnlyV1691F1;
     const baseAudit = api?.audit?.() || { raceNos:requiredRaceNos(), issues:[] };
     const hard = hardIssues(baseAudit);
@@ -737,7 +780,18 @@ async function buildCalibratedTickets() {
     }
     const raceNos = baseAudit.raceNos?.length ? baseAudit.raceNos : requiredRaceNos();
     if (!raceNos.length) throw new Error('Önce bahis türünü seçin; kupon ayakları belirlenemedi.');
-    await ensureCurrentAllF6011(raceNos);
+    setBuildStatusF6015(`2/3 · Güncel Analiz hazırlanıyor (0/${raceNos.length})…`);
+    for (let index = 0; index < raceNos.length; index++) {
+      const no = raceNos[index];
+      const programCount = Array.isArray(programRace(no)?.horses) ? programRace(no).horses.length : 0;
+      const readyCount = currentScoreRowsF6011(no).length;
+      if (!(programCount > 0 && readyCount >= programCount)) {
+        try { await runCurrentRaceF6011(no); }
+        catch (currentError) { console.warn('[AT AI] F60.15 current analysis skipped', no, currentError?.message || currentError); }
+      }
+      setBuildStatusF6015(`2/3 · Güncel Analiz hazırlanıyor (${index + 1}/${raceNos.length})…`);
+    }
+    setBuildStatusF6015('3/3 · Kupon sıralaması oluşturuluyor…');
 
     const empty = raceNos.filter(no => !calibratedScoreRows(no).length);
     if (empty.length) throw new Error(`${empty.map(no => `${no}.K`).join(', ')} için K/H veya debut Güncel puanı yok.`);
@@ -771,18 +825,26 @@ async function buildCalibratedTickets() {
     try { if (typeof save === 'function') save(); } catch {}
     if (typeof renderTicketsV11 === 'function') renderTicketsV11();
     else if (typeof renderTickets === 'function') renderTickets();
+    setBuildStatusF6015('Kupon hazır · aşağıdaki sonuç bölümüne yazıldı.', 'ok');
     decorateGate('Kupon hazır · Günlük Arşiv K/H + Güncel Analiz birleştirildi.');
     setTimeout(() => {
       try { $('cdgCloseV1671')?.click(); } catch {}
       try { $('tickets')?.scrollIntoView?.({ behavior:'smooth', block:'start' }); } catch {}
     }, 240);
   } catch (error) {
-    console.error('[AT AI] F37 Istanbul coupon calibration', error);
+    console.error('[AT AI] F60.15 coupon fusion', error);
+    setBuildStatusF6015(`Kupon oluşturulamadı: ${error?.message || error}`, 'error');
     try {
       if (typeof alert === 'function') alert(`Kupon oluşturulamadı: ${error?.message || error}`);
     } catch {}
   } finally {
     busy = false;
+    setTimeout(() => {
+      const button = $('buildAllBtn') || $('careerOnlyBuildV1691F1');
+      if (button && button.dataset.fusionStatus !== 'ok' && button.dataset.fusionStatus !== 'error') {
+        button.textContent = 'Birleşik Kariyer Kuponu Oluştur';
+      }
+    }, 500);
   }
 }
 
@@ -905,5 +967,5 @@ window.ATIstanbulOutcomeCalibrationV1691F37 = {
   profile:() => ({ ...BACKTEST })
 };
 
-console.info('[AT AI]', VERSION, 'F60.14 active - window capture starts fusion before legacy coupon listeners.');
+console.info('[AT AI]', VERSION, 'F60.15 active - bounded archive/current waits with visible coupon progress.');
 })();
