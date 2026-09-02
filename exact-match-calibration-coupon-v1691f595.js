@@ -135,7 +135,7 @@ function calText(cal){
   return`${cal.sample} yarış · ${b.label||'-'} · Top1 %${Math.round((b.rates?.[1]||0)*100)} · Top3 %${Math.round((b.rates?.[3]||0)*100)} · Top5 %${Math.round((b.rates?.[5]||0)*100)} · öneri ${cal.recommendedWidth===1?'tek adayı':`ilk ${cal.recommendedWidth}`}`;
 }
 
-function selectedTypes(){return[...document.querySelectorAll('.bet-check:checked')].map(x=>clean(x.value)).filter(Boolean)}
+function selectedTypes(){try{const manual=typeof manualTicketV117!=='undefined'?clean(manualTicketV117?.betType):'';if(manual)return[manual]}catch{}return[...document.querySelectorAll('.bet-check:checked')].map(x=>clean(x.value)).filter(Boolean)}
 function safePlan(type){try{return typeof resolveBetStartV11==='function'?resolveBetStartV11(type):{ok:false,error:'Bahis başlangıcı bulunamadı.',desc:{type}}}catch(e){return{ok:false,error:e?.message||String(e),desc:{type}}}}
 
 function buildTicket(plan,type,budget,unitPrice,maxSingles,entryMap){
@@ -198,7 +198,11 @@ function buildTicket(plan,type,budget,unitPrice,maxSingles,entryMap){
 }
 
 async function buildExactCalibratedTickets(){
-  if(buildBusy)return;
+  if(buildBusy){
+    const started=Date.now();
+    while(buildBusy&&Date.now()-started<120000) await new Promise(resolve=>setTimeout(resolve,120));
+    if(buildBusy) throw new Error('Kalibreli kupon motoru önceki işlemi tamamlayamadı.');
+  }
   buildBusy=true;
   try{
     const api=window.ATCouponCareerOnlyV1691F1;
