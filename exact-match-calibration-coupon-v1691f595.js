@@ -197,7 +197,7 @@ function buildTicket(plan,type,budget,unitPrice,maxSingles,entryMap){
   return{version:typeof TICKET_V11_VERSION!=='undefined'?TICKET_V11_VERSION:'V11',careerCouponVersion:couponVersion,scoreVersion:VERSION,type,modelId:'career',modelLabel:'Kariyer/Hazırlık · Tam Eşleşme 5 Model kalibrasyonu',available:true,city:cityName(),date:st()?.date,startRace:plan.startRace,startLabel:plan.startLabel,startInferred:plan.inferred,budget,unitPrice,requestedSingles:maxSingles,actualSingles:legs.filter(x=>x.single).length,combinations:m.combinations,cost:m.cost,overBudget:m.cost>budget,minimumCostExceeded:m.cost>budget,warnings,legs,source:SOURCE,calibratedLegs,generatedAt:new Date().toISOString()};
 }
 
-async function buildExactCalibratedTickets(){
+async function buildExactCalibratedTickets(options={}){
   if(buildBusy){
     const started=Date.now();
     while(buildBusy&&Date.now()-started<120000) await new Promise(resolve=>setTimeout(resolve,120));
@@ -207,7 +207,7 @@ async function buildExactCalibratedTickets(){
   try{
     const api=window.ATCouponCareerOnlyV1691F1;
     const audit=api?.audit?.();
-    if(audit&&!audit.ready){await window.ATCouponDecisionV1671?.open?.();return;}
+    if(!options?.skipAudit&&audit&&!audit.ready){await window.ATCouponDecisionV1671?.open?.();return null;}
     const entries=await entriesForBuild();
     const needed=new Set();
     const types=selectedTypes(),plans=types.map(safePlan);
@@ -222,6 +222,7 @@ async function buildExactCalibratedTickets(){
     if(typeof renderTicketsV11==='function')renderTicketsV11();else if(typeof renderTickets==='function')renderTickets();
     await decorateGate('Kupon hazır · Tam Eşleşme 5 Model kalibrasyonu uygulandı.');
     requestAnimationFrame(()=>{try{$('cdgCloseV1671')?.click()}catch{}try{$('tickets')?.scrollIntoView?.({behavior:'smooth',block:'start'})}catch{}});
+    return tickets;
   }catch(e){console.error('[AT AI]',VERSION,'kupon',e);try{alert(`Kupon oluşturulamadı: ${e?.message||e}`)}catch{}}
   finally{buildBusy=false}
 }
