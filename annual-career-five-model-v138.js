@@ -15,7 +15,7 @@ const ARCHIVE_STORE = 'races';
 const CAREER_DB = 'at_ai_tjk_annual_career_v138';
 const CAREER_STORE = 'careers';
 const STORAGE_KEY = 'at_ai_mobil_state_v2';
-let archiveDbPromise = null, careerDbPromise = null, busy = false;
+let archiveDbPromise = null, careerDbPromise = null, busy = false, sharedRunPromiseF6023 = null;
 
 const clean = v => String(v ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -288,8 +288,8 @@ function render(data, ctx, rows) {
     out.querySelectorAll('[data-v14-panel]').forEach(x => x.classList.toggle('active', x.dataset.v14Panel === id));
   }));
 }
-async function run() {
-  if (busy) return;
+async function runInternalF6023() {
+  if (busy) throw new Error('Yerel yıllık arşiv hesabı kilitli kaldı.');
   busy = true;
   const out = document.getElementById('aaAnalysis'); if (out) out.innerHTML = '<div class="aa-note">Seçilen yarışların ilk 3 atı ve yarış öncesi kariyerleri hazırlanıyor…</div>';
   try {
@@ -332,6 +332,12 @@ async function run() {
     if (out) out.innerHTML = `<div class="aa-note" style="color:#ffbd82">${esc(e?.message || e)}</div>`;
     return null;
   } finally { busy = false; }
+}
+async function run() {
+  if (sharedRunPromiseF6023) return sharedRunPromiseF6023;
+  sharedRunPromiseF6023 = runInternalF6023();
+  try { return await sharedRunPromiseF6023; }
+  finally { sharedRunPromiseF6023 = null; }
 }
 function updateVersion() {
   const el = document.querySelector('#tjkAnnualArchiveDialog .aa-eyebrow');
