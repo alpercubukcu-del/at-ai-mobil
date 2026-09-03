@@ -82,7 +82,16 @@ function careerModelKeyV112(race) {
 async function getCareerRaceModelsV112(race) {
   const key = careerModelKeyV112(race);
   if (careerModelCacheV112.has(key)) return careerModelCacheV112.get(key);
-  const promise = prepareRaceModelsV11(race);
+  const promise = (async()=>{
+    const selected=window.__AT_AA_SELECTED_IDS_V134__;
+    if(selected?.size && window.ATAnnualCareerFiveModelV138?.run){
+      try{
+        const local=await window.ATAnnualCareerFiveModelV138.run();
+        if(local?.roadmapOk!==false && Number(local?.no)===Number(race?.no) && Array.isArray(local?.horses) && local.horses.length) return local;
+      }catch(e){ console.warn('[AT AI]',CAREER_MODEL_TABS_VERSION,'yillik arsiv yerel 5 Model yolu kullanilamadi:',e?.message||e); }
+    }
+    return prepareRaceModelsV11(race);
+  })();
   careerModelCacheV112.set(key, promise);
   try {
     const result = await promise;
