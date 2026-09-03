@@ -68,7 +68,7 @@ async function readModel(raceNo) {
 getCareerRaceModelsV112 = async function(race) {
   try {
     const record = await readModel(race?.no);
-    if (record?.kind === 'model' && record?.data && rosterMatches(race, record.data)) {
+    if (record?.kind === 'model' && record?.data?.roadmapOk !== false && Array.isArray(record?.data?.horses) && record.data.horses.length && rosterMatches(race, record.data)) {
       record.data.archiveDisplayReuse = true;
       record.data.archiveDisplayReuseVersion = VERSION;
       return record.data;
