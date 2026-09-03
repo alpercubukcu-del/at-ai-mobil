@@ -411,7 +411,7 @@ function matchRaceCandidates(row, day) {
     const ci = parseClass(r.class || r.yaradi1 || '');
     return ci.key === row.classKey && ageKey(r.ageGroup || r.yaradi2 || '') === ageKey(row.groupRaw) &&
       Number(r.distance || r.mesafe || 0) === Number(row.distance) && trackKey(r.track || r.pist || '') === row.trackKey;
-  }).map(r => Number(r.no ?? r.raceNo ?? r.kosuNo ?? r.yarrno ?? 0)).filter(Boolean).sort((a, b) => a - b);
+  }).map(r => Number(r.no)).filter(Boolean).sort((a, b) => a - b);
 }
 async function resolveRows(rows) {
   const unresolved = rows.filter(r => !r.raceNo);
