@@ -47,6 +47,8 @@ async function retryIncomplete(){
 }
 
 function decorate(){
+  const dialog=$('analysisDialog');
+  if(!dialog?.open || dialog.dataset.dailyCalibrationF6018!=='1' || dialog.dataset.view!=='scenario') return;
   if($('dialogEyebrow')) $('dialogEyebrow').textContent='SEÇİLMİŞ GEÇMİŞ YARIŞ BACKTESTİ';
   if($('dialogTitle')) $('dialogTitle').textContent='Günün Koşu Kalibrasyonu';
   const wrap=document.querySelector('#analysisContent .xcal-wrap');
@@ -88,6 +90,7 @@ function openDailyCalibration(event){
   try{$('closeMenu')?.click()}catch{}
   const dialog=$('analysisDialog');
   if(!dialog) return;
+  dialog.dataset.view='scenario';
   dialog.dataset.dailyCalibrationF6018='1';
   window.ATExactMatchCalibrationV1691F594?.render?.();
   decorate();
