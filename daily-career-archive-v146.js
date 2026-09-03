@@ -303,18 +303,22 @@ try {
       const key = modelKeyA(date, city, raceNo);
       if (!bypassArchiveOnceA) {
         const cached = await idbGetA(key);
-        if (cached?.kind === 'model' && cached.engine === MODEL_ENGINE && cached.fingerprint === raceFingerprintA(race) && cached.data) {
+        if (cached?.kind === 'model' && cached.engine === MODEL_ENGINE && cached.fingerprint === raceFingerprintA(race) && cached.data?.roadmapOk !== false && Array.isArray(cached.data?.horses) && cached.data.horses.length) {
           return cached.data;
         }
       }
       const data = await baseGetModelsA(race);
-      await idbPutA({
-        key, kind:'model', schemaVersion:VERSION, engine:MODEL_ENGINE,
-        date, city, cityName:currentCityNameA(), raceNo,
-        fingerprint:raceFingerprintA(race), data,
-        archivedAt:new Date().toISOString()
-      });
-      updateArchiveToolbarA().catch(() => {});
+      if (data?.roadmapOk !== false && Array.isArray(data?.horses) && data.horses.length) {
+        await idbPutA({
+          key, kind:'model', schemaVersion:VERSION, engine:MODEL_ENGINE,
+          date, city, cityName:currentCityNameA(), raceNo,
+          fingerprint:raceFingerprintA(race), data,
+          archivedAt:new Date().toISOString()
+        });
+        updateArchiveToolbarA().catch(() => {});
+      } else {
+        try { await idbDeleteA(key); } catch {}
+      }
       return data;
     };
   }
