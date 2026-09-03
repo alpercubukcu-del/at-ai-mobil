@@ -254,6 +254,10 @@ async function run() {
   const out = document.getElementById('aaAnalysis'); if (out) out.innerHTML = '<div class="aa-note">Seçilen yarışların ilk 3 atı ve yarış öncesi kariyerleri hazırlanıyor…</div>';
   try {
     const ctx = currentContext(); if (!ctx?.meta?.ok) throw new Error('Bugünkü programdan tek bir koşu seçin.');
+    if (typeof window.ATAnnualArchiveV13?.resolveSelected === 'function') {
+      if (out) out.innerHTML = '<div class="aa-note">Seçilen geçmiş yarışların koşu numaraları doğrulanıyor…</div>';
+      await window.ATAnnualArchiveV13.resolveSelected();
+    }
     const rows = (await selectedRows()).filter(r => r.raceNo && r.date < ctx.date);
     if (!rows.length) throw new Error('Koşu No’su kesinleşmiş en az bir geçmiş yarış seçin.');
     let done = 0;
