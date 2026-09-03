@@ -429,9 +429,11 @@ function candidateSupportF20(path, refPath, conditionScore) {
   const conditionFactor = clamp(0.50 + clamp((Number(conditionScore) || 0) / 100) / 2, 0.50, 1);
   const cap = capByPairCountF20(valid.length);
   const raw = topAvg * 100 * Math.sqrt(coverage) * SUPPORT_FACTOR * conditionFactor * gapPenalty;
-  const score = Math.round(Math.min(cap, raw));
+  const rawScore = Math.min(cap, raw);
+  const score = Math.round(rawScore);
   return {
     score,
+    rawScore,
     used:false,
     pairCount:valid.length,
     topPairAvg:Math.round(topAvg * 100),
@@ -504,13 +506,17 @@ function candidateBetterF20(a, b) {
 function buildCandidateF20(race, ref, currentVariant, refVariant) {
   const conditionScore = conditionScoreF20(race);
   const pathScore = orderedPathScoreF20(currentVariant.path, refVariant.path);
-  const baseScore = Math.round(pathScore * conditionScore / 100);
+  const baseRawScore = pathScore * conditionScore / 100;
+  const baseScore = Math.round(baseRawScore);
   const support = candidateSupportF20(currentVariant.path, refVariant.path, conditionScore);
-  const finalScore = Math.max(baseScore, support.score);
+  const finalRawScore = Math.max(baseRawScore, Number(support.rawScore || 0));
+  const finalScore = Math.round(finalRawScore);
   const year = Number(race?.sourceYear || String(race?.date || '').slice(0, 4)) || null;
   return {
     year,
     score:finalScore,
+    rankingRawScore:finalRawScore,
+    baseRawScore,
     baseScore,
     pathScore,
     conditionScore,
@@ -623,6 +629,7 @@ if (calculateBeforeF20) {
     byYear.sort((a, b) => Number(b?.year || 0) - Number(a?.year || 0));
     const scored = byYear.filter(row => Number.isFinite(Number(row?.score)));
     const candidateStrongest = scored.length ? [...scored].sort((a, b) =>
+      Number(b.rankingRawScore ?? b.score) - Number(a.rankingRawScore ?? a.score) ||
       Number(b.score) - Number(a.score) ||
       Number(b.baseScore || 0) - Number(a.baseScore || 0) ||
       Number(b.candidateSupportScore || 0) - Number(a.candidateSupportScore || 0) ||
@@ -638,6 +645,7 @@ if (calculateBeforeF20) {
     return {
       ...baseOut,
       score:finalScore,
+      rankingRawScore:useCandidate ? Number(candidateStrongest?.rankingRawScore ?? candidateScore) : Number(original?.rankingRawScore ?? originalScore),
       strongestYear:strongest?.year || null,
       strongest:strongest || null,
       byYear:useCandidate || byYear.length ? byYear : original.byYear,
