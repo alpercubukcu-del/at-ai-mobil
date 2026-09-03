@@ -83,8 +83,7 @@ async function getCareerRaceModelsV112(race) {
   const key = careerModelKeyV112(race);
   if (careerModelCacheV112.has(key)) return careerModelCacheV112.get(key);
   const promise = (async()=>{
-    const selected=window.__AT_AA_SELECTED_IDS_V134__;
-    if(selected?.size && window.ATAnnualCareerFiveModelV138?.run){
+    if(window.ATAnnualCareerFiveModelV138?.run){
       try{
         const local=await window.ATAnnualCareerFiveModelV138.run();
         if(local?.roadmapOk!==false && Number(local?.no)===Number(race?.no) && Array.isArray(local?.horses) && local.horses.length) return local;
