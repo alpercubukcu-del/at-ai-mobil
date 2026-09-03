@@ -48,6 +48,10 @@ async function dbGet(dbFn, store, key) {
   const db = await dbFn(); if (!db) return null;
   return new Promise(resolve => { try { const q = db.transaction(store, 'readonly').objectStore(store).get(key); q.onsuccess = () => resolve(q.result?.value ?? null); q.onerror = () => resolve(null); } catch { resolve(null); } });
 }
+async function dbGetAll(dbFn, store) {
+  const db = await dbFn(); if (!db || !db.objectStoreNames.contains(store)) return [];
+  return new Promise(resolve => { try { const q = db.transaction(store, 'readonly').objectStore(store).getAll(); q.onsuccess = () => resolve((q.result || []).map(x => x?.value).filter(Boolean)); q.onerror = () => resolve([]); } catch { resolve([]); } });
+}
 async function dbPut(dbFn, store, key, value) {
   const db = await dbFn(); if (!db) return false;
   return new Promise(resolve => { try { const tx = db.transaction(store, 'readwrite'); tx.objectStore(store).put({ key, value, updatedAt: Date.now() }); tx.oncomplete = () => resolve(true); tx.onerror = tx.onabort = () => resolve(false); } catch { resolve(false); } });
@@ -108,6 +112,24 @@ function channel(ctx, row) {
   if (sameClass(m.class, row.classRaw) && sameAge(m.ageGroup, row.groupRaw) && Number(m.distance) === Number(row.distance) && sameTrack(m.track, row.track) && keyText(ctx.city) === keyText(row.city)) return 'EXACT';
   if (sameClass(m.class, row.classRaw) && sameAge(m.ageGroup, row.groupRaw)) return 'CONDITION_TWIN';
   return 'RACE_FAMILY';
+}
+async function automaticExactRows(ctx) {
+  const all = await dbGetAll(openArchiveDb, ARCHIVE_STORE);
+  const exact = all.filter(row => row?.date < ctx.date && channel(ctx, row) === 'EXACT');
+  for (const row of exact) {
+    if (Number(row.raceNo) > 0) continue;
+    const day = all.filter(x => x?.date === row.date && keyText(x?.city) === keyText(row.city))
+      .sort((a,b) => Number(a?.page || 0) - Number(b?.page || 0) || Number(a?.rowIndex || 0) - Number(b?.rowIndex || 0));
+    const idx = day.findIndex(x => x?.id === row.id);
+    if (idx >= 0) {
+      row.raceNo = idx + 1;
+      row.permanentKey = `${row.date}|${row.cityId}|${row.raceNo}`;
+      row.resolutionMethod = 'ANNUAL_ROW_ORDER_AUTO_F6021';
+      await dbPut(openArchiveDb, ARCHIVE_STORE, row.id, row);
+    }
+  }
+  return exact.filter(row => Number(row.raceNo) > 0)
+    .sort((a,b) => a.date.localeCompare(b.date) || Number(a.raceNo) - Number(b.raceNo));
 }
 async function historicalRace(ctx, row) {
   const r = await fetch(`/api/tjk-history?date=${encodeURIComponent(row.date)}&city=${encodeURIComponent(row.city)}&raceNo=${encodeURIComponent(row.raceNo)}`, { cache: 'no-store' });
@@ -254,12 +276,13 @@ async function run() {
   const out = document.getElementById('aaAnalysis'); if (out) out.innerHTML = '<div class="aa-note">Seçilen yarışların ilk 3 atı ve yarış öncesi kariyerleri hazırlanıyor…</div>';
   try {
     const ctx = currentContext(); if (!ctx?.meta?.ok) throw new Error('Bugünkü programdan tek bir koşu seçin.');
-    if (typeof window.ATAnnualArchiveV13?.resolveSelected === 'function') {
-      if (out) out.innerHTML = '<div class="aa-note">Seçilen geçmiş yarışların koşu numaraları doğrulanıyor…</div>';
-      await window.ATAnnualArchiveV13.resolveSelected();
-    }
-    const rows = (await selectedRows()).filter(r => r.raceNo && r.date < ctx.date);
-    if (!rows.length) throw new Error('Koşu No’su kesinleşmiş en az bir geçmiş yarış seçin.');
+    if (out) out.innerHTML = '<div class="aa-note">Yıllık arşivdeki tam eşleşmeler otomatik aranıyor…</div>';
+    const manual = (await selectedRows()).filter(r => r.raceNo && r.date < ctx.date);
+    const automatic = await automaticExactRows(ctx);
+    const rowMap = new Map();
+    for (const row of [...automatic, ...manual]) rowMap.set(row.id || `${row.date}|${row.city}|${row.raceNo}`, row);
+    const rows = [...rowMap.values()];
+    if (!rows.length) throw new Error('Yıllık arşivde koşu numarası belirlenebilen tam eşleşme bulunamadı.');
     let done = 0;
     const refs = await mapLimit(rows, 2, async row => { const r = await historicalRace(ctx, row); done++; if (out) out.innerHTML = `<div class="aa-note">İlk 3 referans yarışları: ${done}/${rows.length}</div>`; return r; });
     const models = { EXACT: [], CONDITION_TWIN: [], RACE_FAMILY: [] };
