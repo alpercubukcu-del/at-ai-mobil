@@ -413,6 +413,12 @@ function matchRaceCandidates(row, day) {
       Number(r.distance || r.mesafe || 0) === Number(row.distance) && trackKey(r.track || r.pist || '') === row.trackKey;
   }).map(r => Number(r.no)).filter(Boolean).sort((a, b) => a - b);
 }
+function annualOrderRaceNo(row) {
+  const sameDay = loadedRows.filter(x => x.date === row.date && (clean(x.cityId) === clean(row.cityId) || norm(x.city) === norm(row.city)))
+    .sort((a, b) => Number(a.page || 0) - Number(b.page || 0) || Number(a.rowIndex || 0) - Number(b.rowIndex || 0));
+  const idx = sameDay.findIndex(x => x.id === row.id);
+  return idx >= 0 ? idx + 1 : 0;
+}
 async function resolveRows(rows) {
   const unresolved = rows.filter(r => !r.raceNo);
   if (!unresolved.length) return rows;
@@ -431,7 +437,19 @@ async function resolveRows(rows) {
       await dbPut(STORE_RACES, row.id, row);
     } catch (e) {
       row.resolveError = e?.message || String(e); await dbPut(STORE_RACES, row.id, row);
-    } finally { done++; setStatus(`Koşu No çözümleme: ${done}/${unresolved.length}`, null); }
+    } finally {
+      if (!row.raceNo) {
+        const fallbackNo = annualOrderRaceNo(row);
+        if (fallbackNo) {
+          row.raceNo = fallbackNo;
+          row.permanentKey = `${row.date}|${row.cityId}|${fallbackNo}`;
+          row.resolutionMethod = 'ANNUAL_ROW_ORDER';
+          row.resolveError = null;
+          await dbPut(STORE_RACES, row.id, row);
+        }
+      }
+      done++; setStatus(`Koşu No çözümleme: ${done}/${unresolved.length}`, null);
+    }
   });
   renderResults();
   return rows;
