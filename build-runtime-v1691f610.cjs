@@ -14,7 +14,7 @@ execFileSync(process.execPath, [BASE], { cwd: ROOT, stdio: 'inherit' });
 
 let app = fs.readFileSync(APP, 'utf8');
 
-const channelPattern = /function\s+channel\(ctx,\s*row\)\s*\{[\s\S]{0,1400}?return\s*['"]RACE_FAMILY['"]\s*;?\s*\}/g;
+const channelPattern = /function\s+channel\(ctx,\s*row\)\s*\{[\s\S]{0,1400}?return\s*['"]RACE_FAMILY['"]\s*;?\s*\}(?=\s*async\s+function\s+resolveAnnualRaceNoF6022)/g;
 const channelMatches = app.match(channelPattern) || [];
 if (channelMatches.length !== 1) throw new Error(`[V16.9.1F60.10] Annual channel patch target count ${channelMatches.length}.`);
 app = app.replace(channelPattern, `function channel(ctx, row) {
