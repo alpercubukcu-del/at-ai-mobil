@@ -113,21 +113,39 @@ function channel(ctx, row) {
   if (sameClass(m.class, row.classRaw) && sameAge(m.ageGroup, row.groupRaw)) return 'CONDITION_TWIN';
   return 'RACE_FAMILY';
 }
+async function resolveAnnualRaceNoF6022(row, all) {
+  try {
+    const r = await fetch(`/api/tjk-race-meta?date=${encodeURIComponent(row.date)}&cityId=${encodeURIComponent(row.cityId || '')}&cityName=${encodeURIComponent(row.city || '')}`, { cache:'no-store' });
+    const day = await r.json();
+    if (r.ok && day?.ok !== false) {
+      const candidates = (Array.isArray(day?.races) ? day.races : []).filter(race =>
+        sameClass(race?.class || race?.yaradi1, row.classRaw) &&
+        sameAge(race?.ageGroup || race?.yaradi2, row.groupRaw) &&
+        Number(race?.distance || race?.mesafe || 0) === Number(row.distance) &&
+        sameTrack(race?.track || race?.pist, row.track)
+      ).map(race => Number(race?.no || race?.raceNo)).filter(Boolean).sort((a,b)=>a-b);
+      if (candidates.length) {
+        const occurrence = Math.max(1, Number(row.occurrenceIndex || 1));
+        return candidates[Math.min(occurrence - 1, candidates.length - 1)];
+      }
+    }
+  } catch {}
+  const sameDay = all.filter(x => x?.date === row.date && keyText(x?.city) === keyText(row.city))
+    .sort((a,b) => Number(a?.page || 0) - Number(b?.page || 0) || Number(a?.rowIndex || 0) - Number(b?.rowIndex || 0));
+  const idx = sameDay.findIndex(x => x?.id === row.id);
+  return idx >= 0 ? idx + 1 : 0;
+}
 async function automaticExactRows(ctx) {
   const all = await dbGetAll(openArchiveDb, ARCHIVE_STORE);
   const exact = all.filter(row => row?.date < ctx.date && channel(ctx, row) === 'EXACT');
-  for (const row of exact) {
-    if (Number(row.raceNo) > 0) continue;
-    const day = all.filter(x => x?.date === row.date && keyText(x?.city) === keyText(row.city))
-      .sort((a,b) => Number(a?.page || 0) - Number(b?.page || 0) || Number(a?.rowIndex || 0) - Number(b?.rowIndex || 0));
-    const idx = day.findIndex(x => x?.id === row.id);
-    if (idx >= 0) {
-      row.raceNo = idx + 1;
-      row.permanentKey = `${row.date}|${row.cityId}|${row.raceNo}`;
-      row.resolutionMethod = 'ANNUAL_ROW_ORDER_AUTO_F6021';
-      await dbPut(openArchiveDb, ARCHIVE_STORE, row.id, row);
-    }
-  }
+  await mapLimit(exact.filter(row => !(Number(row.raceNo) > 0)), 3, async row => {
+    const raceNo = await resolveAnnualRaceNoF6022(row, all);
+    if (!raceNo) return;
+    row.raceNo = raceNo;
+    row.permanentKey = `${row.date}|${row.cityId}|${row.raceNo}`;
+    row.resolutionMethod = 'EXACT_DAILY_PROGRAM_AUTO_F6022';
+    await dbPut(openArchiveDb, ARCHIVE_STORE, row.id, row);
+  });
   return exact.filter(row => Number(row.raceNo) > 0)
     .sort((a,b) => a.date.localeCompare(b.date) || Number(a.raceNo) - Number(b.raceNo));
 }
@@ -283,8 +301,13 @@ async function run() {
     for (const row of [...automatic, ...manual]) rowMap.set(row.id || `${row.date}|${row.city}|${row.raceNo}`, row);
     const rows = [...rowMap.values()];
     if (!rows.length) throw new Error('Yıllık arşivde koşu numarası belirlenebilen tam eşleşme bulunamadı.');
-    let done = 0;
-    const refs = await mapLimit(rows, 2, async row => { const r = await historicalRace(ctx, row); done++; if (out) out.innerHTML = `<div class="aa-note">İlk 3 referans yarışları: ${done}/${rows.length}</div>`; return r; });
+    let done = 0, failed = 0;
+    const refs = (await mapLimit(rows, 2, async row => {
+      try { return await historicalRace(ctx, row); }
+      catch (e) { failed++; console.warn('[AT AI]', VERSION, row.date, row.city, row.raceNo, e?.message || e); return null; }
+      finally { done++; if (out) out.innerHTML = `<div class="aa-note">İlk 3 referans yarışları: ${done}/${rows.length}${failed ? ` · ${failed} atlandı` : ''}</div>`; }
+    })).filter(Boolean);
+    if (!refs.length) throw new Error('Yıllık arşiv eşleşmeleri bulundu fakat geçmiş yarış ayrıntıları alınamadı.');
     const models = { EXACT: [], CONDITION_TWIN: [], RACE_FAMILY: [] };
     for (const r of refs) models[r.referenceType]?.push(r);
     let hd = 0;
