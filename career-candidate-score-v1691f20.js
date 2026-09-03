@@ -675,7 +675,8 @@ function hasF20Career(career) {
   const races = Array.isArray(career?.races) ? career.races : [];
   if (!races.length) return false;
   return races.every(race => (race?.horses || []).every(item =>
-    item?.galibiyetBenzerligi?.candidateScoreVersion === VERSION
+    item?.galibiyetBenzerligi?.candidateScoreVersion === VERSION &&
+    (item?.galibiyetBenzerligi?.score == null || Number.isFinite(Number(item?.galibiyetBenzerligi?.rankingRawScore)))
   ));
 }
 
