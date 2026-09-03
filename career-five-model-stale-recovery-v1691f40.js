@@ -60,6 +60,10 @@ getCareerRaceModelsV112=async function(race){
   let hadCareerCache=false;
   try{hadCareerCache=Boolean(key&&typeof careerModelCacheV112!=='undefined'&&careerModelCacheV112.has(key));}catch{}
   const hadSharedPending=sharedPendingV1691F40(race);
+  const annualLocalPending=Boolean(window.ATAnnualCareerFiveModelV138?.pending?.());
+
+  // Yillik arsiv hesabi uzun surebilir; ortak yerel Promise takilmis hesap sayilmaz.
+  if(annualLocalPending) return beforeGetCareerRaceModelsV1691F40(race);
 
   // Taze hesap normal zincirden gider. Sadece eski/inflight hesap sonsuza kadar bekletilmez.
   if(!hadCareerCache&&!hadSharedPending){
