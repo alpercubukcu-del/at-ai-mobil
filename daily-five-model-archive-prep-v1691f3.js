@@ -189,14 +189,13 @@ async function prepareOne(race, progressText='') {
   progress(`${race.no}. Koşu · hesap motoru başlatıldı; arşiv yazımı hesabı bloklamayacak.`);
 
   /*
-    Kritik F56 değişikliği:
-    Manuel hazırlama getCareerRaceModelsV112 üzerinden gitmez. O fonksiyon günlük IndexedDB
-    archive-first wrapper'ını da taşır. Burada aynı puan motoru prepareRaceModelsV11 doğrudan
-    çağrılır; böylece IndexedDB okuma/yazma hesabın tamamlanmasını tutamaz.
+    F60.26: Manuel/gunluk hazirlama da Kariyer paneliyle ayni karar kapisindan gecer.
+    Boylece Y/Y- sinif aliasi, telefondaki Yillik Arsiv tam eslesmeleri ve basarisiz
+    cache korumalari atlanmaz. Yerel yol yoksa bu zincir zaten V11 uzak motora duser.
   */
-  const data = direct
-    ? await prepareRaceModelsV11(race, progress)
-    : await getCareerRaceModelsV112(race);
+  const data = legacy
+    ? await getCareerRaceModelsV112(race)
+    : await prepareRaceModelsV11(race, progress);
 
   const elapsed = Math.max(0, Math.round((performance.now() - started) / 1000));
   const horseCount = Array.isArray(data?.horses) ? data.horses.length : 0;
@@ -285,7 +284,7 @@ function inject() {
     if (!r) return setStatus('Önce üstten bir koşu seçin.','error');
     prepareList([r], e.currentTarget);
   };
-  setStatus(`${currentDate() || 'Tarih'} · ${currentCityName() || 'Şehir'} · ${programRaces().length} koşu programda. F56 hesap/arşiv ayrımı aktif.`);
+  setStatus(`${currentDate() || 'Tarih'} · ${currentCityName() || 'Şehir'} · ${programRaces().length} koşu programda. F60.26 ortak Kariyer/Yıllık Arşiv hesap yolu aktif.`);
   return true;
 }
 
