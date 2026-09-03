@@ -351,6 +351,6 @@ document.addEventListener('click', event => {
   if (!btn || event.isTrusted) return;
   event.preventDefault(); event.stopImmediatePropagation(); run();
 }, true);
-window.ATAnnualCareerFiveModelV138 = { version: VERSION, run, scoringRule: 'TOP3_EACH_RACE_THEN_BEST_PER_YEAR_WITH_PARTIAL_SUPPORT_F19' };
+window.ATAnnualCareerFiveModelV138 = { version: VERSION, run, pending: () => Boolean(sharedRunPromiseF6023), scoringRule: 'TOP3_EACH_RACE_THEN_BEST_PER_YEAR_WITH_PARTIAL_SUPPORT_F19' };
 console.info('[AT AI]', VERSION, 'aktif — yıllık arşiv ilk 3 ayrı kariyer yolu + yılın en iyi referansı');
 })();
