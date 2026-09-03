@@ -175,6 +175,14 @@ function importManual(){
   }catch{return 0;}
 }
 
+function storeReady(raceNo,d){
+  if(!usable(d)) return false;
+  const k=key(raceNo);
+  resolved.set(k,d);
+  persist(k,d);
+  return true;
+}
+
 async function hydrateCurrent(){
   if(hydrating)return 0;
   const races=Array.isArray(window.state?.races)?window.state.races:[];
@@ -219,7 +227,7 @@ function clear(){
   try{sessionStorage.removeItem(SESSION_KEY);}catch{}
 }
 
-window.ATFiveModelSharedCacheV1685={VERSION,key,has,get,pending:raceNo=>inflight.has(key(raceNo)),pendingPromise:raceNo=>inflight.get(key(raceNo))||null,importManual,hydrateCurrent,stats(){const s=sessionLoad();return{version:VERSION,resolved:resolved.size,inflight:inflight.size,sessionRecords:Object.keys(s).length,sessionPersistentAcrossReload:true,keys:Object.keys(s)};},clear};
+window.ATFiveModelSharedCacheV1685={VERSION,key,has,get,storeReady,pending:raceNo=>inflight.has(key(raceNo)),pendingPromise:raceNo=>inflight.get(key(raceNo))||null,importManual,hydrateCurrent,stats(){const s=sessionLoad();return{version:VERSION,resolved:resolved.size,inflight:inflight.size,sessionRecords:Object.keys(s).length,sessionPersistentAcrossReload:true,keys:Object.keys(s)};},clear};
 window.ATFiveModelSharedCacheV1687=window.ATFiveModelSharedCacheV1685;
 
 // Kupon menüsüne girildiğinde daha önce hesaplanmış kompakt skorları karar motorunun private belleğine taşı.
