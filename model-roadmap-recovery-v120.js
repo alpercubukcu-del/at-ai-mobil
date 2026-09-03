@@ -69,6 +69,7 @@ function podiumSchemaExpectedV120() {
 }
 
 function hasPodiumSchemaV120(result) {
+  if (result?.annualArchiveSource) return true;
   if (!podiumSchemaExpectedV120()) return true;
   const horses = Array.isArray(result?.horses) ? result.horses : [];
   if (!horses.length) return true;
@@ -104,7 +105,19 @@ if (typeof getCareerRaceModelsV112 === 'function' && typeof careerModelCacheV112
       careerModelCacheV112.delete(key);
     }
 
-    const promise = Promise.resolve().then(() => prepareRaceModelsV11(race));
+    const promise = Promise.resolve().then(async () => {
+      if (window.ATAnnualCareerFiveModelV138?.run) {
+        try {
+          const local = await window.ATAnnualCareerFiveModelV138.run();
+          if (local?.annualArchiveSource && local?.roadmapOk !== false &&
+              Number(local?.no) === Number(race?.no) &&
+              Array.isArray(local?.horses) && local.horses.length) return local;
+        } catch (e) {
+          console.warn('[AT AI]', MODEL_ROADMAP_RECOVERY_V120, 'yerel yıllık arşiv yolu kullanılamadı:', e?.message || e);
+        }
+      }
+      return prepareRaceModelsV11(race);
+    });
     careerModelCacheV112.set(key, promise);
 
     try {
