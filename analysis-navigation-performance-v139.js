@@ -67,6 +67,7 @@ try {
     try { if (typeof lockAnalysisPageV104==='function') lockAnalysisPageV104(); } catch {}
 
     dialog.dataset.view=view;
+    if (view!=='scenario') delete dialog.dataset.dailyCalibrationF6018;
     dialog.classList.remove('calibration-dialog-v116');
     const title=document.getElementById('dialogTitle');
     const eyebrow=document.getElementById('dialogEyebrow');
