@@ -119,10 +119,28 @@ function careerModeLabelV139(item={}) {
   if (mode==='DATA_ERROR') return 'Veri alinamadi';
   return mode||'Kariyer';
 }
+function careerTieVectorV139(item={}) {
+  const sim=item?.galibiyetBenzerligi||{}, strongest=sim?.strongest||{}, support=sim?.candidateSupport||sim?.partialSupport||strongest?.candidateSupport||strongest?.partialSupport||{};
+  const rows=careerPathRowsV139(item?.career||{});
+  const finishes=rows.map(r=>finite(r?.finish??r?.rank??r?.sira??r?.der)).filter(v=>v!==null&&v>0);
+  const wins=finishes.filter(v=>v===1).length, top3=finishes.filter(v=>v<=3).length;
+  const avgFinish=finishes.length?finishes.reduce((s,v)=>s+v,0)/finishes.length:99;
+  return [
+    finite(sim?.rankingRawScore??sim?.score)??-1,
+    finite(strongest?.baseRawScore??strongest?.baseScore)??-1,
+    finite(strongest?.pathScore)??-1,
+    finite(strongest?.candidateSupportScore??sim?.candidateSupportScore)??-1,
+    finite(support?.topPairAvg)??-1,
+    finite(support?.pairCount)??0,
+    finite(sim?.referenceCount)??0,
+    wins,top3,-avgFinish,rows.length
+  ];
+}
 function sortCareerItemsV139(items=[]) {
   return [...items].sort((a,b)=>{
-    const as=finite(a?.galibiyetBenzerligi?.score),bs=finite(b?.galibiyetBenzerligi?.score);
-    return (bs??-1)-(as??-1)||Number(a?.horse?.no||999)-Number(b?.horse?.no||999);
+    const av=careerTieVectorV139(a),bv=careerTieVectorV139(b);
+    for(let i=0;i<av.length;i++){const d=Number(bv[i])-Number(av[i]);if(Math.abs(d)>1e-9)return d;}
+    return Number(a?.horse?.no||999)-Number(b?.horse?.no||999);
   });
 }
 function horseDetailV139(item) {
