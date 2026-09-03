@@ -257,8 +257,8 @@ function raceReadinessScoreF21(path0, target0) {
   const topTwoRawAvg = avg(bestTwo.map(row => Number(row.rawScore ?? row.score)));
   const topThreeAvg = Math.round(topThreeRawAvg);
   const topTwoAvg = Math.round(topTwoRawAvg);
-  const rawScore = Math.min(MAX_READINESS_SCORE, topThreeRawAvg * 0.65 + topTwoRawAvg * 0.35 + boost);
-  const score = Math.round(rawScore);
+  const rawScore = topThreeRawAvg * 0.65 + topTwoRawAvg * 0.35 + boost;
+  const score = Math.min(MAX_READINESS_SCORE, Math.round(rawScore));
   return {
     score,
     rawScore,
