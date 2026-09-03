@@ -25,7 +25,7 @@ for (const token of [
   'CAREER-MATCH-SELECTOR-V16.9.1F60.12-BULK',
   '__AT_DAILY_CALIBRATION_RACE_SELECTOR_V621__',
   'DAILY-CALIBRATION-RACE-SELECTOR-V16.9.1F60.21',
-  "document.getElementById('xcalRace')"
+  "$('xcalRace')"
 ]) {
   if (!app.includes(token)) throw new Error('[V16.9.1F60.21] Verification failed: ' + token);
 }
