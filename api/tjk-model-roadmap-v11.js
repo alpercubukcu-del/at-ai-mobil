@@ -6,7 +6,7 @@ const MODEL_TYPES = ['EXACT', 'CONDITION_TWIN', 'RACE_FAMILY'];
 
 function clean(v=''){return String(v??'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim()}
 function upper(v=''){return clean(v).toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g,'')}
-function fullClassKey(v=''){return upper(v).replace(/Y\s*-\s*(\d+)/g,'Y$1').replace(/\s*\/\s*/g,'/').replace(/\s+/g,' ').trim()}
+function fullClassKey(v=''){return upper(v).replace(/\s*\/\s*/g,'/').replace(/\s+/g,' ').trim()}
 function getBaseUrl(req){const host=clean(req.headers?.['x-forwarded-host'])||clean(req.headers?.host)||'at-ai-mobil.vercel.app',protocol=clean(req.headers?.['x-forwarded-proto'])||(host.includes('localhost')?'http':'https');return`${protocol}://${host}`}
 function normalizeType(v=''){const t=upper(v);if(t==='SAME_RACE_FAMILY')return'RACE_FAMILY';return MODEL_TYPES.includes(t)?t:''}
 function typeLabel(type){if(type==='EXACT')return'TAM TARİHSEL EŞLEŞME';if(type==='CONDITION_TWIN')return'KOŞUL İKİZİ';return'AYNI YARIŞ AİLESİ'}
