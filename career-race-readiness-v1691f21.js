@@ -188,9 +188,11 @@ function rowReadiness(row, target, index) {
   const recency = clamp(1 - index * 0.025, 0.88, 1);
   const finishMult = finishMultiplier(finish(row));
   const base = cls * 0.34 + trk * 0.20 + dst * 0.21 + age * 0.12 + city * 0.05 + 0.08;
-  const score = Math.round(clamp(base * finishMult * recency) * 100);
+  const rawScore = clamp(base * finishMult * recency) * 100;
+  const score = Math.round(rawScore);
   return {
     score,
+    rawScore,
     classPct:Math.round(cls * 100),
     trackPct:Math.round(trk * 100),
     distancePct:Math.round(dst * 100),
@@ -218,7 +220,7 @@ function raceReadinessScoreF21(path0, target0) {
     };
   }
   const evidence = rows.map((row, index) => rowReadiness(row, target, index));
-  const topRows = [...evidence].sort((a, b) => b.score - a.score).slice(0, 3);
+  const topRows = [...evidence].sort((a, b) => Number(b.rawScore ?? b.score) - Number(a.rawScore ?? a.score)).slice(0, 3);
   const bestTwo = topRows.slice(0, 2);
   const wins = rows.filter(row => finish(row) === 1).length;
   const top3 = rows.filter(row => {
@@ -251,11 +253,15 @@ function raceReadinessScoreF21(path0, target0) {
   if (closeConditionRows >= 2) boost += 3;
   if (closeConditionRows >= 3) boost += 2;
 
-  const topThreeAvg = Math.round(avg(topRows.map(row => row.score)));
-  const topTwoAvg = Math.round(avg(bestTwo.map(row => row.score)));
-  const score = Math.min(MAX_READINESS_SCORE, Math.round(topThreeAvg * 0.65 + topTwoAvg * 0.35 + boost));
+  const topThreeRawAvg = avg(topRows.map(row => Number(row.rawScore ?? row.score)));
+  const topTwoRawAvg = avg(bestTwo.map(row => Number(row.rawScore ?? row.score)));
+  const topThreeAvg = Math.round(topThreeRawAvg);
+  const topTwoAvg = Math.round(topTwoRawAvg);
+  const rawScore = Math.min(MAX_READINESS_SCORE, topThreeRawAvg * 0.65 + topTwoRawAvg * 0.35 + boost);
+  const score = Math.round(rawScore);
   return {
     score,
+    rawScore,
     used:false,
     target,
     topRows,
@@ -300,8 +306,11 @@ if (calculateBeforeF21) {
     const readiness = raceReadinessScoreF21(currentPath, roadmapData);
     const currentScore = finite(out.score);
     const readinessScore = finite(readiness.score);
-    const applyReadiness = readinessScore !== null && (currentScore === null || readinessScore > currentScore);
+    const currentRawScore = finite(out.rankingRawScore ?? out.score);
+    const readinessRawScore = finite(readiness.rawScore ?? readiness.score);
+    const applyReadiness = readinessScore !== null && (currentScore === null || readinessScore > currentScore || (readinessScore === currentScore && readinessRawScore !== null && readinessRawScore > (currentRawScore ?? -1)));
     const finalScore = applyReadiness ? readinessScore : currentScore;
+    const finalRawScore = applyReadiness ? readinessRawScore : currentRawScore;
     const strongest = out.strongest && typeof out.strongest === 'object'
       ? { ...out.strongest, raceReadinessScore:readinessScore, raceReadinessApplied:applyReadiness, score:applyReadiness ? readinessScore : out.strongest.score }
       : out.strongest;
@@ -309,6 +318,7 @@ if (calculateBeforeF21) {
     return {
       ...out,
       score:finalScore,
+      rankingRawScore:finalRawScore,
       strongest,
       raceReadinessScore:readinessScore,
       raceReadiness:readiness,
