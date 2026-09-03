@@ -81,7 +81,13 @@ function careerModelKeyV112(race) {
 
 async function getCareerRaceModelsV112(race) {
   const key = careerModelKeyV112(race);
-  if (careerModelCacheV112.has(key)) return careerModelCacheV112.get(key);
+  if (careerModelCacheV112.has(key)) {
+    try {
+      const cached = await careerModelCacheV112.get(key);
+      if (cached?.roadmapOk !== false && Array.isArray(cached?.horses) && cached.horses.length) return cached;
+    } catch {}
+    careerModelCacheV112.delete(key);
+  }
   const promise = (async()=>{
     if(window.ATAnnualCareerFiveModelV138?.run){
       try{
