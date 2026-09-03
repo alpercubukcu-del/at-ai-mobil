@@ -39,7 +39,7 @@ function parseInteger(v) {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
-async function fetchHtml(url) {
+async function fetchHtmlOnce(url) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -61,6 +61,19 @@ async function fetchHtml(url) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function fetchHtml(url) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      return await fetchHtmlOnce(url);
+    } catch (error) {
+      lastError = error;
+      if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 700));
+    }
+  }
+  throw lastError || new Error('TJK programı iki denemede alınamadı.');
 }
 
 function raceNoFromText(text = '') {
@@ -266,7 +279,7 @@ function parseRaces(html) {
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=21600, stale-while-revalidate=86400');
   try {
     const date = clean(req.query?.date || '');
     const cityId = clean(req.query?.cityId || '');
