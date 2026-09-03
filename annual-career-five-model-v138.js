@@ -269,9 +269,22 @@ async function run() {
       try { const c = await career(horse.id, ctx.date); hd++; if (out) out.innerHTML = `<div class="aa-note">Bugünkü atlar: ${hd}/${ctx.horses.length}</div>`; return { horse, career: c, scores: modelScores(c, models) }; }
       catch (e) { return { horse, career: { ok: false, fullPathBefore: [] }, scores: { exact: { score: null }, twin: { score: null }, family: { score: null }, career: { score: null }, composite: { score: null } }, error: e?.message || String(e) }; }
     });
+    const prepared = {
+      no:Number(ctx.raceNo),
+      roadmapOk:true,
+      roadmapError:null,
+      modelCounts:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,Array.isArray(value)?value.length:0])),
+      horses,
+      annualArchiveSource:true,
+      annualArchiveRows:rows.length,
+      version:VERSION
+    };
+    try { window.ATFiveModelSharedCacheV1687?.storeReady?.(ctx.raceNo, prepared); } catch {}
     render({ horses }, ctx, rows);
+    return prepared;
   } catch (e) {
     if (out) out.innerHTML = `<div class="aa-note" style="color:#ffbd82">${esc(e?.message || e)}</div>`;
+    return null;
   } finally { busy = false; }
 }
 function updateVersion() {
