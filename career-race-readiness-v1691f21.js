@@ -337,7 +337,8 @@ function hasF21Career(career) {
   const races = Array.isArray(career?.races) ? career.races : [];
   if (!races.length) return false;
   return races.every(race => (race?.horses || []).every(item =>
-    item?.galibiyetBenzerligi?.raceReadinessVersion === VERSION
+    item?.galibiyetBenzerligi?.raceReadinessVersion === VERSION &&
+    (item?.galibiyetBenzerligi?.score == null || Number.isFinite(Number(item?.galibiyetBenzerligi?.rankingRawScore)))
   ));
 }
 
