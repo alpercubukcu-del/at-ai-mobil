@@ -24,7 +24,7 @@ const HEADERS = {
 
 function clean(v=''){return String(v??'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim()}
 function upper(v=''){return clean(v).toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g,'')}
-function fullClassKey(v=''){return upper(v).replace(/\s*\/\s*/g,'/').replace(/\s+/g,' ').trim()}
+function fullClassKey(v=''){return upper(v).replace(/Y\s*-\s*(\d+)/g,'Y$1').replace(/\s*\/\s*/g,'/').replace(/\s+/g,' ').trim()}
 function queryHeadKey(v=''){return fullClassKey(v).split('/')[0].trim()}
 function queryCompatibleKey(v=''){
   const parts=fullClassKey(v).split('/').map(x=>x.trim());
