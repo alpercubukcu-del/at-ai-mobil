@@ -14,13 +14,10 @@ execFileSync(process.execPath, [BASE], { cwd: ROOT, stdio: 'inherit' });
 
 let app = fs.readFileSync(APP, 'utf8');
 
-const oldChannel = `function channel(ctx, row) {
-  const m = ctx.meta || {};
-  if (sameClass(m.class, row.classRaw) && sameAge(m.ageGroup, row.groupRaw) && Number(m.distance) === Number(row.distance) && sameTrack(m.track, row.track) && keyText(ctx.city) === keyText(row.city)) return 'EXACT';
-  if (sameClass(m.class, row.classRaw) && sameAge(m.ageGroup, row.groupRaw)) return 'CONDITION_TWIN';
-  return 'RACE_FAMILY';
-}`;
-const newChannel = `function channel(ctx, row) {
+const channelPattern = /function\s+channel\(ctx,\s*row\)\s*\{[\s\S]{0,1400}?return\s*['"]RACE_FAMILY['"]\s*;?\s*\}/g;
+const channelMatches = app.match(channelPattern) || [];
+if (channelMatches.length !== 1) throw new Error(`[V16.9.1F60.10] Annual channel patch target count ${channelMatches.length}.`);
+app = app.replace(channelPattern, `function channel(ctx, row) {
   const m = ctx.meta || {};
   if (!sameClass(m.class, row.classRaw) || !sameAge(m.ageGroup, row.groupRaw)) return '';
   const cityMatch = keyText(ctx.city) === keyText(row.city);
@@ -30,26 +27,19 @@ const newChannel = `function channel(ctx, row) {
   if (distanceMatch && trackMatch) return 'CONDITION_TWIN';
   if (cityMatch) return 'RACE_FAMILY';
   return '';
-}`;
-if (!app.includes(oldChannel)) throw new Error('[V16.9.1F60.10] Annual channel patch target not found.');
-app = app.replace(oldChannel, newChannel);
+}`);
 
-const oldSelection = `    const manual = (await selectedRows()).filter(r => r.raceNo && r.date < ctx.date);
-    const automatic = await automaticExactRows(ctx);
-    const rowMap = new Map();`;
-const newSelection = `    const manualTarget = clean(window.__AT_CAREER_MANUAL_REFERENCE_TARGET_V610__ || '');
+const selectionPattern = /const\s+manual\s*=\s*\(await\s+selectedRows\(\)\)\.filter\(\s*r\s*=>\s*r\.raceNo\s*&&\s*r\.date\s*<\s*ctx\.date\s*\)\s*;\s*const\s+automatic\s*=\s*await\s+automaticExactRows\(ctx\)\s*;\s*const\s+rowMap\s*=\s*new\s+Map\(\)\s*;/g;
+const selectionMatches = app.match(selectionPattern) || [];
+if (selectionMatches.length !== 1) throw new Error(`[V16.9.1F60.10] Manual selection patch target count ${selectionMatches.length}.`);
+app = app.replace(selectionPattern, `const manualTarget = clean(window.__AT_CAREER_MANUAL_REFERENCE_TARGET_V610__ || '');
     const currentTarget = \`${'${ctx.date}'}|${'${keyText(ctx.city)}'}|${'${ctx.raceNo}'}\`;
     const manualMode = manualTarget === currentTarget;
     const manual = (await selectedRows()).filter(r => r.raceNo && r.date < ctx.date && channel(ctx, r));
     const automatic = manualMode ? [] : await automaticExactRows(ctx);
-    const rowMap = new Map();`;
-if (!app.includes(oldSelection)) throw new Error('[V16.9.1F60.10] Manual selection patch target not found.');
-app = app.replace(oldSelection, newSelection);
+    const rowMap = new Map();`);
 
-app = app.replace(
-  "if (out) out.innerHTML = '<div class=\"aa-note\">Yıllık arşivdeki tam eşleşmeler otomatik aranıyor…</div>';",
-  "if (out) out.innerHTML = '<div class=\"aa-note\">Yıllık arşiv Kariyer referansları hazırlanıyor…</div>';"
-);
+app = app.replace(/Yıllık arşivdeki tam eşleşmeler otomatik aranıyor…/g, 'Yıllık arşiv Kariyer referansları hazırlanıyor…');
 app = app.split('⚡ 5 Model Hazırlama · 2000+').join('⚡ 5 Model Hazırlama · Yüklü Yıllık Arşiv');
 app += '\n\n' + fs.readFileSync(SELECTOR, 'utf8');
 
@@ -59,15 +49,13 @@ for (const token of [
   "if (distanceMatch && trackMatch) return 'CONDITION_TWIN';",
   "if (cityMatch) return 'RACE_FAMILY';",
   '⚡ 5 Model Hazırlama · Yüklü Yıllık Arşiv'
-]) {
-  if (!app.includes(token)) throw new Error('[V16.9.1F60.10] Verification failed: ' + token);
-}
+]) if (!app.includes(token)) throw new Error('[V16.9.1F60.10] Verification failed: ' + token);
 if (app.includes('⚡ 5 Model Hazırlama · 2000+')) throw new Error('[V16.9.1F60.10] Legacy 2000+ label still present.');
 new Function(app);
 fs.writeFileSync(APP, app, 'utf8');
 
 let html = fs.readFileSync(INDEX, 'utf8');
-html = html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=169202');
+html = html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=169203');
 fs.writeFileSync(INDEX, html, 'utf8');
 
 console.log('[AT AI] V16.9.1F60.10 build complete: manual Career model-match selector; Exact/Twin/Family structural rules aligned; 2000+ removed.');
