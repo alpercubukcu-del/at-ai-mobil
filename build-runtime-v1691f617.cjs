@@ -56,7 +56,7 @@ app = app.split("caller:'F60.18-DUAL'").join("caller:'F60.13-FIVE-MODEL'");
 app = app.split('2/2 · Seçili geçmiş yarışlarla kalibreli kupon hazırlanıyor…').join('2/2 · Bileşik / Tam / İkiz / Aile / Kariyer kalibreli kuponları hazırlanıyor…');
 app = app.split('Hazır · 1 kalibresiz + 1 kalibreli kupon oluşturuldu.').join('Hazır · 1 kalibresiz + 5 model kalibrasyonlu kupon oluşturuldu.');
 app = app.split('Kalibresiz + Kalibreli İki Kupon Oluştur').join('Kalibresiz + 5 Kalibrasyonlu Kupon Oluştur');
-app = app.split('<b>İki kupon birlikte oluşturulur</b><span>1) Kalibresiz K/H + Güncel. 2) Günün Koşu Kalibrasyonu menüsünde seçilen geçmiş yarışlarla kalibreli.</span>').join('<b>1 kalibresiz + 5 model kalibrasyonlu kupon</b><span>Kalibresiz K/H + Güncel aynen korunur. Kalibrasyonlu kuponlar Bileşik / Tam / İkiz / Aile / Kariyer olarak ayrı üretilir.</span>');
+app = app.split('<b>İki kupon birlikte oluşturulur</b><span>1) Kalibresiz Kariyer Yol Haritası. 2) Günün Koşu Kalibrasyonu menüsünde seçilen geçmiş yarışlarla kalibreli.</span>').join('<b>1 kalibresiz + 5 model kalibrasyonlu kupon</b><span>Kalibresiz kupon Kariyer Yol Haritası Kanıt sırasını kullanır; Güncel Analiz karıştırılmaz. Kalibrasyonlu kuponlar Bileşik / Tam / İkiz / Aile / Kariyer olarak ayrı üretilir.</span>');
 app = app.split('5 Model: kupon dışı').join('5 Model: kalibrasyonlu kuponlarda aktif');
 app = app.split('İki kupon çıkar').join('1 kalibresiz + 5 kalibreli');
 
@@ -67,7 +67,9 @@ for (const token of [
   'MODEL-ROADMAP-RESILIENCE-V16.9.1F60.13',
   'FIVE-MODEL-CALIBRATED-COUPONS-V16.9.1F60.13',
   'window.ATFiveModelCalibratedCouponsV613',
-  'Kalibresiz + 5 Kalibrasyonlu Kupon Oluştur'
+  'Kalibresiz + 5 Kalibrasyonlu Kupon Oluştur',
+  'CAREER_ROADMAP_RANKING_RAW_EVIDENCE_F6023',
+  'Kalibresiz kupon Kariyer Yol Haritası Kanıt sırasını kullanır; Güncel Analiz karıştırılmaz.'
 ]) if (!app.includes(token)) throw new Error('[V16.9.1F60.17] Verification failed: ' + token);
 
 for (const forbidden of [
@@ -85,4 +87,4 @@ let html = fs.readFileSync(INDEX, 'utf8');
 html = html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=169217');
 fs.writeFileSync(INDEX, html, 'utf8');
 
-console.log('[AT AI] V16.9.1F60.17 build complete: Daily Calibration UI rolled back to F60.18.10; current Career selector/roadmap and five-model coupon engine preserved.');
+console.log('[AT AI] V16.9.1F60.17 build complete: Daily Calibration UI preserved; uncalibrated coupon uses Career Roadmap evidence ranking; five-model calibrated coupon engine preserved.');
