@@ -11,6 +11,7 @@ window.__AT_ISTANBUL_OUTCOME_CALIBRATION_V1691F37__ = true;
 const VERSION = 'ISTANBUL-OUTCOME-CALIBRATION-V16.9.1F37';
 const SCORE_VERSION = 'CAREER-COUPON-V16.9.1F37-ISTANBUL-OUTCOME';
 const SOURCE = 'DAILY_ARCHIVE_CAREER_PREPARATION_PLUS_CURRENT_F6011';
+const UNCALIBRATED_SOURCE_F6023 = 'CAREER_ROADMAP_RANKING_RAW_EVIDENCE_F6023';
 const CAREER_WEIGHT_F6011 = 0.70;
 const CURRENT_WEIGHT_F6011 = 0.30;
 const BODY_ID = 'cdgBodyV1671';
@@ -386,6 +387,60 @@ function deriveRows(no) {
   .sort((a, b) => b.score - a.score || (horseNo(a) ?? 999) - (horseNo(b) ?? 999));
 }
 
+
+/* F60.23
+   Kalibresiz kupon, Kariyer Yol Haritasi ekraninda gorulen sirayi birebir kullanir.
+   Ekrandaki "Kanit" sirasi rankingRawScore ile belirlenir; yuvarlanmis yesil yuzde
+   sadece goruntuleme puanidir. Guncel Analiz bu akisa karistirilmaz.
+*/
+function careerRoadmapRowsF6023(no) {
+  const race = careerRace(no);
+  const items = Array.isArray(race?.horses) ? race.horses : [];
+
+  const rows = items.map(item => {
+    const sim = item?.galibiyetBenzerligi || {};
+    const displayScore = finite(sim?.score);
+    const rawEvidence = finite(sim?.rankingRawScore);
+    const evidenceScore = rawEvidence !== null ? rawEvidence : displayScore;
+    if (evidenceScore === null) return null;
+
+    const programRow = programHorse(no, item) || null;
+    const marketRow = programRow || item?.horse || item;
+
+    return {
+      item,
+      horse:item?.horse || programRow || {},
+      programRow,
+      currentRow:null,
+      careerScoreF6011:displayScore,
+      currentScoreF6011:null,
+      fusionWeightsF6011:{ career:100, current:0 },
+      careerDisplayScoreF6023:displayScore,
+      careerEvidenceScoreF6023:evidenceScore,
+      score:evidenceScore,
+      debut:false,
+      scoreSource:UNCALIBRATED_SOURCE_F6023,
+      oddsF37:parseOdds(marketRow),
+      agfF37:parseAgf(marketRow),
+      calibrationAdjustmentF37:0,
+      calibrationTagsF37:[]
+    };
+  })
+  .filter(Boolean)
+  .sort((a, b) =>
+    b.careerEvidenceScoreF6023 - a.careerEvidenceScoreF6023 ||
+    (b.careerDisplayScoreF6023 ?? -1) - (a.careerDisplayScoreF6023 ?? -1) ||
+    (horseNo(a) ?? 999) - (horseNo(b) ?? 999)
+  );
+
+  return rows.map((row, index) => ({
+    ...row,
+    baseScoreF37:row.score,
+    baseRankF37:index + 1,
+    roadmapRankF6023:index + 1
+  }));
+}
+
 function baseScoreRows(no) {
   return deriveRows(no);
 }
@@ -601,18 +656,18 @@ function buildTicket(plan, type, budget, unitPrice, maxSingles) {
       careerCouponVersion:SCORE_VERSION,
       type,
       modelId:'career',
-      modelLabel:outcomeCalibrationActiveF6017() ? 'K/H + Güncel · İstanbul F37' : 'Günlük Arşiv K/H %70 + Güncel %30',
+      modelLabel:'Kariyer Yol Haritası',
       available:false,
       city:cityName(),
       date:currentState()?.date,
       error:plan?.error || 'Bahis başlangıcı bulunamadı.',
-      source:SOURCE
+      source:UNCALIBRATED_SOURCE_F6023
     };
   }
 
   const legsData = (plan.legs || []).map(race => ({
     race,
-    ranking:calibratedScoreRows(race.no)
+    ranking:careerRoadmapRowsF6023(race.no)
   }));
   const noData = legsData.filter(item => !item.ranking.length);
   if (noData.length) {
@@ -621,13 +676,13 @@ function buildTicket(plan, type, budget, unitPrice, maxSingles) {
       careerCouponVersion:SCORE_VERSION,
       type,
       modelId:'career',
-      modelLabel:'Kariyer/Hazırlık · İstanbul kalibrasyonu',
+      modelLabel:'Kariyer Yol Haritası',
       available:false,
       city:cityName(),
       date:currentState()?.date,
       startRace:plan.startRace,
       error:`${noData.map(item => `${item.race.no}.K`).join(', ')} için kupon sıralaması oluşmadı.`,
-      source:SOURCE
+      source:UNCALIBRATED_SOURCE_F6023
     };
   }
 
@@ -692,6 +747,8 @@ function buildTicket(plan, type, budget, unitPrice, maxSingles) {
         name:row.horse?.name,
         id:row.horse?.id || null,
         score:row.score,
+        displayScore:row.careerDisplayScoreF6023,
+        evidenceScore:row.careerEvidenceScoreF6023,
         baseScore:row.baseScoreF37,
         modelRank:rank + 1,
         baseRank:row.baseRankF37,
@@ -707,6 +764,8 @@ function buildTicket(plan, type, budget, unitPrice, maxSingles) {
         no:row.horse?.no,
         name:row.horse?.name,
         score:row.score,
+        displayScore:row.careerDisplayScoreF6023,
+        evidenceScore:row.careerEvidenceScoreF6023,
         baseScore:row.baseScoreF37,
         rank:rank + 1,
         baseRank:row.baseRankF37,
@@ -717,17 +776,12 @@ function buildTicket(plan, type, budget, unitPrice, maxSingles) {
     };
   });
 
-  const warnings = outcomeCalibrationActiveF6017()
-    ? [
-        'F37 İstanbul kalibrasyonu: yalnız İstanbul koşularında aktif.',
-        `Backtest: K/H kazananı ilk 2'de ${BACKTEST.kh.top2}/${BACKTEST.kh.usable}, ilk 5'te ${BACKTEST.kh.top5}/${BACKTEST.kh.usable} yakaladı.`
-      ]
-    : ['Şehre özel İstanbul F37 kalibrasyonu uygulanmadı; birleşik K/H + Güncel sıralaması kullanıldı.'];
+  const warnings = ['Kalibresiz kupon: Kariyer Yol Haritası “Kanıt” sırası kullanıldı; Güncel Analiz karıştırılmadı.'];
   if (maxSingles > 0 && candidates.length < maxSingles) {
     warnings.push(`İstenen ${maxSingles} tekten ${candidates.length} ayak oluşturulabildi.`);
   }
   if (m.cost > budget) {
-    warnings.push('Kalibrasyon minimum genişlikleri korununca kupon maliyeti bütçeyi aşıyor.');
+    warnings.push('Minimum kupon genişlikleri korununca kupon maliyeti bütçeyi aşıyor.');
   }
   if (plan.inferred) warnings.push('Bahis başlangıcı TJK etiketinden doğrulanamadı; sıra tahmini kullanıldı.');
 
@@ -737,7 +791,7 @@ function buildTicket(plan, type, budget, unitPrice, maxSingles) {
     scoreVersion:VERSION,
     type,
     modelId:'career',
-    modelLabel:'Kariyer/Hazırlık · İstanbul kalibrasyonu',
+    modelLabel:'Kariyer Yol Haritası',
     available:true,
     city:cityName(),
     date:currentState()?.date,
@@ -754,8 +808,8 @@ function buildTicket(plan, type, budget, unitPrice, maxSingles) {
     minimumCostExceeded:m.cost > budget,
     warnings,
     legs,
-    source:SOURCE,
-    fusionRule:'CAREER_PREPARATION_70_CURRENT_30; NO_CAREER_CURRENT_100',
+    source:UNCALIBRATED_SOURCE_F6023,
+    fusionRule:'CAREER_ROADMAP_RANKING_RAW_EVIDENCE_ONLY',
     backtest:BACKTEST,
     generatedAt:new Date().toISOString()
   };
@@ -768,24 +822,19 @@ async function buildCalibratedTickets() {
   }
   busy = true;
   try {
-    setBuildStatusF6015('1/3 · Günlük Arşiv hazır; kupon ayakları belirleniyor…');
+    setBuildStatusF6015('1/3 · Kupon ayakları belirleniyor…');
     const raceNos = requiredRaceNos();
     if (!raceNos.length) throw new Error('Önce bahis türünü seçin; kupon ayakları belirlenemedi.');
-    setBuildStatusF6015(`2/3 · Güncel Analiz hazırlanıyor (0/${raceNos.length})…`);
+    setBuildStatusF6015(`2/3 · Kariyer Yol Haritası sıralaması doğrulanıyor (0/${raceNos.length})…`);
     for (let index = 0; index < raceNos.length; index++) {
       const no = raceNos[index];
-      const programCount = Array.isArray(programRace(no)?.horses) ? programRace(no).horses.length : 0;
-      const readyCount = currentScoreRowsF6011(no).length;
-      if (!(programCount > 0 && readyCount >= programCount)) {
-        try { await runCurrentRaceF6011(no); }
-        catch (currentError) { console.warn('[AT AI] F60.15 current analysis skipped', no, currentError?.message || currentError); }
-      }
-      setBuildStatusF6015(`2/3 · Güncel Analiz hazırlanıyor (${index + 1}/${raceNos.length})…`);
+      careerRoadmapRowsF6023(no);
+      setBuildStatusF6015(`2/3 · Kariyer Yol Haritası sıralaması doğrulanıyor (${index + 1}/${raceNos.length})…`);
     }
-    setBuildStatusF6015('3/3 · Kupon sıralaması oluşturuluyor…');
+    setBuildStatusF6015('3/3 · Kalibresiz kupon Kariyer Yol Haritasından oluşturuluyor…');
 
-    const empty = raceNos.filter(no => !calibratedScoreRows(no).length);
-    if (empty.length) throw new Error(`${empty.map(no => `${no}.K`).join(', ')} için K/H veya debut Güncel puanı yok.`);
+    const empty = raceNos.filter(no => !careerRoadmapRowsF6023(no).length);
+    if (empty.length) throw new Error(`${empty.map(no => `${no}.K`).join(', ')} için Kariyer Yol Haritası sıralaması yok. Önce Kariyer Yol Haritasını hesaplayın.`);
 
     const types = selectedTypes();
     const plans = types.map(safePlan);
@@ -801,9 +850,10 @@ async function buildCalibratedTickets() {
       st.analyses.ticketV11 = {
         version:SCORE_VERSION,
         scoreVersion:VERSION,
-        source:SOURCE,
-        fusionRule:'CAREER_PREPARATION_70_CURRENT_30; NO_CAREER_CURRENT_100',
+        source:UNCALIBRATED_SOURCE_F6023,
+        fusionRule:'CAREER_ROADMAP_RANKING_RAW_EVIDENCE_ONLY',
         dailyArchiveFirst:true,
+        uncalibratedRoadmapRank:true,
         fiveModelUsed:false,
         calibrationBacktest:BACKTEST.note,
         khTop2:`${BACKTEST.kh.top2}/${BACKTEST.kh.usable}`,
@@ -817,7 +867,7 @@ async function buildCalibratedTickets() {
     if (typeof renderTicketsV11 === 'function') renderTicketsV11();
     else if (typeof renderTickets === 'function') renderTickets();
     setBuildStatusF6015('Kupon hazır · aşağıdaki sonuç bölümüne yazıldı.', 'ok');
-    decorateGate('Kupon hazır · Günlük Arşiv K/H + Güncel Analiz birleştirildi.');
+    decorateGate('Kupon hazır · Kalibresiz sıralama Kariyer Yol Haritasından alındı.');
     setTimeout(() => {
       try { $('cdgCloseV1671')?.click(); } catch {}
       try { $('tickets')?.scrollIntoView?.({ behavior:'smooth', block:'start' }); } catch {}
@@ -850,10 +900,10 @@ async function buildDualTicketsF6018() {
     const baseline = (Array.isArray(st?.tickets) ? st.tickets : []).map(ticket => ({
       ...ticket,
       type:`${ticket.type} · Kalibresiz`,
-      modelLabel:'1. Kalibresiz · Kariyer/Hazırlık + Güncel Analiz',
+      modelLabel:'1. Kalibresiz · Kariyer Yol Haritası',
       calibrationVariant:'UNCALIBRATED_SELECTED_HISTORY',
       warnings:[
-        'Kalibresiz kupon: seçilmiş geçmiş yarış kalibrasyonu uygulanmadı.',
+        'Kalibresiz kupon: Kariyer Yol Haritası “Kanıt” sırası kullanıldı; Güncel Analiz karıştırılmadı.',
         ...(Array.isArray(ticket?.warnings) ? ticket.warnings.filter(w => !clean(w).includes('F37')) : [])
       ]
     }));
@@ -908,8 +958,8 @@ function decorateGate(message = '') {
   if (!body) return;
   let card = $('couponIstanbulCalibrationF37');
   const html = `
-    ${message ? `<h3>${esc(message)}</h3>` : '<h3>Birleşik kupon kaynağı aktif</h3>'}
-    <p>Günlük Arşiv Kariyer/Hazırlık %70 + Güncel Analiz %30. Kariyer verisi hiç yoksa Güncel Analiz %100 kullanılır.</p>
+    ${message ? `<h3>${esc(message)}</h3>` : '<h3>Kalibresiz kupon · Kariyer Yol Haritası</h3>'}
+    <p>Kalibresiz kupon, Kariyer Yol Haritasındaki “Kanıt” sırasını kullanır. Güncel Analiz kalibresiz kupona karıştırılmaz.</p>
     <div class="cdg-chipbox">
       <span class="cdg-chip">K/H ilk 2: ${BACKTEST.kh.top2}/${BACKTEST.kh.usable}</span>
       <span class="cdg-chip">K/H ilk 5: ${BACKTEST.kh.top5}/${BACKTEST.kh.usable}</span>
@@ -930,7 +980,7 @@ function patchCouponText() {
   try {
     const note = document.querySelector('#couponCenterDialog .five-model-note-v11');
     if (note) {
-      note.innerHTML = '<b>İki kupon birlikte oluşturulur</b><span>1) Kalibresiz K/H + Güncel. 2) Günün Koşu Kalibrasyonu menüsünde seçilen geçmiş yarışlarla kalibreli.</span>';
+      note.innerHTML = '<b>İki kupon birlikte oluşturulur</b><span>1) Kalibresiz Kariyer Yol Haritası. 2) Günün Koşu Kalibrasyonu menüsünde seçilen geçmiş yarışlarla kalibreli.</span>';
     }
     const button = $('buildAllBtn');
     if (button && button.textContent !== 'Kalibresiz + Kalibreli İki Kupon Oluştur') button.textContent = 'Kalibresiz + Kalibreli İki Kupon Oluştur';
@@ -998,6 +1048,9 @@ window.ATIstanbulOutcomeCalibrationV1691F37 = {
   source:SOURCE,
   backtest:BACKTEST,
   fusionRule:'CAREER_PREPARATION_70_CURRENT_30; NO_CAREER_CURRENT_100',
+  uncalibratedSource:UNCALIBRATED_SOURCE_F6023,
+  uncalibratedRule:'CAREER_ROADMAP_RANKING_RAW_EVIDENCE_ONLY',
+  uncalibratedScoreRows:careerRoadmapRowsF6023,
   ensureCurrent:ensureCurrentAllF6011,
   scoreRows:calibratedScoreRows,
   build:buildDualTicketsF6018,
