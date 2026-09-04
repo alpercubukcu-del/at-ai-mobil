@@ -34,11 +34,11 @@ if (app.includes('ranking:calibratedScoreRows(race.no)')) {
 new Function(app);
 
 let html = fs.readFileSync(INDEX, 'utf8');
-html = html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=169223');
+html = html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=169224');
 fs.writeFileSync(INDEX, html, 'utf8');
 
-if (!html.includes('/at-ai-app-v142.js?v=169223')) {
-  throw new Error('[V16.9.1F60.23] Cache bust could not be updated.');
+if (!html.includes('/at-ai-app-v142.js?v=169224')) {
+  throw new Error('[V16.9.1F60.23R] Cache bust could not be updated.');
 }
 
-console.log('[AT AI] V16.9.1F60.23 build complete: uncalibrated coupon follows Career Roadmap evidence order only; Current Analysis is excluded; calibrated 5-model coupons unchanged.');
+console.log('[AT AI] V16.9.1F60.23R build complete: uncalibrated coupon follows Career Roadmap evidence order only; Current Analysis is excluded; calibrated 5-model coupons unchanged.');
