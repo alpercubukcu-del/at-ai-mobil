@@ -44,11 +44,15 @@ replaceRegexOnce(
   "calibrationVariant:ticket.calibrationVariant || 'SELECTED_HISTORY_5MODEL_F613',",
   'calibrated variant label'
 );
-replaceRegexOnce(
-  /variants\s*:\s*\[['"]UNCALIBRATED['"]\s*,\s*['"]SELECTED_HISTORY_CALIBRATED['"]\]/,
-  "variants:['UNCALIBRATED','CALIBRATED_COMPOSITE','CALIBRATED_EXACT','CALIBRATED_TWIN','CALIBRATED_FAMILY','CALIBRATED_CAREER']",
-  'six variants analysis'
-);
+{
+  const rx = /variants\s*:\s*\[['"]UNCALIBRATED['"]\s*,\s*['"]SELECTED_HISTORY_CALIBRATED['"]\]/;
+  if (rx.test(app)) {
+    app = app.replace(
+      rx,
+      "variants:['UNCALIBRATED','CALIBRATED_COMPOSITE','CALIBRATED_EXACT','CALIBRATED_TWIN','CALIBRATED_FAMILY','CALIBRATED_CAREER']"
+    );
+  }
+}
 
 app = app.split("caller:'F60.18-DUAL'").join("caller:'F60.13-FIVE-MODEL'");
 app = app.split('2/2 · Seçili geçmiş yarışlarla kalibreli kupon hazırlanıyor…').join('2/2 · Bileşik / Tam / İkiz / Aile / Kariyer kalibreli kuponları hazırlanıyor…');
