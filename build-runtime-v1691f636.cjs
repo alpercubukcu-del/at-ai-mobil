@@ -16,7 +16,7 @@ for(const token of[
   'TJK-ANNUAL-ARCHIVE-V14.1-BATCH-WRITE',
   'async function deleteYearRows(year)',
   'async function writeRaceBatch(rows)',
-  'const BATCH_SIZE = 250;',
+  'BATCH_SIZE=250',
   'yarış yerel arşive yazıldı',
   'DAILY-CALIBRATION-STAGED-V16.9.1F60.35',
   'Bul ve Koşu Numaralarını Çözümle',
