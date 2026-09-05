@@ -184,7 +184,9 @@ async function build() {
 function route(event) {
   const target = event?.target?.closest?.('#buildAllBtn,#careerOnlyBuildV1691F1');
   if (!target) return;
-  void build();
+  const five = window.ATCouponFiveModelCalibratedV631?.buildAll;
+  if (typeof five === 'function') void five();
+  else void build();
 }
 
 try { buildTicketsV11 = build; } catch {}
@@ -214,7 +216,9 @@ document.addEventListener('click', event => {
   event.preventDefault();
   event.stopPropagation();
   event.stopImmediatePropagation();
-  void build();
+  const five = window.ATCouponFiveModelCalibratedV631?.buildAll;
+  if (typeof five === 'function') void five();
+  else void build();
 }, true);
 
 patchUi();
