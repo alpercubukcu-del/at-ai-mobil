@@ -393,42 +393,106 @@ function deriveRows(no) {
    Ekrandaki "Kanit" sirasi rankingRawScore ile belirlenir; yuvarlanmis yesil yuzde
    sadece goruntuleme puanidir. Guncel Analiz bu akisa karistirilmaz.
 */
+const TRUE_DEBUT_CURRENT_SOURCE_F6030 = 'CURRENT_ANALYSIS_TRUE_DEBUT_F6030';
+
+function explicitCareerCountF6030(item, current) {
+  const direct = [
+    current?.history?.rowCount,
+    current?.history?.count,
+    current?.careerCount,
+    current?.historyCount,
+    item?.career?.raceCount,
+    item?.career?.historyCount,
+    item?.career?.fullPathBeforeCount,
+    item?.galibiyetBenzerligi?.fallbackMetrics?.careerCount
+  ];
+  for (const value of direct) {
+    const n = finite(value);
+    if (n !== null && n >= 0) return n;
+  }
+
+  const c = item?.career || {};
+  const arrays = [c.fullPathBefore,c.history,c.fullHistory,c.roadmap,c.races,c.preparationPath,c.top5,c.recentForm]
+    .filter(Array.isArray);
+  if (arrays.length) return Math.max(...arrays.map(a => a.length));
+  return null;
+}
+
+function isRealDebutF6030(item, current) {
+  const count = explicitCareerCountF6030(item, current);
+  if (count === null) return false;
+  const verified = current?.careerOk === true || item?.career?.ok === true;
+  return verified && count === 0;
+}
+
+function isConditionalOneF6030(no) {
+  const race = programRace(no) || careerRace(no) || {};
+  const text = normalizeText([race?.class,race?.raceClass,race?.yaradi1,race?.name].filter(Boolean).join(' '));
+  return /(^| )sartli[ -]*1( |$)/.test(text);
+}
+
+function needsCurrentForTrueDebutF6030(no) {
+  const program = programRace(no);
+  const programCount = Array.isArray(program?.horses) ? program.horses.length : 0;
+  const currentCount = currentScoreRowsF6011(no).length;
+  if (programCount > 0 && currentCount >= programCount) return false;
+
+  const race = careerRace(no);
+  const items = Array.isArray(race?.horses) ? race.horses : [];
+  if (isConditionalOneF6030(no)) return true;
+
+  return items.some(item => {
+    const sim = item?.galibiyetBenzerligi || {};
+    return finite(sim?.rankingRawScore) === null && finite(sim?.score) === null;
+  });
+}
+
 function careerRoadmapRowsF6023(no) {
   const race = careerRace(no);
   const items = Array.isArray(race?.horses) ? race.horses : [];
+  const programHorses = Array.isArray(programRace(no)?.horses) ? programRace(no).horses : [];
+  const seeds = programHorses.length ? programHorses : items.map(item => item?.horse || item);
+  const currentRows = currentScoreRowsF6011(no);
 
-  const rows = items.map(item => {
+  const rows = seeds.map(seed => {
+    const item = items.find(candidate => sameHorse(candidate?.horse || candidate, seed)) || null;
+    const cur = currentRows.find(candidate => sameHorse(candidate?.horse || candidate?.row, seed)) || null;
     const sim = item?.galibiyetBenzerligi || {};
     const displayScore = finite(sim?.score);
     const rawEvidence = finite(sim?.rankingRawScore);
     const evidenceScore = rawEvidence !== null ? rawEvidence : displayScore;
-    if (evidenceScore === null) return null;
 
-    const programRow = programHorse(no, item) || null;
-    const marketRow = programRow || item?.horse || item;
+    const currentScore = finite(cur?.score);
+    const realDebut = evidenceScore === null && isRealDebutF6030(item, cur?.row);
+    const finalScore = evidenceScore !== null ? evidenceScore : (realDebut ? currentScore : null);
+    if (finalScore === null) return null;
+
+    const programRow = programHorse(no, item || seed) || seed || null;
+    const marketRow = programRow || item?.horse || cur?.horse || item || seed;
 
     return {
       item,
-      horse:item?.horse || programRow || {},
+      horse:item?.horse || cur?.horse || programRow || seed || {},
       programRow,
-      currentRow:null,
+      currentRow:cur?.row || null,
       careerScoreF6011:displayScore,
-      currentScoreF6011:null,
-      fusionWeightsF6011:{ career:100, current:0 },
+      currentScoreF6011:realDebut ? currentScore : null,
+      fusionWeightsF6011:realDebut ? { career:0, current:100 } : { career:100, current:0 },
       careerDisplayScoreF6023:displayScore,
       careerEvidenceScoreF6023:evidenceScore,
-      score:evidenceScore,
-      debut:false,
-      scoreSource:UNCALIBRATED_SOURCE_F6023,
+      score:finalScore,
+      debut:realDebut,
+      scoreSource:realDebut ? TRUE_DEBUT_CURRENT_SOURCE_F6030 : UNCALIBRATED_SOURCE_F6023,
       oddsF37:parseOdds(marketRow),
       agfF37:parseAgf(marketRow),
       calibrationAdjustmentF37:0,
-      calibrationTagsF37:[]
+      calibrationTagsF37:realDebut ? ['TRUE_DEBUT_CURRENT_ANALYSIS_F6030'] : []
     };
   })
   .filter(Boolean)
   .sort((a, b) =>
-    b.careerEvidenceScoreF6023 - a.careerEvidenceScoreF6023 ||
+    b.score - a.score ||
+    (b.careerEvidenceScoreF6023 ?? -1) - (a.careerEvidenceScoreF6023 ?? -1) ||
     (b.careerDisplayScoreF6023 ?? -1) - (a.careerDisplayScoreF6023 ?? -1) ||
     (horseNo(a) ?? 999) - (horseNo(b) ?? 999)
   );
@@ -776,7 +840,9 @@ function buildTicket(plan, type, budget, unitPrice, maxSingles) {
     };
   });
 
-  const warnings = ['Kalibresiz kupon: Kariyer Yol Haritası “Kanıt” sırası kullanıldı; Güncel Analiz karıştırılmadı.'];
+  const debutCountF6030 = legs.reduce((sum, leg) => sum + leg.ranking.filter(row => row.scoreSource === TRUE_DEBUT_CURRENT_SOURCE_F6030).length, 0);
+  const warnings = ['Kupon: kariyeri olan atlarda Kariyer Yol Haritası “Kanıt” sırası kullanıldı; yalnız gerçek debut atlarda Güncel Analiz puanı kullanıldı.'];
+  if (debutCountF6030) warnings.push(`${debutCountF6030} gerçek debut at Güncel Analiz puanıyla sıralamaya dahil edildi.`);
   if (maxSingles > 0 && candidates.length < maxSingles) {
     warnings.push(`İstenen ${maxSingles} tekten ${candidates.length} ayak oluşturulabildi.`);
   }
@@ -809,7 +875,7 @@ function buildTicket(plan, type, budget, unitPrice, maxSingles) {
     warnings,
     legs,
     source:UNCALIBRATED_SOURCE_F6023,
-    fusionRule:'CAREER_ROADMAP_RANKING_RAW_EVIDENCE_ONLY',
+    fusionRule:'CAREER_ROADMAP_RAW_EVIDENCE; TRUE_DEBUT=CURRENT_ANALYSIS_F6030',
     backtest:BACKTEST,
     generatedAt:new Date().toISOString()
   };
@@ -825,13 +891,21 @@ async function buildCalibratedTickets() {
     setBuildStatusF6015('1/3 · Kupon ayakları belirleniyor…');
     const raceNos = requiredRaceNos();
     if (!raceNos.length) throw new Error('Önce bahis türünü seçin; kupon ayakları belirlenemedi.');
-    setBuildStatusF6015(`2/3 · Kariyer Yol Haritası sıralaması doğrulanıyor (0/${raceNos.length})…`);
+    setBuildStatusF6015(`2/3 · Kariyer Kanıtı / gerçek debut Güncel puanı doğrulanıyor (0/${raceNos.length})…`);
     for (let index = 0; index < raceNos.length; index++) {
       const no = raceNos[index];
+      if (needsCurrentForTrueDebutF6030(no)) {
+        try {
+          setBuildStatusF6015(`2/3 · ${no}.K gerçek debutlar için Güncel Analiz hazırlanıyor (${index + 1}/${raceNos.length})…`);
+          await runCurrentRaceF6011(no);
+        } catch (currentError) {
+          console.warn('[AT AI] F60.30 debut current analysis skipped', no, currentError?.message || currentError);
+        }
+      }
       careerRoadmapRowsF6023(no);
-      setBuildStatusF6015(`2/3 · Kariyer Yol Haritası sıralaması doğrulanıyor (${index + 1}/${raceNos.length})…`);
+      setBuildStatusF6015(`2/3 · Kariyer Kanıtı / debut Güncel doğrulandı (${index + 1}/${raceNos.length})…`);
     }
-    setBuildStatusF6015('3/3 · Kalibresiz kupon Kariyer Yol Haritasından oluşturuluyor…');
+    setBuildStatusF6015('3/3 · Kupon Kariyer Kanıtı + yalnız gerçek debutlarda Güncel Analiz ile oluşturuluyor…');
 
     const empty = raceNos.filter(no => !careerRoadmapRowsF6023(no).length);
     if (empty.length) throw new Error(`${empty.map(no => `${no}.K`).join(', ')} için Kariyer Yol Haritası sıralaması yok. Önce Kariyer Yol Haritasını hesaplayın.`);
@@ -1109,8 +1183,10 @@ window.ATIstanbulOutcomeCalibrationV1691F37 = {
   backtest:BACKTEST,
   fusionRule:'CAREER_PREPARATION_70_CURRENT_30; NO_CAREER_CURRENT_100',
   uncalibratedSource:UNCALIBRATED_SOURCE_F6023,
-  uncalibratedRule:'CAREER_ROADMAP_RANKING_RAW_EVIDENCE_ONLY',
+  uncalibratedRule:'CAREER_ROADMAP_RAW_EVIDENCE; TRUE_DEBUT=CURRENT_ANALYSIS_F6030',
   uncalibratedScoreRows:careerRoadmapRowsF6023,
+  trueDebutRule:'VERIFIED_ZERO_PREVIOUS_RACES_USES_CURRENT_ANALYSIS_F6030',
+  needsCurrentForTrueDebut:needsCurrentForTrueDebutF6030,
   ensureCurrent:ensureCurrentAllF6011,
   scoreRows:calibratedScoreRows,
   build:buildDualTicketsF6018,
