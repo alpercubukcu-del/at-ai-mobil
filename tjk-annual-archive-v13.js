@@ -407,40 +407,15 @@ async function dayProgram(row) {
   await dbPut(STORE_DAY, key, data); return data;
 }
 function matchRaceCandidates(row, day) {
-  const wantedClassKey = row.classKey || parseClass(row.classRaw || '').key;
-  const wantedTrackKey = row.trackKey || trackKey(row.track || '');
   return (Array.isArray(day?.races) ? day.races : []).filter(r => {
     const ci = parseClass(r.class || r.yaradi1 || '');
-    return ci.key === wantedClassKey && ageKey(r.ageGroup || r.yaradi2 || '') === ageKey(row.groupRaw) &&
-      Number(r.distance || r.mesafe || 0) === Number(row.distance) && trackKey(r.track || r.pist || '') === wantedTrackKey;
-  }).map(r => Number(r.no || r.raceNo)).filter(Boolean).sort((a, b) => a - b);
+    return ci.key === row.classKey && ageKey(r.ageGroup || r.yaradi2 || '') === ageKey(row.groupRaw) &&
+      Number(r.distance || r.mesafe || 0) === Number(row.distance) && trackKey(r.track || r.pist || '') === row.trackKey;
+  }).map(r => Number(r.no)).filter(Boolean).sort((a, b) => a - b);
 }
-async function annualRowsForDate(row) {
-  const db = await openDb(); if (!db) return [];
-  return new Promise(resolve => {
-    const out = [];
-    try {
-      const tx = db.transaction(STORE_RACES, 'readonly');
-      const store = tx.objectStore(STORE_RACES);
-      const index = store.indexNames.contains('date') ? store.index('date') : null;
-      const req = index ? index.openCursor(IDBKeyRange.only(row.date)) : store.openCursor();
-      req.onsuccess = e => {
-        const cur = e.target.result;
-        if (!cur) return;
-        const value = cur.value?.value ?? cur.value;
-        if (value && value.date === row.date &&
-            (clean(value.cityId) === clean(row.cityId) || norm(value.city) === norm(row.city))) out.push(value);
-        cur.continue();
-      };
-      tx.oncomplete = () => resolve(out);
-      tx.onerror = tx.onabort = () => resolve([]);
-    } catch { resolve([]); }
-  });
-}
-async function annualOrderRaceNo(row) {
-  let sameDay = loadedRows.filter(x => x.date === row.date && (clean(x.cityId) === clean(row.cityId) || norm(x.city) === norm(row.city)));
-  if (!sameDay.length) sameDay = await annualRowsForDate(row);
-  sameDay = sameDay.sort((a, b) => Number(a.page || 0) - Number(b.page || 0) || Number(a.rowIndex || 0) - Number(b.rowIndex || 0));
+function annualOrderRaceNo(row) {
+  const sameDay = loadedRows.filter(x => x.date === row.date && (clean(x.cityId) === clean(row.cityId) || norm(x.city) === norm(row.city)))
+    .sort((a, b) => Number(a.page || 0) - Number(b.page || 0) || Number(a.rowIndex || 0) - Number(b.rowIndex || 0));
   const idx = sameDay.findIndex(x => x.id === row.id);
   return idx >= 0 ? idx + 1 : 0;
 }
@@ -455,20 +430,16 @@ async function resolveRows(rows) {
       if (candidates.length === 1) {
         row.raceNo = candidates[0]; row.permanentKey = `${row.date}|${row.cityId}|${row.raceNo}`; row.resolutionMethod = 'EXACT_DAILY_PROGRAM';
       } else if (candidates.length > 1) {
-        const occurrence = Math.max(1, Number(row.occurrenceIndex || 1));
-        const candidate = candidates[Math.min(occurrence - 1, candidates.length - 1)];
-        if (candidate) {
-          row.raceNo = candidate;
-          row.permanentKey = `${row.date}|${row.cityId}|${row.raceNo}`;
-          row.resolutionMethod = 'EXACT_OCCURRENCE_INDEX_DB_INDEPENDENT';
-        }
+        const same = currentRows.filter(x => x.date === row.date && x.cityId === row.cityId && x.classKey === row.classKey && ageKey(x.groupRaw) === ageKey(row.groupRaw) && Number(x.distance) === Number(row.distance) && x.trackKey === row.trackKey).sort((a, b) => a.occurrenceIndex - b.occurrenceIndex);
+        const idx = Math.max(0, same.findIndex(x => x.id === row.id));
+        if (candidates[idx]) { row.raceNo = candidates[idx]; row.permanentKey = `${row.date}|${row.cityId}|${row.raceNo}`; row.resolutionMethod = 'EXACT_OCCURRENCE_INDEX'; }
       }
       await dbPut(STORE_RACES, row.id, row);
     } catch (e) {
       row.resolveError = e?.message || String(e); await dbPut(STORE_RACES, row.id, row);
     } finally {
       if (!row.raceNo) {
-        const fallbackNo = await annualOrderRaceNo(row);
+        const fallbackNo = annualOrderRaceNo(row);
         if (fallbackNo) {
           row.raceNo = fallbackNo;
           row.permanentKey = `${row.date}|${row.cityId}|${fallbackNo}`;
@@ -570,5 +541,5 @@ window.ATAnnualArchiveV13 = {
   getRow: id => dbGet(STORE_RACES, id),
   refreshMeta: loadMetaOnly
 };
-console.info('[AT AI]', VERSION, 'aktif — temiz yıllık arşiv; yarış numarası çözümü ekran durumundan bağımsız IndexedDB fallback kullanır.');
+console.info('[AT AI]', VERSION, 'aktif — temiz yıllık arşiv, gözlemcisiz ve yıl indeksli');
 })();
