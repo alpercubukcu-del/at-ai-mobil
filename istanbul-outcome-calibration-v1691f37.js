@@ -890,6 +890,7 @@ async function buildCalibratedTickets() {
 }
 
 let dualBuildBusyF6018 = false;
+const BUILD_COMPAT_VERSION_F6018 = 'CAREER-COUPON-V16.9.1F60.18-DUAL';
 
 function cleanTicketTypeF6025(value) {
   return clean(value)
