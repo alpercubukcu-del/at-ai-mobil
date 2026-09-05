@@ -11,7 +11,7 @@
 if (window.__AT_DAILY_CALIBRATION_CAREER_FLOW_V1691F633__) return;
 window.__AT_DAILY_CALIBRATION_CAREER_FLOW_V1691F633__ = true;
 
-const VERSION='DAILY-CALIBRATION-CAREER-FLOW-V16.9.1F60.32';
+const VERSION='DAILY-CALIBRATION-CAREER-FLOW-V16.9.1F60.33';
 const DB='at_ai_tjk_annual_archive_v13';
 const STORE='races';
 const PAGE_ID='dailyCalibrationPageF633';
