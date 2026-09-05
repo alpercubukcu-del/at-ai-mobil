@@ -908,7 +908,7 @@ async function buildCalibratedTickets() {
     setBuildStatusF6015('3/3 · Kupon Kariyer Kanıtı + yalnız gerçek debutlarda Güncel Analiz ile oluşturuluyor…');
 
     const empty = raceNos.filter(no => !careerRoadmapRowsF6023(no).length);
-    if (empty.length) throw new Error(`${empty.map(no => `${no}.K`).join(', ')} için Kariyer Yol Haritası sıralaması yok. Önce Kariyer Yol Haritasını hesaplayın.`);
+    if (empty.length) throw new Error(`${empty.map(no => `${no}.K`).join(', ')} için Kariyer Kanıtı veya doğrulanmış debut Güncel Analiz puanı yok.`);
 
     const types = selectedTypes();
     const plans = types.map(safePlan);
@@ -925,7 +925,8 @@ async function buildCalibratedTickets() {
         version:SCORE_VERSION,
         scoreVersion:VERSION,
         source:UNCALIBRATED_SOURCE_F6023,
-        fusionRule:'CAREER_ROADMAP_RANKING_RAW_EVIDENCE_ONLY',
+        fusionRule:'CAREER_ROADMAP_RAW_EVIDENCE; TRUE_DEBUT=CURRENT_ANALYSIS_F6030',
+        trueDebutRule:'VERIFIED_ZERO_PREVIOUS_RACES_USES_CURRENT_ANALYSIS_F6030',
         dailyArchiveFirst:true,
         uncalibratedRoadmapRank:true,
         fiveModelUsed:false,
