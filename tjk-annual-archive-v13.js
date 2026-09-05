@@ -6,7 +6,8 @@
 if (window.__AT_TJK_ANNUAL_ARCHIVE_V14__) return;
 window.__AT_TJK_ANNUAL_ARCHIVE_V14__ = true;
 
-const VERSION = 'TJK-ANNUAL-ARCHIVE-V14.2-SCHEMA-REPAIR';
+const VERSION = 'TJK-ANNUAL-ARCHIVE-V14.1-BATCH-WRITE';
+const SCHEMA_REPAIR_VERSION = 'TJK-ANNUAL-ARCHIVE-V14.2-SCHEMA-REPAIR';
 const DB_NAME = 'at_ai_tjk_annual_archive_v13';
 const DB_VERSION = 3;
 const STORE_RACES = 'races';
