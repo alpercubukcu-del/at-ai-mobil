@@ -890,6 +890,20 @@ async function buildCalibratedTickets() {
 }
 
 let dualBuildBusyF6018 = false;
+
+function cleanTicketTypeF6025(value) {
+  return clean(value)
+    .replace(/(?:\s*·\s*(?:Kalibresiz|Kalibreli))+\s*$/gi, '')
+    .trim();
+}
+
+function usableCalibratedTicketF6025(ticket) {
+  if (!ticket || ticket.available === false) return false;
+  const legs = Array.isArray(ticket?.legs) ? ticket.legs : [];
+  if (!legs.length) return false;
+  return legs.every(leg => Array.isArray(leg?.selections) && leg.selections.length > 0);
+}
+
 async function buildDualTicketsF6018() {
   if (dualBuildBusyF6018) return;
   dualBuildBusyF6018 = true;
@@ -897,30 +911,58 @@ async function buildDualTicketsF6018() {
     setBuildStatusF6015('1/2 · Kalibresiz kupon hazırlanıyor…');
     await buildCalibratedTickets();
     const st = currentState();
-    const baseline = (Array.isArray(st?.tickets) ? st.tickets : []).map(ticket => ({
-      ...ticket,
-      type:`${ticket.type} · Kalibresiz`,
-      modelLabel:'1. Kalibresiz · Kariyer Yol Haritası',
-      calibrationVariant:'UNCALIBRATED_SELECTED_HISTORY',
-      warnings:[
-        'Kalibresiz kupon: Kariyer Yol Haritası “Kanıt” sırası kullanıldı; Güncel Analiz karıştırılmadı.',
-        ...(Array.isArray(ticket?.warnings) ? ticket.warnings.filter(w => !clean(w).includes('F37')) : [])
-      ]
-    }));
+
+    const baseline = (Array.isArray(st?.tickets) ? st.tickets : [])
+      .filter(ticket => ticket?.available !== false && Array.isArray(ticket?.legs) && ticket.legs.length)
+      .map(ticket => ({
+        ...ticket,
+        type:`${cleanTicketTypeF6025(ticket.type)} · Kalibresiz`,
+        modelId:'career',
+        modelLabel:'1. Kalibresiz · Kariyer Yol Haritası',
+        calibrationVariant:'UNCALIBRATED_SELECTED_HISTORY',
+        warnings:[
+          'Kalibresiz kupon: Kariyer Yol Haritası “Kanıt” sırası kullanıldı; Güncel Analiz karıştırılmadı.',
+          ...(Array.isArray(ticket?.warnings)
+            ? ticket.warnings.filter(w => !clean(w).includes('F37') && !/5 Model arşiv/i.test(clean(w)))
+            : [])
+        ]
+      }));
+
+    if (!baseline.length) throw new Error('Kalibresiz Kariyer Yol Haritası kuponu oluşturulamadı.');
 
     setBuildStatusF6015('2/2 · Seçili geçmiş yarışlarla kalibreli kupon hazırlanıyor…');
     const calibrationApi = window.ATExactMatchCalibrationCouponV1691F595;
-    if (typeof calibrationApi?.build !== 'function') throw new Error('Günün koşu kalibrasyonu motoru hazır değil.');
+    if (typeof calibrationApi?.build !== 'function') {
+      if (st) st.tickets = baseline;
+      try { if (typeof save === 'function') save(); } catch {}
+      if (typeof renderTicketsV11 === 'function') renderTicketsV11();
+      else if (typeof renderTickets === 'function') renderTickets();
+      setBuildStatusF6015('Hazır · kalibresiz Kariyer Yol Haritası kuponu oluşturuldu. 5 Model arşiv motoru hazır değil.', 'ok');
+      return;
+    }
+
     const calibratedResult = await calibrationApi.build({skipAudit:true,caller:'F60.18-DUAL'});
-    const calibratedSource = Array.isArray(calibratedResult) ? calibratedResult : (Array.isArray(st?.tickets) ? st.tickets : []);
+    const calibratedSource = Array.isArray(calibratedResult)
+      ? calibratedResult
+      : (Array.isArray(st?.tickets) ? st.tickets : []);
+
+    // F60.13 build zinciri bu tamamlanma imzasını 5 Model sürümüne genişletir.
     const calibratedCompleted = calibratedSource.length && calibratedSource.every(ticket =>
       String(ticket?.careerCouponVersion||'').includes('F59.5-EXACT-CALIBRATED') ||
       Object.prototype.hasOwnProperty.call(ticket||{},'calibratedLegs')
     );
-    if (!calibratedCompleted) throw new Error('Kalibreli kupon motoru tamamlanmadı; kalibresiz sonuç ikinci kart olarak kopyalanmadı.');
-    const calibrated = calibratedSource.map(ticket => ({
+
+    const calibratedUsable = calibratedSource.filter(usableCalibratedTicketF6025);
+    const missingMessages = [...new Set(
+      calibratedSource
+        .filter(ticket => !usableCalibratedTicketF6025(ticket))
+        .map(ticket => clean(ticket?.error))
+        .filter(Boolean)
+    )];
+
+    const calibrated = calibratedUsable.map(ticket => ({
       ...ticket,
-      type:`${ticket.type} · Kalibreli`,
+      type:`${cleanTicketTypeF6025(ticket.type)} · Kalibreli`,
       modelLabel:'2. Kalibreli · Seçilen Geçmiş Yarışlar',
       calibrationVariant:'SELECTED_HISTORY_TOP1_TOP2_TOP3_TOP5',
       warnings:[
@@ -930,22 +972,39 @@ async function buildDualTicketsF6018() {
     }));
 
     if (st) {
+      // F60.25: 5 Model arşivi eksikse kalibresiz kuponu ASLA bozma.
+      // Eksik model kartları sonuç listesine eklenmez.
       st.tickets = [...baseline, ...calibrated];
       st.analyses = st.analyses || {};
       st.analyses.ticketV11 = {
         ...(st.analyses.ticketV11 || {}),
-        version:'CAREER-COUPON-V16.9.1F60.18-DUAL',
+        version:'CAREER-COUPON-V16.9.1F60.25-ARCHIVE-SAFE',
         f37Applied:false,
-        variants:['UNCALIBRATED','SELECTED_HISTORY_CALIBRATED'],
+        calibratedCompleted:Boolean(calibratedCompleted),
+        calibratedAvailable:calibrated.length,
+        calibratedMissing:Math.max(0, calibratedSource.length - calibratedUsable.length),
+        variants:[
+          'UNCALIBRATED',
+          ...(calibrated.length ? ['SELECTED_HISTORY_CALIBRATED'] : [])
+        ],
         generatedAt:new Date().toISOString()
       };
     }
+
     try { if (typeof save === 'function') save(); } catch {}
     if (typeof renderTicketsV11 === 'function') renderTicketsV11();
     else if (typeof renderTickets === 'function') renderTickets();
-    setBuildStatusF6015('Hazır · 1 kalibresiz + 1 kalibreli kupon oluşturuldu.', 'ok');
+
+    if (!calibrated.length) {
+      const detail = missingMessages.length
+        ? ` Eksik: ${missingMessages.join(' ')}`
+        : ' 5 Model arşiv kayıtları bu kupon ayakları için hazır değil.';
+      setBuildStatusF6015(`Hazır · kalibresiz Kariyer Yol Haritası kuponu oluşturuldu. Kalibrasyonlu kuponlar atlandı.${detail}`, 'ok');
+    } else {
+      setBuildStatusF6015(`Hazır · 1 kalibresiz + ${calibrated.length} model kalibrasyonlu kupon oluşturuldu.`, 'ok');
+    }
   } catch (error) {
-    console.error('[AT AI] F60.18 çift kupon', error);
+    console.error('[AT AI] F60.25 arşiv güvenli çift kupon', error);
     setBuildStatusF6015(`Kupon oluşturulamadı: ${error?.message || error}`, 'error');
     try { alert(`Kupon oluşturulamadı: ${error?.message || error}`); } catch {}
   } finally {
