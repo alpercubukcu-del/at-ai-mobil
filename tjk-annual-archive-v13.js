@@ -6,7 +6,7 @@
 if (window.__AT_TJK_ANNUAL_ARCHIVE_V14__) return;
 window.__AT_TJK_ANNUAL_ARCHIVE_V14__ = true;
 
-const VERSION = 'TJK-ANNUAL-ARCHIVE-V14.0';
+const VERSION = 'TJK-ANNUAL-ARCHIVE-V14.1-BATCH-WRITE';
 const DB_NAME = 'at_ai_tjk_annual_archive_v13';
 const DB_VERSION = 2;
 const STORE_RACES = 'races';
@@ -161,7 +161,7 @@ async function rowsForYearRange(fromYear, toYear) {
     } catch { resolve([]); }
   });
 }
-async function replaceYear(year, rows) {
+async function deleteYearRows(year) {
   const db = await openDb(); if (!db) return false;
   return new Promise(resolve => {
     try {
@@ -170,18 +170,49 @@ async function replaceYear(year, rows) {
       const index = store.indexNames.contains('year') ? store.index('year') : null;
       const req = index ? index.openCursor(IDBKeyRange.only(Number(year))) : store.openCursor();
       req.onsuccess = e => {
-        const c = e.target.result;
-        if (c) {
-          const row = c.value?.value;
-          if (!index && Number(row?.year) !== Number(year)) { c.continue(); return; }
-          c.delete(); c.continue(); return;
-        }
-        for (const row of rows) store.put({ key: row.id, value: row, updatedAt: Date.now() });
+        const cursor = e.target.result;
+        if (!cursor) return;
+        const row = cursor.value?.value;
+        if (index || Number(row?.year) === Number(year)) cursor.delete();
+        cursor.continue();
       };
-      tx.oncomplete = () => { loadedRangeKey = ''; loadedRows = []; currentRows = []; resolve(true); };
+      tx.oncomplete = () => resolve(true);
       tx.onerror = tx.onabort = () => resolve(false);
     } catch { resolve(false); }
   });
+}
+async function writeRaceBatch(rows) {
+  const db = await openDb(); if (!db) return false;
+  return new Promise(resolve => {
+    try {
+      const tx = db.transaction(STORE_RACES, 'readwrite');
+      const store = tx.objectStore(STORE_RACES);
+      const now = Date.now();
+      for (const row of rows) store.put({ key: row.id, value: row, updatedAt: now });
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = tx.onabort = () => resolve(false);
+    } catch { resolve(false); }
+  });
+}
+async function replaceYear(year, rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (!await deleteYearRows(year)) return false;
+
+  const BATCH_SIZE = 250;
+  let written = 0;
+  for (let i = 0; i < list.length; i += BATCH_SIZE) {
+    const batch = list.slice(i, i + BATCH_SIZE);
+    if (!await writeRaceBatch(batch)) return false;
+    written += batch.length;
+    const pct = 92 + Math.round((written / Math.max(1, list.length)) * 7);
+    setStatus(`${year}: ${written}/${list.length} yarış yerel arşive yazıldı…`, pct);
+    await nextFrame();
+  }
+
+  loadedRangeKey = '';
+  loadedRows = [];
+  currentRows = [];
+  return true;
 }
 
 async function mapLimit(items, limit, worker) {
