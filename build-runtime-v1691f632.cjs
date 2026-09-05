@@ -16,23 +16,24 @@ execFileSync(process.execPath, [BASE], { cwd:ROOT, stdio:'inherit' });
 let app = fs.readFileSync(APP, 'utf8');
 app += '\n\n' + fs.readFileSync(EXTRA, 'utf8').trim() + '\n';
 
-for (const token of [
+const tokens = [
   'DAILY-CALIBRATION-CAREER-FLOW-V16.9.1F60.32',
   "if(!button || button.id==='analysisDialog') return;",
   'Günün 5 Model Kalibrasyonu',
   'Eşleşmeleri Gör ve Seç',
   'Kalibrasyon Eşleşmelerini Seç',
-  "data-pick="ALL"",
-  "data-pick="EXACT"",
-  "data-pick="CONDITION_TWIN"",
-  "data-pick="RACE_FAMILY"",
+  'data-pick="ALL"',
+  'data-pick="EXACT"',
+  'data-pick="CONDITION_TWIN"',
+  'data-pick="RACE_FAMILY"',
   'Seçimi Temizle',
   'Seçimi Uygula ve Hesapla',
   'Yüklü Yıllık Arşiv taranıyor',
   "const run=$('xcalRunSelected')",
   '5 Model Kalibrasyon Sonucu',
   'COUPON-FIVE-MODEL-CALIBRATED-V16.9.1F60.31'
-]) {
+];
+for (const token of tokens) {
   if (!app.includes(token)) throw new Error('[V16.9.1F60.32] Verification failed: ' + token);
 }
 
