@@ -10,7 +10,7 @@ const VERSION='DAILY-SOURCE-ARCHIVE-V16.9.1F60.42';
 const DB='at_ai_daily_source_archive_v642', STORE='resources';
 const ANNUAL_DB='at_ai_tjk_annual_archive_v13', ANNUAL_STORE='races';
 const PATHS=new Set(['/api/tjk-career-v10','/api/tjk-career','/api/tjk-history']);
-let dbPromise=null, annualPromise=null, running=false, controller=null;
+let dbPromise=null, annualPromise=null, annualDb=null, running=false, controller=null;
 const nativeFetch=window.fetch.bind(window);
 const clean=v=>String(v??'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim();
 const fold=v=>clean(v).toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/İ/g,'I').replace(/[^A-Z0-9]+/g,'');
@@ -26,11 +26,34 @@ function historyKey(date,city,raceNo){return`history|${clean(date)}|${fold(city)
 function metaKey(date,city){return`meta|${clean(date)}|${fold(city)}`}
 function packageKey(date,city){return`package|${clean(date)}|${fold(city)}`}
 function openDb(){if(dbPromise)return dbPromise;dbPromise=new Promise(resolve=>{try{const q=indexedDB.open(DB,1);q.onupgradeneeded=()=>{const db=q.result;const s=db.objectStoreNames.contains(STORE)?q.transaction.objectStore(STORE):db.createObjectStore(STORE,{keyPath:'key'});if(!s.indexNames.contains('kind'))s.createIndex('kind','kind',{unique:false});if(!s.indexNames.contains('packageId'))s.createIndex('packageId','packageId',{unique:false})};q.onsuccess=()=>resolve(q.result);q.onerror=q.onblocked=()=>{dbPromise=null;resolve(null)}}catch{resolve(null)}});return dbPromise}
-function openAnnual(){if(annualPromise)return annualPromise;annualPromise=new Promise(resolve=>{try{const q=indexedDB.open(ANNUAL_DB);q.onsuccess=()=>resolve(q.result);q.onerror=q.onblocked=()=>{annualPromise=null;resolve(null)}}catch{resolve(null)}});return annualPromise}
+function closeAnnualReader(){try{annualDb?.close()}catch{}annualDb=null;annualPromise=null}
+function openAnnual(){
+  if(annualPromise)return annualPromise;
+  annualPromise=new Promise(resolve=>{
+    try{
+      const q=indexedDB.open(ANNUAL_DB);
+      // This module is a reader. Never create the annual database or own its schema.
+      q.onupgradeneeded=()=>{try{q.transaction.abort()}catch{}};
+      q.onsuccess=()=>{
+        annualDb=q.result;
+        annualDb.onversionchange=closeAnnualReader;
+        resolve(annualDb);
+      };
+      q.onerror=q.onblocked=()=>{closeAnnualReader();resolve(null)};
+    }catch{closeAnnualReader();resolve(null)}
+  });
+  return annualPromise
+}
 async function get(key){const db=await openDb();if(!db)return null;return new Promise(resolve=>{try{const q=db.transaction(STORE,'readonly').objectStore(STORE).get(key);q.onsuccess=()=>resolve(q.result||null);q.onerror=()=>resolve(null)}catch{resolve(null)}})}
 async function put(rec){const db=await openDb();if(!db)return false;return new Promise(resolve=>{try{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put(rec);tx.oncomplete=()=>resolve(true);tx.onerror=tx.onabort=()=>resolve(false)}catch{resolve(false)}})}
 async function all(){const db=await openDb();if(!db)return[];return new Promise(resolve=>{try{const q=db.transaction(STORE,'readonly').objectStore(STORE).getAll();q.onsuccess=()=>resolve(q.result||[]);q.onerror=()=>resolve([])}catch{resolve([])}})}
-async function annualRows(){const db=await openAnnual();if(!db||!db.objectStoreNames.contains(ANNUAL_STORE))return[];return new Promise(resolve=>{try{const q=db.transaction(ANNUAL_STORE,'readonly').objectStore(ANNUAL_STORE).getAll();q.onsuccess=()=>resolve((q.result||[]).map(x=>x?.value||x).filter(Boolean));q.onerror=()=>resolve([])}catch{resolve([])}})}
+async function annualRows(){
+  const db=await openAnnual();
+  if(!db||!db.objectStoreNames.contains(ANNUAL_STORE)){closeAnnualReader();return[]}
+  const rows=await new Promise(resolve=>{try{const q=db.transaction(ANNUAL_STORE,'readonly').objectStore(ANNUAL_STORE).getAll();q.onsuccess=()=>resolve((q.result||[]).map(x=>x?.value||x).filter(Boolean));q.onerror=()=>resolve([])}catch{resolve([])}});
+  closeAnnualReader();
+  return rows
+}
 async function deletePackage(packageId){const db=await openDb();if(!db)return false;return new Promise(resolve=>{try{const tx=db.transaction(STORE,'readwrite'),s=tx.objectStore(STORE),idx=s.index('packageId'),q=idx.openCursor(IDBKeyRange.only(packageId));q.onsuccess=e=>{const c=e.target.result;if(!c)return;c.delete();c.continue()};tx.oncomplete=()=>resolve(true);tx.onerror=tx.onabort=()=>resolve(false)}catch{resolve(false)}})}
 async function clearAll(){const db=await openDb();if(!db)return false;return new Promise(resolve=>{try{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).clear();tx.oncomplete=()=>resolve(true);tx.onerror=tx.onabort=()=>resolve(false)}catch{resolve(false)}})}
 async function mapLimit(items,limit,worker){const list=Array.isArray(items)?items:[],out=new Array(list.length);let cursor=0;async function run(){while(true){const i=cursor++;if(i>=list.length)return;out[i]=await worker(list[i],i);await sleep()}}await Promise.all(Array.from({length:Math.min(Math.max(1,limit),list.length||1)},run));return out}
@@ -70,4 +93,5 @@ for(const name of['at-ai:annual-archive-created','at-ai:annual-archive-open','at
 document.addEventListener('click',e=>{if(e.target?.closest?.('#annualArchiveBtn'))setTimeout(ensureUi,0)},true);try{new MutationObserver(fixMenu).observe(document.getElementById('drawer')||document.documentElement,{childList:true,subtree:true,characterData:true})}catch{}setTimeout(ensureUi,100);setTimeout(fixMenu,500);
 window.ATDailySourceArchiveV642={version:VERSION,runAll:()=>run('all'),list:async()=>(await all()).filter(x=>x.kind==='package').map(x=>x.data),stop:()=>controller?.abort()};
 console.info('[AT AI]',VERSION,'active — staged phone-local archive + leakage guard + shared fetch cache.');
+console.info('[AT AI]','ANNUAL-DB-COEXISTENCE-V16.9.1F60.43','active — reader closes after every annual archive read.');
 })();
