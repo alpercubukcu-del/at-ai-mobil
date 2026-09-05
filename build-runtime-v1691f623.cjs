@@ -18,11 +18,9 @@ for (const token of [
   '1. Kalibresiz · Kariyer Yol Haritası',
   'Kalibresiz kupon Kariyer Yol Haritası Kanıt sırasını kullanır; Güncel Analiz karıştırılmaz.',
   'FIVE-MODEL-CALIBRATED-COUPONS-V16.9.1F60.13',
-  'CALIBRATED_COMPOSITE',
-  'CALIBRATED_EXACT',
-  'CALIBRATED_TWIN',
-  'CALIBRATED_FAMILY',
-  'CALIBRATED_CAREER'
+  'CAREER-COUPON-V16.9.1F60.25-ARCHIVE-SAFE',
+  'usableCalibratedTicketF6025',
+  'calibratedAvailable'
 ]) {
   if (!app.includes(token)) throw new Error('[V16.9.1F60.23] Verification failed: ' + token);
 }
