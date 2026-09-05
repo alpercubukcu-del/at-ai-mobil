@@ -148,6 +148,10 @@ async function loadedYears(){
     }catch{resolve([])}
   });
 }
+function selectableYears(){
+  const current=Math.max(2000,new Date().getFullYear());
+  return Array.from({length:current-2000+1},(_,i)=>2000+i);
+}
 async function rowsForYears(from,to){
   const db=await openDb();
   if(!db||!db.objectStoreNames.contains(STORE))return[];
@@ -354,8 +358,11 @@ function selectorDialog(){
 }
 function fillYears(years){
   const a=$('dcalYearFromF635'),b=$('dcalYearToF635');if(!a||!b)return;
-  const html=years.map(y=>`<option value="${y}">${y}</option>`).join('');a.innerHTML=html;b.innerHTML=html;
-  const saved=loadYears(contextNow,years);if(saved.from)a.value=String(saved.from);if(saved.to)b.value=String(saved.to);
+  const html=years.map(y=>`<option value="${y}">${y}</option>`).join('');
+  a.innerHTML=html;b.innerHTML=html;
+  const saved=loadYears(contextNow,years);
+  if(saved.from)a.value=String(saved.from);
+  if(saved.to)b.value=String(saved.to);
 }
 function selectedYears(){
   let from=Number($('dcalYearFromF635')?.value||0),to=Number($('dcalYearToF635')?.value||0);
@@ -391,16 +398,18 @@ async function openSelector(){
   if(!contextNow){$('dcalSelectorStatusF635').textContent='Önce hedef koşuyu seçin.';return}
   busy=true;
   try{
-    $('dcalSelectorStatusF635').textContent='Yalnız yüklü yıl listesi okunuyor…';
-    const years=(await loadedYears()).filter(y=>y<=Number(contextNow.date.slice(0,4)));
+    $('dcalSelectorStatusF635').textContent='Yıl seçimi hazırlanıyor…';
+    const years=selectableYears();
+    const loaded=await loadedYears();
     fillYears(years);
     selectedYearRows=[];matches=[];draft.clear();shown=PAGE_SIZE;
     d.querySelectorAll('[data-pick]').forEach(x=>{x.disabled=true;x.classList.remove('active')});
     $('dcalApplyF635').disabled=true;
-    $('dcalSelectorTargetF635').innerHTML=`<b>${contextNow.raceNo}. Koşu · ${esc(contextNow.city)} · ${esc(contextNow.date)}</b><br>${esc(contextNow.meta.classRaw)} · ${esc(contextNow.meta.ageGroup)} · ${esc(contextNow.meta.distance)} m ${esc(contextNow.meta.track)}<br>Yüklü yıllar: ${years.length?years[0]+'–'+years.at(-1):'yok'}`;
-    $('dcalSelectorListF635').innerHTML='<div class="sub" style="padding:20px">Başlangıç ve bitiş yılını seçin. Yarış arşivi henüz okunmadı.</div>';
+    $('dcalFindResolveF635').disabled=false;
+    $('dcalSelectorTargetF635').innerHTML=`<b>${contextNow.raceNo}. Koşu · ${esc(contextNow.city)} · ${esc(contextNow.date)}</b><br>${esc(contextNow.meta.classRaw)} · ${esc(contextNow.meta.ageGroup)} · ${esc(contextNow.meta.distance)} m ${esc(contextNow.meta.track)}<br>Seçilebilir yıl: 2000–${years.at(-1)} · Yerel arşivde hazır: ${loaded.length?loaded.join(', '):'yok'}`;
+    $('dcalSelectorListF635').innerHTML='<div class="sub" style="padding:20px">Başlangıç ve bitiş yılını serbestçe seçin. Yarış arşivi henüz okunmadı.</div>';
     $('dcalSelectorSummaryF635').textContent='Önce yıl aralığını seçip Bul ve Koşu Numaralarını Çözümle düğmesine basın.';
-    $('dcalSelectorStatusF635').textContent=years.length?'Yıl seçimini bekliyor.':'Yıllık Arşivde tamamlanmış yıl bulunamadı.';
+    $('dcalSelectorStatusF635').textContent='Yıl aralığını seçebilirsiniz. Yüklü olmayan yıllar aramada veri üretmez.';
   }finally{busy=false}
 }
 
@@ -411,7 +420,10 @@ async function findAndResolve(){
   busy=true;$('dcalFindResolveF635').disabled=true;$('dcalApplyF635').disabled=true;
   try{
     saveYears(contextNow,from,to);
-    $('dcalSelectorStatusF635').textContent=`${from}–${to} arşivi okunuyor…`;
+    const loaded=await loadedYears();
+    const requested=Array.from({length:to-from+1},(_,i)=>from+i);
+    const missing=requested.filter(y=>!loaded.includes(y));
+    $('dcalSelectorStatusF635').textContent=`${from}–${to} arşivi okunuyor${missing.length?` · yüklü olmayan: ${missing.join(', ')}`:''}…`;
     selectedYearRows=await rowsForYears(from,to);
     const raw=selectedYearRows.filter(r=>r?.id&&r?.date&&r.date<contextNow.date)
       .map(row=>({row,type:matchType(contextNow,row),score:similarity(contextNow,row)}))
@@ -429,8 +441,8 @@ async function findAndResolve(){
     renderMatches();
     const unresolved=matches.filter(x=>!x.resolved).length;
     $('dcalSelectorStatusF635').textContent=hasResolved
-      ? `${allowed.size} koşu numarası hazır${unresolved?` · ${unresolved} çözülemedi`:''}. Seçimleri yapıp Hesapla ve Kaydet'e basın.`
-      : 'Eşleşme bulundu ancak koşu numarası çözülemedi.';
+      ? `${allowed.size} koşu numarası hazır${unresolved?` · ${unresolved} çözülemedi`:''}${missing.length?` · arşivde olmayan yıllar: ${missing.join(', ')}`:''}. Seçimleri yapıp Hesapla ve Kaydet'e basın.`
+      : (selectedYearRows.length ? 'Eşleşme bulundu ancak koşu numarası çözülemedi.' : `Seçilen aralıkta yerel arşiv verisi yok${missing.length?` · eksik yıllar: ${missing.join(', ')}`:''}.`);
   }catch(e){
     $('dcalSelectorStatusF635').textContent=e?.message||'Arşiv okunamadı.';
   }finally{busy=false;$('dcalFindResolveF635').disabled=false}
@@ -477,5 +489,5 @@ try{const d=$('analysisDialog');if(d){const o=new MutationObserver(wake);o.obser
 window.addEventListener('pageshow',()=>setTimeout(wake,50),{passive:true});setTimeout(wake,100);
 
 window.ATDailyCalibrationStagedV635={version:VERSION,openSelector,findAndResolve,refresh:buildClean};
-console.info('[AT AI]',VERSION,'active — years first; annual races load only after Find/Resolve; local race-number resolution; Calculate/Save last.');
+console.info('[AT AI]',VERSION,'active — free 2000-current year range; annual races load only after Find/Resolve; local race-number resolution; Calculate/Save last.');
 })();
