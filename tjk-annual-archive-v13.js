@@ -6,9 +6,9 @@
 if (window.__AT_TJK_ANNUAL_ARCHIVE_V14__) return;
 window.__AT_TJK_ANNUAL_ARCHIVE_V14__ = true;
 
-const VERSION = 'TJK-ANNUAL-ARCHIVE-V14.1-BATCH-WRITE';
+const VERSION = 'TJK-ANNUAL-ARCHIVE-V14.2-SCHEMA-REPAIR';
 const DB_NAME = 'at_ai_tjk_annual_archive_v13';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_RACES = 'races';
 const STORE_META = 'meta';
 const STORE_DAY = 'daycache';
@@ -25,6 +25,7 @@ let loadedRangeKey = '';
 let tokenUniverse = [];
 let activeUpdate = false;
 let activeSearch = false;
+let lastDbWriteError = '';
 const selectedIds = window.__AT_AA_SELECTED_IDS_V134__ instanceof Set
   ? window.__AT_AA_SELECTED_IDS_V134__
   : new Set();
@@ -101,9 +102,13 @@ function openDb() {
       if (races && !races.indexNames.contains('year')) races.createIndex('year', 'value.year', { unique: false });
       if (races && !races.indexNames.contains('date')) races.createIndex('date', 'value.date', { unique: false });
     };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => { dbPromise = null; resolve(null); };
-    req.onblocked = () => console.warn('[AT AI]', VERSION, 'IndexedDB upgrade blocked');
+    req.onsuccess = () => {
+      const db = req.result;
+      db.onversionchange = () => { try { db.close(); } catch {} dbPromise = null; };
+      resolve(db);
+    };
+    req.onerror = () => { lastDbWriteError = req.error?.name || 'Veritabanı açılamadı'; dbPromise = null; resolve(null); };
+    req.onblocked = () => { lastDbWriteError = 'Veritabanı yükseltmesi başka sekme tarafından engellendi'; console.warn('[AT AI]', VERSION, lastDbWriteError); };
   });
   return dbPromise;
 }
@@ -162,7 +167,8 @@ async function rowsForYearRange(fromYear, toYear) {
   });
 }
 async function deleteYearRows(year) {
-  const db = await openDb(); if (!db) return false;
+  lastDbWriteError = '';
+  const db = await openDb(); if (!db) { lastDbWriteError ||= 'Veritabanı açılamadı'; return false; }
   return new Promise(resolve => {
     try {
       const tx = db.transaction(STORE_RACES, 'readwrite');
@@ -177,12 +183,12 @@ async function deleteYearRows(year) {
         cursor.continue();
       };
       tx.oncomplete = () => resolve(true);
-      tx.onerror = tx.onabort = () => resolve(false);
-    } catch { resolve(false); }
+      tx.onerror = tx.onabort = () => { lastDbWriteError = tx.error?.name || 'Yıllık kayıt temizleme işlemi iptal edildi'; resolve(false); };
+    } catch (e) { lastDbWriteError = e?.name || e?.message || 'races tablosu açılamadı'; resolve(false); }
   });
 }
 async function writeRaceBatch(rows) {
-  const db = await openDb(); if (!db) return false;
+  const db = await openDb(); if (!db) { lastDbWriteError ||= 'Veritabanı açılamadı'; return false; }
   return new Promise(resolve => {
     try {
       const tx = db.transaction(STORE_RACES, 'readwrite');
@@ -190,8 +196,8 @@ async function writeRaceBatch(rows) {
       const now = Date.now();
       for (const row of rows) store.put({ key: row.id, value: row, updatedAt: now });
       tx.oncomplete = () => resolve(true);
-      tx.onerror = tx.onabort = () => resolve(false);
-    } catch { resolve(false); }
+      tx.onerror = tx.onabort = () => { lastDbWriteError = tx.error?.name || 'Yıllık kayıt yazma işlemi iptal edildi'; resolve(false); };
+    } catch (e) { lastDbWriteError = e?.name || e?.message || 'Yıllık kayıt yazılamadı'; resolve(false); }
   });
 }
 async function replaceYear(year, rows) {
@@ -319,7 +325,7 @@ async function updateYear(year) {
       throw new Error(`TJK sayfalama doğrulaması başarısız (${final.length}/${expected}).`);
     }
     setStatus(`${year}: ${final.length} yarış yerel arşive yazılıyor…`, 92);
-    if (!await replaceYear(year, final)) throw new Error('Yerel arşiv yazımı başarısız.');
+    if (!await replaceYear(year, final)) throw new Error(`Yerel arşiv yazımı başarısız: ${lastDbWriteError || 'bilinmeyen IndexedDB hatası'}.`);
     await dbPut(STORE_META, `year:${year}`, { year, status: 'complete', recordCount: final.length, totalReported: expected, updatedAt: new Date().toISOString(), version: VERSION });
     setStatus(`${year} tamamlandı: ${final.length} yarış.`, 100);
     await loadMetaOnly(true);
