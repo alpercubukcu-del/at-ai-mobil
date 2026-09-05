@@ -9,7 +9,7 @@
 if (window.__AT_ANNUAL_CAREER_FIVE_MODEL_V14__) return;
 window.__AT_ANNUAL_CAREER_FIVE_MODEL_V14__ = true;
 
-const VERSION = 'TJK-ANNUAL-ARCHIVE-FIVE-MODEL-V14.1-TOP3-YEARBEST';
+const VERSION = 'TJK-ANNUAL-ARCHIVE-FIVE-MODEL-V14.2-TIMEOUT-GUARD';
 const ARCHIVE_DB = 'at_ai_tjk_annual_archive_v13';
 const ARCHIVE_STORE = 'races';
 const CAREER_DB = 'at_ai_tjk_annual_career_v138';
@@ -23,6 +23,32 @@ const upper = v => clean(v).toLocaleUpperCase('tr-TR').normalize('NFKD').replace
 const keyText = v => upper(v).replace(/[^A-Z0-9]+/g, '').trim();
 const finite = v => { if (v === null || v === undefined || v === '') return null; const n = Number(v); return Number.isFinite(n) ? n : null; };
 const finishNo = (ref, index = 0) => { const n = Number(ref?.finish ?? ref?.rank ?? ref?.sira); return Number.isFinite(n) && n > 0 ? n : index + 1; };
+
+function withTimeout(promise, ms, label = 'İstek') {
+  let timer = null;
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} ${Math.round(ms / 1000)} saniyede tamamlanmadı.`)), ms);
+    })
+  ]).finally(() => { if (timer) clearTimeout(timer); });
+}
+async function fetchJsonTimed(url, ms, label) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    const r = await fetch(url, { cache:'no-store', signal:controller.signal });
+    let d = null;
+    try { d = await r.json(); } catch {}
+    if (!r.ok || d?.ok === false) throw new Error(d?.error || `${label} ${r.status}`);
+    return d;
+  } catch (e) {
+    if (e?.name === 'AbortError') throw new Error(`${label} ${Math.round(ms / 1000)} saniyede tamamlanmadı.`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 function readState() {
   try { if (typeof state !== 'undefined' && state && typeof state === 'object') return state; } catch {}
   try { const x = localStorage.getItem(STORAGE_KEY); return x ? JSON.parse(x) : null; } catch { return null; }
@@ -84,8 +110,11 @@ async function career(horseId, before) {
   const key = `${clean(horseId)}|${clean(before)}`;
   const cached = await dbGet(openCareerDb, CAREER_STORE, key);
   if (cached?.ok && Array.isArray(cached.fullPathBefore)) return cached;
-  const r = await fetch(`/api/tjk-career-v10?horseId=${encodeURIComponent(horseId)}&before=${encodeURIComponent(before)}`, { cache: 'no-store' });
-  const d = await r.json(); if (!r.ok || d?.ok === false) throw new Error(d?.error || `Kariyer API ${r.status}`);
+  const d = await fetchJsonTimed(
+    `/api/tjk-career-v10?horseId=${encodeURIComponent(horseId)}&before=${encodeURIComponent(before)}`,
+    25000,
+    'Kariyer API'
+  );
   const value = envelope(d, before); await dbPut(openCareerDb, CAREER_STORE, key, value); return value;
 }
 async function mapLimit(items, limit, worker) {
@@ -150,8 +179,11 @@ async function automaticExactRows(ctx) {
     .sort((a,b) => a.date.localeCompare(b.date) || Number(a.raceNo) - Number(b.raceNo));
 }
 async function historicalRace(ctx, row) {
-  const r = await fetch(`/api/tjk-history?date=${encodeURIComponent(row.date)}&city=${encodeURIComponent(row.city)}&raceNo=${encodeURIComponent(row.raceNo)}`, { cache: 'no-store' });
-  const h = await r.json(); if (!r.ok || h?.ok === false) throw new Error(h?.error || `Tarihsel sonuç ${r.status}`);
+  const h = await fetchJsonTimed(
+    `/api/tjk-history?date=${encodeURIComponent(row.date)}&city=${encodeURIComponent(row.city)}&raceNo=${encodeURIComponent(row.raceNo)}`,
+    25000,
+    `Tarihsel sonuç ${row.date} ${row.city} ${row.raceNo}.K`
+  );
   const sourceTop3 = (Array.isArray(h?.top3) ? h.top3 : [])
     .map((ref, index) => ({ ...ref, finish: finishNo(ref, index) }))
     .filter(ref => Number(ref.finish) >= 1 && Number(ref.finish) <= 3)
@@ -303,17 +335,38 @@ async function runInternalF6023() {
     if (!rows.length) throw new Error('Yıllık arşivde koşu numarası belirlenebilen tam eşleşme bulunamadı.');
     let done = 0, failed = 0;
     const refs = (await mapLimit(rows, 2, async row => {
-      try { return await historicalRace(ctx, row); }
-      catch (e) { failed++; console.warn('[AT AI]', VERSION, row.date, row.city, row.raceNo, e?.message || e); return null; }
-      finally { done++; if (out) out.innerHTML = `<div class="aa-note">İlk 3 referans yarışları: ${done}/${rows.length}${failed ? ` · ${failed} atlandı` : ''}</div>`; }
+      const label = `${row.date} · ${row.city} · ${row.raceNo}.K`;
+      if (out) out.innerHTML = `<div class="aa-note">İlk 3 referans yarışları: ${done}/${rows.length}${failed ? ` · ${failed} atlandı` : ''}<br>İşleniyor: ${esc(label)}</div>`;
+      try {
+        return await withTimeout(historicalRace(ctx, row), 45000, `Referans yarışı ${label}`);
+      }
+      catch (e) {
+        failed++;
+        console.warn('[AT AI]', VERSION, row.date, row.city, row.raceNo, e?.message || e);
+        return null;
+      }
+      finally {
+        done++;
+        if (out) out.innerHTML = `<div class="aa-note">İlk 3 referans yarışları: ${done}/${rows.length}${failed ? ` · ${failed} atlandı` : ''}</div>`;
+      }
     })).filter(Boolean);
     if (!refs.length) throw new Error('Yıllık arşiv eşleşmeleri bulundu fakat geçmiş yarış ayrıntıları alınamadı.');
     const models = { EXACT: [], CONDITION_TWIN: [], RACE_FAMILY: [] };
     for (const r of refs) models[r.referenceType]?.push(r);
-    let hd = 0;
+    let hd = 0, horseFailed = 0;
     const horses = await mapLimit(ctx.horses, 2, async horse => {
-      try { const c = await career(horse.id, ctx.date); hd++; if (out) out.innerHTML = `<div class="aa-note">Bugünkü atlar: ${hd}/${ctx.horses.length}</div>`; return { horse, career: c, scores: modelScores(c, models) }; }
-      catch (e) { return { horse, career: { ok: false, fullPathBefore: [] }, scores: { exact: { score: null }, twin: { score: null }, family: { score: null }, career: { score: null }, composite: { score: null } }, error: e?.message || String(e) }; }
+      try {
+        const c = await withTimeout(career(horse.id, ctx.date), 30000, `Bugünkü at kariyeri ${horse?.name || horse?.id || ''}`);
+        return { horse, career: c, scores: modelScores(c, models) };
+      }
+      catch (e) {
+        horseFailed++;
+        return { horse, career: { ok: false, fullPathBefore: [] }, scores: { exact: { score: null }, twin: { score: null }, family: { score: null }, career: { score: null }, composite: { score: null } }, error: e?.message || String(e) };
+      }
+      finally {
+        hd++;
+        if (out) out.innerHTML = `<div class="aa-note">Bugünkü atlar: ${hd}/${ctx.horses.length}${horseFailed ? ` · ${horseFailed} atlandı` : ''}</div>`;
+      }
     });
     const prepared = {
       no:Number(ctx.raceNo),
