@@ -10,7 +10,7 @@ if (window.__AT_COUPON_CAREER_ONLY_DIRECT_V1691F628__) return;
 window.__AT_COUPON_CAREER_ONLY_DIRECT_V1691F628__ = true;
 
 const VERSION = 'COUPON-CAREER-ONLY-DIRECT-V16.9.1F60.28';
-const SOURCE = 'CAREER_ROADMAP_RANKING_RAW_EVIDENCE_F6023';
+const SOURCE = 'CAREER_ROADMAP_EVIDENCE_TRUE_DEBUT_CURRENT_F6030';
 const TICKET_VERSION = 'CAREER-COUPON-V16.9.1F60.28-CAREER-ONLY';
 let busy = false;
 
@@ -31,7 +31,7 @@ function removeLegacyCopy(value) {
 function patchUi() {
   const note = document.querySelector('#couponCenterDialog .five-model-note-v11');
   if (note) {
-    note.innerHTML = '<b>KUPON KAYNAĞI: KARİYER / HAZIRLIK</b><span>Kupon yalnız Kariyer Yol Haritasındaki Kanıt sırasından doğrudan oluşturulur.</span><small>5 Model kupon akışında kullanılmaz.</small>';
+    note.innerHTML = '<b>KUPON KAYNAĞI: KARİYER / HAZIRLIK</b><span>Kariyeri olan at = Kariyer Yol Haritası Kanıt sırası. Gerçek debut = Güncel Analiz puanı.</span><small>5 Model kupon akışında kullanılmaz.</small>';
   }
   const button = $('buildAllBtn');
   if (button && !busy) button.textContent = 'Kupon Oluştur';
@@ -92,7 +92,7 @@ function normalizeTickets(list, check) {
       archiveOnly:false,
       auditReady:check?.ready === true,
       warnings:[
-        'Kupon sırası yalnız Kariyer Yol Haritasındaki Kanıt sırasından alındı.',
+        'Kariyeri olan atlar Kariyer Yol Haritası Kanıt sırasından; doğrulanmış gerçek debut atlar Güncel Analiz puanından alındı.',
         ...(Array.isArray(ticket?.warnings)
           ? ticket.warnings.filter(message => !/5 Model|kalibrasyonlu|kalibresiz/i.test(clean(message)))
           : [])
@@ -144,6 +144,7 @@ async function build() {
       source:SOURCE,
       fiveModelUsed:false,
       calibrated:false,
+      trueDebutRule:'VERIFIED_ZERO_PREVIOUS_RACES_USES_CURRENT_ANALYSIS_F6030',
       variants:['CAREER_PREPARATION'],
       dailyArchiveFirst:true,
       auditReady:check?.ready === true,
