@@ -150,7 +150,8 @@ async function loadedYears(){
 }
 function selectableYears(){
   const current=Math.max(2000,new Date().getFullYear());
-  return Array.from({length:current-2000+1},(_,i)=>2000+i);
+  const upper=current+10;
+  return Array.from({length:upper-2000+1},(_,i)=>2000+i);
 }
 async function rowsForYears(from,to){
   const db=await openDb();
@@ -489,5 +490,5 @@ try{const d=$('analysisDialog');if(d){const o=new MutationObserver(wake);o.obser
 window.addEventListener('pageshow',()=>setTimeout(wake,50),{passive:true});setTimeout(wake,100);
 
 window.ATDailyCalibrationStagedV635={version:VERSION,openSelector,findAndResolve,refresh:buildClean};
-console.info('[AT AI]',VERSION,'active — free 2000-current year range; annual races load only after Find/Resolve; local race-number resolution; Calculate/Save last.');
+console.info('[AT AI]',VERSION,'active — free 2000 to current+10 year range; annual races load only after Find/Resolve; local race-number resolution; Calculate/Save last.');
 })();
