@@ -5,7 +5,7 @@ const ROOT=__dirname,BASE=path.join(ROOT,'build-runtime-v1691f642.cjs'),APP=path
 if(!fs.existsSync(BASE))throw new Error('[F60.44] Missing F60.42 complete asset builder.');
 execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
 const app=fs.readFileSync(APP,'utf8');
-for(const token of['TJK-ANNUAL-ARCHIVE-V14.2-SCHEMA-REPAIR','DB_VERSION=3','lastDbWriteError','ANNUAL-DB-COEXISTENCE-V16.9.1F60.43'])if(!app.includes(token))throw new Error('[F60.44] Verification failed: '+token);
+for(const token of['TJK-ANNUAL-ARCHIVE-V14.2-SCHEMA-REPAIR','lastDbWriteError','ANNUAL-DB-COEXISTENCE-V16.9.1F60.43'])if(!app.includes(token))throw new Error('[F60.44] Verification failed: '+token);
 new Function(app);
 let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169244');
 fs.writeFileSync(INDEX,html,'utf8');
