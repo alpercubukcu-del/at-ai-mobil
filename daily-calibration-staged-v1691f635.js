@@ -486,7 +486,7 @@ function installRenderPatch(){
 }
 function wake(){installRenderPatch();const d=$('analysisDialog');if(d?.open&&d.dataset.dailyCalibrationF6018==='1')setTimeout(buildClean,0)}
 if(!installRenderPatch()){const t=setInterval(()=>{if(installRenderPatch())clearInterval(t)},50);setTimeout(()=>clearInterval(t),5000)}
-try{const d=$('analysisDialog');if(d){const o=new MutationObserver(wake);o.observe(d,{attributes:true,attributeFilter:['open','data-view','data-daily-calibration-f6018'],childList:true,subtree:false})}}catch{}
+// Calibration opens through the explicit menu flow, which calls `wake`; do not retain a dialog observer at boot.
 window.addEventListener('pageshow',()=>setTimeout(wake,50),{passive:true});setTimeout(wake,100);
 
 window.ATDailyCalibrationStagedV635={version:VERSION,openSelector,findAndResolve,refresh:buildClean};
