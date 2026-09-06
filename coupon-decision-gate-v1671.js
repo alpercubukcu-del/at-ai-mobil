@@ -291,7 +291,7 @@ async function finalBuild(){
 function takeover(){
   for(const id of ['buildAllBtn','ticketFromAnalysis']){const btn=$(id);if(!btn||btn.dataset.cdgV1671==='1')continue;btn.dataset.cdgV1671='1';btn.addEventListener('click',e=>{if(!e.isTrusted)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();openScreen();},true);}
 }
-const obs=new MutationObserver(()=>takeover());try{obs.observe(document.documentElement,{subtree:true,childList:true});}catch{}
+// Coupon entry controls are present at boot; avoid a document-wide observer for every render.
 window.addEventListener('load',()=>setTimeout(takeover,60));ensureStyle();takeover();setTimeout(()=>{try{prependSummary();}catch{}},0);
 window.ATCouponDecisionV1671={VERSION,audit,open:openScreen,completeWinner,completeModels,computeDecisions};
 console.info('[AT AI]',VERSION,'aktif — eksik veri kapısı + ayaklar arası banko/genişlik kararı.');

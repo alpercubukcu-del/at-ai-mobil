@@ -558,7 +558,7 @@ function installAnnualManager() {
     <h3>1 · Yıllık Arşiv Yönetimi</h3>
     <div class="aa-note">Yıllar bağımsız saklanır. Bir yılı silmek diğer yılları ve günlük paketleri bozmaz.</div>
     <div class="aa-grid two">
-      <label>Başlangıç yılı<select id="aaBatchFromF645">${yearOptions(2019)}</select></label>
+      <label>Başlangıç yılı<select id="aaBatchFromF645">${yearOptions(2015)}</select></label>
       <label>Bitiş yılı<select id="aaBatchToF645">${yearOptions(CURRENT_YEAR)}</select></label>
     </div>
     <div class="aa-actions">
@@ -1159,7 +1159,9 @@ for (const name of ['at-ai:annual-archive-created','at-ai:annual-archive-open','
 document.addEventListener('click', e => {
   if (e.target?.closest?.('#annualArchiveBtn,#menuBtn')) setTimeout(ensureAll, 40);
 }, true);
-try { new MutationObserver(() => applyProcessMenu()).observe($('drawer') || document.documentElement, { childList: true, subtree: true, characterData: true }); } catch {}
+// Menu reconciliation runs only on app lifecycle events and menu opens; an observer here
+// re-fired during drawer updates on mobile and kept the main thread busy.
+
 setTimeout(ensureAll, 100);
 setTimeout(ensureAll, 600);
 
