@@ -1,0 +1,21 @@
+const fs=require('fs');
+const path=require('path');
+const {execFileSync}=require('child_process');
+const ROOT=__dirname,BASE=path.join(ROOT,'build-runtime-v1691f644.cjs'),EXTRA=path.join(ROOT,'daily-model-matrix-v1691f646.js'),APP=path.join(ROOT,'public','at-ai-app-v142.js'),INDEX=path.join(ROOT,'public','index.html');
+if(!fs.existsSync(BASE)||!fs.existsSync(EXTRA))throw new Error('[F60.46] Missing selected-package base or model matrix module.');
+execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
+let app=fs.readFileSync(APP,'utf8');
+// The matrix must run before the legacy calibration/coupon modules initialize.
+app=fs.readFileSync(EXTRA,'utf8').trim()+'\n\n'+app;
+const oldIds="const MODEL_IDS=['composite','exact','twin','family','career','winner'];";
+const newIds="const MODEL_IDS=[...(window.ATModelMatrixV646?.ids||['composite','exact','twin','family','career']),'winner'];";
+const oldLabels="const MODEL_LABELS={composite:'Bileşik',exact:'Tam',twin:'İkiz',family:'Aile',career:'Kariyer',winner:'Kazanan Yolu'};";
+const newLabels="const MODEL_LABELS={...(window.ATModelMatrixV646?.labels||{composite:'Bileşik',exact:'Tam',twin:'İkiz',family:'Aile',career:'Kariyer'}),winner:'Kazanan Yolu'};";
+if(!app.includes(oldIds)||!app.includes(oldLabels))throw new Error('[F60.46] Winner calibration model declarations not found.');
+app=app.replace(oldIds,newIds).replace(oldLabels,newLabels);
+for(const token of['SELECTED-PACKAGE-20-MODEL-MATRIX-V16.9.1F60.46','PROCESS-FLOW-PLANNER-V16.9.1F60.45','TJK-ANNUAL-ARCHIVE-V14.2-SCHEMA-REPAIR','Seçilen Benzer Yarışları İndir'])if(!app.includes(token))throw new Error('[F60.46] Verification failed: '+token);
+new Function(app);fs.writeFileSync(APP,app,'utf8');
+let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169246');
+fs.writeFileSync(INDEX,html,'utf8');
+if(!html.includes('/at-ai-app-v142.js?v=169246'))throw new Error('[F60.46] Cache bust failed.');
+console.log('[AT AI] V16.9.1F60.46 build complete: selected package defaults + 20 model calibration matrix.');

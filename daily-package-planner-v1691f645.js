@@ -558,7 +558,7 @@ function installAnnualManager() {
     <h3>1 · Yıllık Arşiv Yönetimi</h3>
     <div class="aa-note">Yıllar bağımsız saklanır. Bir yılı silmek diğer yılları ve günlük paketleri bozmaz.</div>
     <div class="aa-grid two">
-      <label>Başlangıç yılı<select id="aaBatchFromF645">${yearOptions(2019)}</select></label>
+      <label>Başlangıç yılı<select id="aaBatchFromF645">${yearOptions(2015)}</select></label>
       <label>Bitiş yılı<select id="aaBatchToF645">${yearOptions(CURRENT_YEAR)}</select></label>
     </div>
     <div class="aa-actions">
