@@ -28,8 +28,7 @@ function apply(){
     else if(/TJK Yıllık Yarış Arşivi/i.test(t)) text(btn,'7. TJK Yıllık Yarış Arşivi');
   }
 }
-const obs=new MutationObserver(()=>apply());
-try{obs.observe(document.documentElement,{subtree:true,childList:true,characterData:true});}catch{}
+// Boot-time reconciliation below is sufficient; do not observe every document mutation.
 window.addEventListener('load',()=>setTimeout(apply,20));
 apply();
 setTimeout(apply,120);
