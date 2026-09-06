@@ -1159,7 +1159,9 @@ for (const name of ['at-ai:annual-archive-created','at-ai:annual-archive-open','
 document.addEventListener('click', e => {
   if (e.target?.closest?.('#annualArchiveBtn,#menuBtn')) setTimeout(ensureAll, 40);
 }, true);
-try { new MutationObserver(() => applyProcessMenu()).observe($('drawer') || document.documentElement, { childList: true, subtree: true, characterData: true }); } catch {}
+// Menu reconciliation runs only on app lifecycle events and menu opens; an observer here
+// re-fired during drawer updates on mobile and kept the main thread busy.
+
 setTimeout(ensureAll, 100);
 setTimeout(ensureAll, 600);
 
