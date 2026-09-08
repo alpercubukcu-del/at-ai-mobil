@@ -19,16 +19,10 @@ const BET_TYPES = [
   '4lü Ganyan'
 ];
 
-const SEEDED_CITIES = [
-  { id: '7', name: 'Elazığ', label: 'Elazığ' },
-  { id: '9', name: 'Kocaeli', label: 'Kocaeli' }
-];
-const DEFAULT_CITY_ID = '7';
-
 const defaultState = {
   date: '',
-  city: DEFAULT_CITY_ID,
-  cities: SEEDED_CITIES,
+  city: '',
+  cities: [],
   races: [],
   selectedRace: 'all',
   signalSource: 'combined',
@@ -51,22 +45,17 @@ function freshState() {
   return structuredClone(defaultState);
 }
 
-function withSeededCities(next = {}) {
-  const result = {
-    ...next,
-    cities: Array.isArray(next.cities) && next.cities.length
-      ? next.cities
-      : structuredClone(SEEDED_CITIES)
-  };
+function isStaleSeedCityList(cities = []) {
+  if (!Array.isArray(cities) || cities.length !== 2) return false;
+  const ids = cities
+    .map(city => String(city?.id || ''))
+    .sort()
+    .join(',');
+  const names = cities
+    .map(city => city?.name || '')
+    .join(' ');
 
-  const validCity = result.cities.some(
-    c => String(c.id) === String(result.city)
-  );
-  if (!result.city || !validCity) {
-    result.city = DEFAULT_CITY_ID;
-  }
-
-  return result;
+  return ids === '7,9' && /Elazığ/i.test(names) && /Kocaeli/i.test(names);
 }
 
 function dateFromRawState(raw = '') {
@@ -159,7 +148,13 @@ function loadState() {
       result.analyses.career = {};
     }
 
-    return withSeededCities(result);
+    if (isStaleSeedCityList(result.cities)) {
+      result.city = '';
+      result.cities = [];
+      result.races = [];
+    }
+
+    return result;
   } catch (e) {
     console.warn('State okunamadı:', e);
     return freshState();
@@ -205,21 +200,63 @@ function status(text) {
   if (el) el.textContent = text;
 }
 
+function programCitiesUrl(date) {
+  const params = new URLSearchParams({
+    date,
+    scope: 'cities'
+  });
+
+  return `/api/tjk-program?${params.toString()}`;
+}
+
 function programApiUrl(date, cityId = '') {
+  if (!cityId) return programCitiesUrl(date);
+
   const params = new URLSearchParams({
     date,
     scope: 'selected'
   });
 
-  if (cityId) {
-    params.set('cityId', cityId);
-    const cityName = cityNameForId(cityId);
-    if (cityName) {
-      params.set('cityName', cityName);
-    }
+  params.set('cityId', cityId);
+  const cityName = cityNameForId(cityId);
+  if (cityName) {
+    params.set('cityName', cityName);
   }
 
   return `/api/tjk-program?${params.toString()}`;
+}
+
+async function fetchProgramCities(date) {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(),
+    PROGRAM_FETCH_TIMEOUT_MS
+  );
+
+  try {
+    const res = await fetch(programCitiesUrl(date), {
+      method: 'GET',
+      cache: 'default',
+      headers: {
+        accept: 'application/json'
+      },
+      signal: controller.signal
+    });
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok || data?.ok === false) {
+      throw new Error(data?.error || `API ${res.status}`);
+    }
+
+    return Array.isArray(data?.cities) ? data.cities : [];
+  } catch (e) {
+    if (e?.name === 'AbortError') {
+      throw new Error('TJK şehir listesi 18 saniyede cevap vermedi.');
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function fetchProgramData(date, cityId = '') {
@@ -629,6 +666,64 @@ async function loadProgram() {
   status('TJK programı alınıyor…');
 
   try {
+    const cityListIsCurrent =
+      state.date === date &&
+      state.city &&
+      Array.isArray(state.cities) &&
+      state.cities.some(
+        c =>
+          String(c.id) ===
+          String(state.city)
+      );
+
+    if (!cityListIsCurrent) {
+      status('TJK şehirleri alınıyor…');
+
+      state.date = date;
+      state.cities = await fetchProgramCities(date);
+      state.races = [];
+
+      if (state.cities.length === 0) {
+        state.city = '';
+
+        save();
+        renderCities();
+        renderProgram();
+
+        status(
+          'Bu tarih için şehir bulunamadı.'
+        );
+
+        return;
+      }
+
+      const oldCity = state.city;
+      const oldCityExists =
+        state.cities.some(
+          c =>
+            String(c.id) ===
+            String(oldCity)
+        );
+      const turkeyCity =
+        state.cities.find(
+          c =>
+            /İstanbul|İzmir|Ankara|Bursa|Kocaeli|Adana|Antalya|Elazığ|Şanlıurfa|Diyarbakır/i.test(
+              c.name
+            )
+        ) ||
+        state.cities[0];
+
+      state.city = oldCityExists
+        ? String(oldCity)
+        : String(turkeyCity.id);
+
+      save();
+      renderCities();
+      renderProgram();
+    }
+
+    status('Seçili şehir programı alınıyor…');
+
     const data = await fetchProgramData(
       date,
       state.city
@@ -705,7 +800,6 @@ async function loadProgram() {
       err
     );
 
-    state.cities = [];
     state.races = [];
 
     save();

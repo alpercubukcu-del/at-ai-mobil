@@ -96,11 +96,6 @@
       const STORAGE_KEY = 'at_ai_mobil_state_v2';
       const CAREER_UI_VERSION = 'CAREER-UI-V5.1';
       const BOOT_TIMEOUT_MS = 22000;
-      const SEEDED_CITIES = [
-        { id: '7', name: 'Elazığ', label: 'Elazığ' },
-        { id: '9', name: 'Kocaeli', label: 'Kocaeli' }
-      ];
-      const DEFAULT_CITY_ID = '7';
       const $ = id => document.getElementById(id);
       const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
       const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -122,7 +117,7 @@
       function readState() {
         try {
           const raw = localStorage.getItem(STORAGE_KEY);
-          return raw ? JSON.parse(raw) : {};
+          return normalizeState(raw ? JSON.parse(raw) : {});
         } catch {
           return {};
         }
@@ -154,27 +149,70 @@
         return snapshot;
       }
 
-      function mergeCities(incoming = []) {
-        const byId = new Map();
-        for (const city of [...SEEDED_CITIES, ...incoming]) {
-          if (!city?.id || !city?.name) continue;
-          byId.set(String(city.id), {
-            id: String(city.id),
-            name: city.name,
-            label: city.label || city.name,
-            url: city.url
-          });
-        }
-        return [...byId.values()];
+      function isStaleSeedCityList(cities = []) {
+        if (!Array.isArray(cities) || cities.length !== 2) return false;
+        const ids = cities.map(city => String(city?.id || '')).sort().join(',');
+        const names = cities.map(city => city?.name || '').join(' ');
+        return ids === '7,9' && /Elazığ/i.test(names) && /Kocaeli/i.test(names);
       }
 
-      function seedState(state = {}) {
-        const cities = mergeCities(state.cities);
-        const currentCity = String(state.city || '');
-        const hasCurrent = cities.some(c => String(c.id) === currentCity);
+      function normalizeState(state = {}) {
+        if (isStaleSeedCityList(state.cities)) {
+          return {
+            ...state,
+            city: '',
+            cities: [],
+            races: []
+          };
+        }
+        return state || {};
+      }
+
+      function hasCity(cities = [], cityId = '') {
+        return Array.isArray(cities) && cities.some(c => String(c.id) === String(cityId));
+      }
+
+      function keepCityList(currentCities = [], incoming = []) {
+        if (
+          Array.isArray(incoming) &&
+          incoming.length === 1 &&
+          Array.isArray(currentCities) &&
+          currentCities.length > 1 &&
+          hasCity(currentCities, incoming[0].id)
+        ) {
+          return currentCities;
+        }
+        return Array.isArray(incoming) && incoming.length ? incoming : currentCities;
+      }
+
+      function cityListUrl(date) {
+        const params = new URLSearchParams({ date, scope: 'cities' });
+        return `/api/tjk-program?${params.toString()}`;
+      }
+
+      async function fetchCityList(date, signal) {
+        const response = await fetch(cityListUrl(date), {
+          cache: 'default',
+          headers: { accept: 'application/json' },
+          signal
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok || data?.ok === false) throw new Error(data?.error || `API ${response.status}`);
+        return Array.isArray(data?.cities) ? data.cities : [];
+      }
+
+      function chooseCity(cities = [], wanted = '') {
+        if (wanted && hasCity(cities, wanted)) return String(wanted);
+        return String(preferredCity(cities)?.id || '');
+      }
+
+      function prepareStateForDate(state = {}, date = todayLocal(), forceCityId = '') {
+        const cities = Array.isArray(state.cities) ? state.cities : [];
+        const selected = chooseCity(cities, forceCityId || state.city);
         return {
           ...state,
-          city: hasCurrent ? currentCity : DEFAULT_CITY_ID,
+          date,
+          city: selected,
           cities
         };
       }
@@ -250,35 +288,61 @@
 
       async function fetchProgram(forceCityId = '') {
         window.__AT_EARLY_PROGRAM_BUSY__ = true;
-        const state = seedState(readState());
+        let state = readState();
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), BOOT_TIMEOUT_MS);
         try {
           const date = $('raceDate')?.value || state.date || todayLocal();
           if ($('raceDate')) $('raceDate').value = date;
+          let cities = Array.isArray(state.cities) ? state.cities : [];
+          let selected = forceCityId || $('citySelect')?.value || state.city || '';
+          const cityListIsCurrent = state.date === date && hasCity(cities, selected);
+
+          if (!cityListIsCurrent) {
+            status('TJK şehirleri alınıyor...');
+            cities = await fetchCityList(date, controller.signal);
+            selected = chooseCity(cities, forceCityId || state.city);
+            state = saveState({
+              ...state,
+              date,
+              city: selected,
+              cities,
+              races: [],
+              selectedRace: 'all'
+            });
+            renderCities(state);
+            renderProgram(state);
+
+            if (!selected) {
+              status('Bu tarih için şehir bulunamadı.');
+              loadMainScript();
+              return;
+            }
+          }
+
           status('TJK programı alınıyor...');
-          const response = await fetch(programUrl({ ...state, date }, forceCityId), {
+          const response = await fetch(programUrl({ ...state, date, city: selected, cities }, selected), {
             cache: 'default',
             headers: { accept: 'application/json' },
             signal: controller.signal
           });
           const data = await response.json().catch(() => null);
           if (!response.ok || data?.ok === false) throw new Error(data?.error || `API ${response.status}`);
-          const cities = mergeCities(data?.cities);
-          const selected = data?.selectedCityId || forceCityId || state.city || preferredCity(cities)?.id || '';
-          const races = racesForCity(data, selected);
+          const nextCities = keepCityList(cities, data?.cities);
+          const loadedCity = data?.selectedCityId || selected || preferredCity(nextCities)?.id || '';
+          const races = racesForCity(data, loadedCity);
           const next = saveState({
             ...state,
             date,
-            city: String(selected || ''),
-            cities,
+            city: String(loadedCity || ''),
+            cities: nextCities,
             races,
             selectedRace: 'all',
             tickets: []
           });
           renderCities(next);
           renderProgram(next);
-          status(`${cities.length || 1} şehir bulundu · ${races.length} koşu`);
+          status(`${nextCities.length || 1} şehir bulundu · ${races.length} koşu`);
           loadMainScript();
         } catch (error) {
           status(error?.name === 'AbortError' ? 'TJK programı 22 saniyede cevap vermedi.' : `Program alınamadı: ${error?.message || error}`);
@@ -318,12 +382,13 @@
       }
 
       function boot() {
-        const state = seedState(readState());
+        const state = readState();
         const date = state.date || todayLocal();
         if ($('raceDate')) $('raceDate').value = date;
-        saveState({ ...state, date });
-        renderCities(state);
-        renderProgram(state);
+        const prepared = prepareStateForDate(state, date);
+        saveState(prepared);
+        renderCities(prepared);
+        renderProgram(prepared);
         $('loadProgramBtn')?.addEventListener('click', event => {
           if (window.__AT_EARLY_MAIN_LOADED__) return;
           event.preventDefault();

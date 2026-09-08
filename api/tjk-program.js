@@ -8,11 +8,6 @@ const TJK_CITY =
 const TJK_CDN =
   'https://medya-cdn.tjk.org/raporftp/TJKPDF';
 const FETCH_TIMEOUT_MS = 16000;
-const FAST_DIRECT_CITIES = [
-  { id: '7', name: 'Elazığ', label: 'Elazığ' },
-  { id: '9', name: 'Kocaeli', label: 'Kocaeli' }
-];
-const FALLBACK_DIRECT_CITY_ID = '7';
 
 const HEADERS = {
   'User-Agent':
@@ -59,30 +54,17 @@ function cityProgramUrl(isoDate, cityName, cityId) {
     `&SehirId=${encodeURIComponent(cityId)}`;
 }
 
-function directCityFromKnown(isoDate, cityId = '', cityName = '') {
+function directCityFromRequest(isoDate, cityId = '', cityName = '') {
   const requestedId = String(cityId || '').trim();
   const requestedName = oneLine(cityName);
-  if (requestedId && requestedName) {
-    return {
-      id: String(requestedId),
-      name: requestedName,
-      label: requestedName,
-      url: cityProgramUrl(isoDate, requestedName, requestedId)
-    };
-  }
 
-  const known =
-    FAST_DIRECT_CITIES.find(c => requestedId && String(c.id) === requestedId) ||
-    FAST_DIRECT_CITIES.find(c => requestedName && key(c.name) === key(requestedName)) ||
-    FAST_DIRECT_CITIES.find(c => String(c.id) === FALLBACK_DIRECT_CITY_ID);
-
-  if (!known) return null;
+  if (!requestedId || !requestedName) return null;
 
   return {
-    id: String(known.id),
-    name: known.name,
-    label: known.label || known.name,
-    url: cityProgramUrl(isoDate, known.name, known.id)
+    id: String(requestedId),
+    name: requestedName,
+    label: requestedName,
+    url: cityProgramUrl(isoDate, requestedName, requestedId)
   };
 }
 
@@ -1896,12 +1878,17 @@ export default async function handler(req, res) {
     String(req.query?.scope || '').toLowerCase() === 'selected' ||
     String(req.query?.cityOnly || '') === '1' ||
     Boolean(req.query?.cityId || req.query?.cityName);
+  const citiesOnly =
+    String(req.query?.scope || '').toLowerCase() === 'cities' ||
+    String(req.query?.citiesOnly || '') === '1';
   const requestedCityId = req.query?.cityId || req.query?.city || '';
   const requestedCityName = req.query?.cityName || '';
+  const hasRequestedCity =
+    Boolean(requestedCityId || requestedCityName);
 
   try {
     const directCity = cityScope
-      ? directCityFromKnown(
+      ? directCityFromRequest(
           isoDate,
           requestedCityId,
           requestedCityName
@@ -1910,8 +1897,6 @@ export default async function handler(req, res) {
 
     if (directCity) {
       const selectedCity = directCity;
-      const fallbackDirectRequest =
-        !requestedCityId || !requestedCityName;
 
       const racesByCity = {};
       const programs = {};
@@ -1968,11 +1953,9 @@ export default async function handler(req, res) {
           sourceMode: 'TJK_TABLE_LOCK_EXACT_RACE_HORSES',
           selectedCityOnly: true,
           directCityRequest: true,
-          directCityFallback: fallbackDirectRequest,
+          directCityFallback: false,
           schemaBasis:
-            fallbackDirectRequest
-              ? 'Tek şehir hızlı mod: istemci şehir göndermediği için varsayılan şehirle root şehir listesi beklenmez'
-              : 'Tek şehir hızlı mod: şehir id/adı istemciden geldiği için root şehir listesi beklenmez',
+            'Tek şehir hızlı mod: şehir id/adı istemciden geldiği için root şehir listesi beklenmez',
           careerRequirement:
             'At ID CSV varsa doğrudan, yoksa resmi TJK at linkinden eşleştirilir',
           failedCityCount: errors.length,
@@ -1987,6 +1970,31 @@ export default async function handler(req, res) {
 
     const rootHtml = await fetchText(rootUrl);
     const cities = extractCities(rootHtml, isoDate);
+
+    if (citiesOnly || (cityScope && !hasRequestedCity)) {
+      return res.status(200).json({
+        ok: true,
+        parserVersion: VERSION,
+        version: VERSION,
+        date: isoDate,
+        cityCount: cities.length,
+        raceCount: 0,
+        horseCount: 0,
+        cities,
+        selectedCityId: '',
+        racesByCity: {},
+        programs: {},
+        audit: {
+          sourceMode: 'TJK_CITY_LIST_ONLY',
+          selectedCityOnly: false,
+          citiesOnly: true,
+          schemaBasis:
+            'İlk açılışta yalnız TJK resmi şehir listesi alınır; yarışlar seçilen şehirle ayrı tek-şehir isteğinde yüklenir'
+        },
+        source: 'TJK Günlük Yarış Programı',
+        sourceUrl: rootUrl
+      });
+    }
 
     if (!cities.length) {
       return res.status(200).json({
