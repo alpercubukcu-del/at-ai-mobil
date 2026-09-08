@@ -19,10 +19,16 @@ const BET_TYPES = [
   '4lü Ganyan'
 ];
 
+const SEEDED_CITIES = [
+  { id: '7', name: 'Elazığ', label: 'Elazığ' },
+  { id: '9', name: 'Kocaeli', label: 'Kocaeli' }
+];
+const DEFAULT_CITY_ID = '7';
+
 const defaultState = {
   date: '',
-  city: '',
-  cities: [],
+  city: DEFAULT_CITY_ID,
+  cities: SEEDED_CITIES,
   races: [],
   selectedRace: 'all',
   signalSource: 'combined',
@@ -43,6 +49,24 @@ let state = loadState();
 
 function freshState() {
   return structuredClone(defaultState);
+}
+
+function withSeededCities(next = {}) {
+  const result = {
+    ...next,
+    cities: Array.isArray(next.cities) && next.cities.length
+      ? next.cities
+      : structuredClone(SEEDED_CITIES)
+  };
+
+  const validCity = result.cities.some(
+    c => String(c.id) === String(result.city)
+  );
+  if (!result.city || !validCity) {
+    result.city = DEFAULT_CITY_ID;
+  }
+
+  return result;
 }
 
 function dateFromRawState(raw = '') {
@@ -135,7 +159,7 @@ function loadState() {
       result.analyses.career = {};
     }
 
-    return result;
+    return withSeededCities(result);
   } catch (e) {
     console.warn('State okunamadı:', e);
     return freshState();

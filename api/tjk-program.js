@@ -8,6 +8,11 @@ const TJK_CITY =
 const TJK_CDN =
   'https://medya-cdn.tjk.org/raporftp/TJKPDF';
 const FETCH_TIMEOUT_MS = 16000;
+const FAST_DIRECT_CITIES = [
+  { id: '7', name: 'Elazığ', label: 'Elazığ' },
+  { id: '9', name: 'Kocaeli', label: 'Kocaeli' }
+];
+const FALLBACK_DIRECT_CITY_ID = '7';
 
 const HEADERS = {
   'User-Agent':
@@ -52,6 +57,33 @@ function cityProgramUrl(isoDate, cityName, cityId) {
     )}` +
     `&SehirAdi=${encodeURIComponent(cityName)}` +
     `&SehirId=${encodeURIComponent(cityId)}`;
+}
+
+function directCityFromKnown(isoDate, cityId = '', cityName = '') {
+  const requestedId = String(cityId || '').trim();
+  const requestedName = oneLine(cityName);
+  if (requestedId && requestedName) {
+    return {
+      id: String(requestedId),
+      name: requestedName,
+      label: requestedName,
+      url: cityProgramUrl(isoDate, requestedName, requestedId)
+    };
+  }
+
+  const known =
+    FAST_DIRECT_CITIES.find(c => requestedId && String(c.id) === requestedId) ||
+    FAST_DIRECT_CITIES.find(c => requestedName && key(c.name) === key(requestedName)) ||
+    FAST_DIRECT_CITIES.find(c => String(c.id) === FALLBACK_DIRECT_CITY_ID);
+
+  if (!known) return null;
+
+  return {
+    id: String(known.id),
+    name: known.name,
+    label: known.label || known.name,
+    url: cityProgramUrl(isoDate, known.name, known.id)
+  };
 }
 
 function pickDefaultCity(cities = []) {
@@ -1868,17 +1900,18 @@ export default async function handler(req, res) {
   const requestedCityName = req.query?.cityName || '';
 
   try {
-    if (cityScope && requestedCityId && requestedCityName) {
-      const selectedCity = {
-        id: String(requestedCityId),
-        name: oneLine(requestedCityName),
-        label: oneLine(requestedCityName),
-        url: cityProgramUrl(
+    const directCity = cityScope
+      ? directCityFromKnown(
           isoDate,
-          oneLine(requestedCityName),
-          requestedCityId
+          requestedCityId,
+          requestedCityName
         )
-      };
+      : null;
+
+    if (directCity) {
+      const selectedCity = directCity;
+      const fallbackDirectRequest =
+        !requestedCityId || !requestedCityName;
 
       const racesByCity = {};
       const programs = {};
@@ -1935,8 +1968,11 @@ export default async function handler(req, res) {
           sourceMode: 'TJK_TABLE_LOCK_EXACT_RACE_HORSES',
           selectedCityOnly: true,
           directCityRequest: true,
+          directCityFallback: fallbackDirectRequest,
           schemaBasis:
-            'Tek şehir hızlı mod: şehir id/adı istemciden geldiği için root şehir listesi beklenmez',
+            fallbackDirectRequest
+              ? 'Tek şehir hızlı mod: istemci şehir göndermediği için varsayılan şehirle root şehir listesi beklenmez'
+              : 'Tek şehir hızlı mod: şehir id/adı istemciden geldiği için root şehir listesi beklenmez',
           careerRequirement:
             'At ID CSV varsa doğrudan, yoksa resmi TJK at linkinden eşleştirilir',
           failedCityCount: errors.length,

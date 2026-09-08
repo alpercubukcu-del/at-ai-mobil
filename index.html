@@ -96,6 +96,11 @@
       const STORAGE_KEY = 'at_ai_mobil_state_v2';
       const CAREER_UI_VERSION = 'CAREER-UI-V5.1';
       const BOOT_TIMEOUT_MS = 22000;
+      const SEEDED_CITIES = [
+        { id: '7', name: 'Elazığ', label: 'Elazığ' },
+        { id: '9', name: 'Kocaeli', label: 'Kocaeli' }
+      ];
+      const DEFAULT_CITY_ID = '7';
       const $ = id => document.getElementById(id);
       const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
       const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -124,6 +129,7 @@
       }
 
       function saveState(next) {
+        const analyses = next.analyses || {};
         const snapshot = {
           date: next.date || '',
           city: String(next.city || ''),
@@ -133,16 +139,44 @@
           signalSource: next.signalSource || 'combined',
           tickets: Array.isArray(next.tickets) ? next.tickets : [],
           analyses: {
-            current: {},
-            historical: {},
-            scenario: {},
-            career: { version: CAREER_UI_VERSION }
+            current: analyses.current || {},
+            historical: analyses.historical || {},
+            scenario: analyses.scenario || {},
+            career: {
+              ...(analyses.career || {}),
+              version: CAREER_UI_VERSION
+            }
           }
         };
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
         } catch {}
         return snapshot;
+      }
+
+      function mergeCities(incoming = []) {
+        const byId = new Map();
+        for (const city of [...SEEDED_CITIES, ...incoming]) {
+          if (!city?.id || !city?.name) continue;
+          byId.set(String(city.id), {
+            id: String(city.id),
+            name: city.name,
+            label: city.label || city.name,
+            url: city.url
+          });
+        }
+        return [...byId.values()];
+      }
+
+      function seedState(state = {}) {
+        const cities = mergeCities(state.cities);
+        const currentCity = String(state.city || '');
+        const hasCurrent = cities.some(c => String(c.id) === currentCity);
+        return {
+          ...state,
+          city: hasCurrent ? currentCity : DEFAULT_CITY_ID,
+          cities
+        };
       }
 
       function status(message) {
@@ -216,7 +250,7 @@
 
       async function fetchProgram(forceCityId = '') {
         window.__AT_EARLY_PROGRAM_BUSY__ = true;
-        const state = readState();
+        const state = seedState(readState());
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), BOOT_TIMEOUT_MS);
         try {
@@ -230,7 +264,7 @@
           });
           const data = await response.json().catch(() => null);
           if (!response.ok || data?.ok === false) throw new Error(data?.error || `API ${response.status}`);
-          const cities = Array.isArray(data?.cities) ? data.cities : [];
+          const cities = mergeCities(data?.cities);
           const selected = data?.selectedCityId || forceCityId || state.city || preferredCity(cities)?.id || '';
           const races = racesForCity(data, selected);
           const next = saveState({
@@ -284,9 +318,10 @@
       }
 
       function boot() {
-        const state = readState();
+        const state = seedState(readState());
         const date = state.date || todayLocal();
         if ($('raceDate')) $('raceDate').value = date;
+        saveState({ ...state, date });
         renderCities(state);
         renderProgram(state);
         $('loadProgramBtn')?.addEventListener('click', event => {
