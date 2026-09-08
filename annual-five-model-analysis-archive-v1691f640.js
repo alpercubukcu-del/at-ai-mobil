@@ -396,15 +396,13 @@ function ensureUi(){
 document.addEventListener('pointerdown',e=>{
   if(e.target?.closest?.('#aaRunSelected'))trackReset();
 },true);
-window.addEventListener('at-ai:annual-archive-created',()=>setTimeout(ensureUi,0));
 window.addEventListener('at-ai:annual-archive-open',()=>setTimeout(ensureUi,0));
-window.addEventListener('at-ai:annual-archive-render',()=>setTimeout(ensureUi,0));
+document.addEventListener('click',e=>{if(e.target?.closest?.('#annualArchiveBtn'))setTimeout(ensureUi,40)},true);
 
 if(!installStoreHook()){
   const t=setInterval(()=>{if(installStoreHook())clearInterval(t)},50);
   setTimeout(()=>clearInterval(t),5000);
 }
-setTimeout(ensureUi,100);
 
 window.ATAnnualFiveModelAnalysisArchiveV640={
   version:VERSION,
