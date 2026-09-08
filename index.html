@@ -90,6 +90,229 @@
     </div>
   </dialog>
 
-  <script src="/at-ai-app-v142.js?v=1420"></script>
+  <script>
+    (() => {
+      const MAIN_SCRIPT_SRC = '/at-ai-app-v142.js?v=1420';
+      const STORAGE_KEY = 'at_ai_mobil_state_v2';
+      const CAREER_UI_VERSION = 'CAREER-UI-V5.1';
+      const BOOT_TIMEOUT_MS = 22000;
+      const $ = id => document.getElementById(id);
+      const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
+      const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&':'&amp;',
+        '<':'&lt;',
+        '>':'&gt;',
+        '"':'&quot;',
+        "'":'&#39;'
+      }[char]));
+
+      function todayLocal() {
+        const date = new Date();
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+
+      function readState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          return raw ? JSON.parse(raw) : {};
+        } catch {
+          return {};
+        }
+      }
+
+      function saveState(next) {
+        const snapshot = {
+          date: next.date || '',
+          city: String(next.city || ''),
+          cities: Array.isArray(next.cities) ? next.cities : [],
+          races: Array.isArray(next.races) ? next.races : [],
+          selectedRace: next.selectedRace || 'all',
+          signalSource: next.signalSource || 'combined',
+          tickets: Array.isArray(next.tickets) ? next.tickets : [],
+          analyses: {
+            current: {},
+            historical: {},
+            scenario: {},
+            career: { version: CAREER_UI_VERSION }
+          }
+        };
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+        } catch {}
+        return snapshot;
+      }
+
+      function status(message) {
+        const el = $('status');
+        if (el) el.textContent = message;
+      }
+
+      function cityNameForId(state, cityId) {
+        return (state.cities || []).find(c => String(c.id) === String(cityId))?.name || '';
+      }
+
+      function preferredCity(cities) {
+        return (cities || []).find(c => /İstanbul|İzmir|Ankara|Bursa|Kocaeli|Adana|Antalya|Elazığ|Şanlıurfa|Diyarbakır/i.test(c?.name || '')) || (cities || [])[0] || null;
+      }
+
+      function racesForCity(data, cityId) {
+        const byCity = data?.racesByCity || data?.programs || {};
+        const races = byCity[String(cityId)] || byCity[Number(cityId)] || [];
+        return Array.isArray(races) ? races : [];
+      }
+
+      function renderCities(state) {
+        const select = $('citySelect');
+        if (!select) return;
+        const cities = Array.isArray(state.cities) ? state.cities : [];
+        if (!cities.length) {
+          select.innerHTML = '<option value="">Önce programı yükleyin</option>';
+          select.value = '';
+          return;
+        }
+        select.innerHTML = cities.map(city => `<option value="${esc(city.id)}"${String(city.id) === String(state.city) ? ' selected' : ''}>${esc(city.name)}</option>`).join('');
+        select.value = String(state.city || cities[0]?.id || '');
+      }
+
+      function renderProgram(state) {
+        const tabs = $('raceTabs');
+        const list = $('raceList');
+        const races = Array.isArray(state.races) ? state.races : [];
+        if (tabs) tabs.innerHTML = races.map(race => `<button class="race-tab" type="button">${esc(race.no || race.raceNo || '')}. Koşu</button>`).join('');
+        if (!list) return;
+        if (!races.length) {
+          list.classList.add('empty');
+          list.textContent = 'Program henüz yüklenmedi.';
+          return;
+        }
+        list.classList.remove('empty');
+        list.innerHTML = races.map(race => `
+          <article class="race-card">
+            <div class="race-head"><div><strong>${esc(race.no || race.raceNo || '')}. Koşu</strong>${race.time ? `<span>${esc(race.time)}</span>` : ''}</div></div>
+            <div class="race-meta">
+              ${race.class ? `<span>${esc(race.class)}</span>` : ''}
+              ${race.ageGroup ? `<span><b>${esc(race.ageGroup)}</b></span>` : ''}
+              ${race.distance ? `<span>${esc(race.distance)}</span>` : ''}
+              ${race.track ? `<span>${esc(race.track)}</span>` : ''}
+            </div>
+          </article>
+        `).join('');
+      }
+
+      function programUrl(state, forceCityId = '') {
+        const date = $('raceDate')?.value || state.date || todayLocal();
+        const cityId = forceCityId || $('citySelect')?.value || state.city || '';
+        const params = new URLSearchParams({ date, scope: 'selected' });
+        if (cityId) {
+          params.set('cityId', cityId);
+          const name = cityNameForId(state, cityId) || clean($('citySelect')?.selectedOptions?.[0]?.textContent);
+          if (name && !/Önce programı|Şehir bulunamadı/i.test(name)) params.set('cityName', name);
+        }
+        return `/api/tjk-program?${params.toString()}`;
+      }
+
+      async function fetchProgram(forceCityId = '') {
+        window.__AT_EARLY_PROGRAM_BUSY__ = true;
+        const state = readState();
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), BOOT_TIMEOUT_MS);
+        try {
+          const date = $('raceDate')?.value || state.date || todayLocal();
+          if ($('raceDate')) $('raceDate').value = date;
+          status('TJK programı alınıyor...');
+          const response = await fetch(programUrl({ ...state, date }, forceCityId), {
+            cache: 'default',
+            headers: { accept: 'application/json' },
+            signal: controller.signal
+          });
+          const data = await response.json().catch(() => null);
+          if (!response.ok || data?.ok === false) throw new Error(data?.error || `API ${response.status}`);
+          const cities = Array.isArray(data?.cities) ? data.cities : [];
+          const selected = data?.selectedCityId || forceCityId || state.city || preferredCity(cities)?.id || '';
+          const races = racesForCity(data, selected);
+          const next = saveState({
+            ...state,
+            date,
+            city: String(selected || ''),
+            cities,
+            races,
+            selectedRace: 'all',
+            tickets: []
+          });
+          renderCities(next);
+          renderProgram(next);
+          status(`${cities.length || 1} şehir bulundu · ${races.length} koşu`);
+          loadMainScript();
+        } catch (error) {
+          status(error?.name === 'AbortError' ? 'TJK programı 22 saniyede cevap vermedi.' : `Program alınamadı: ${error?.message || error}`);
+        } finally {
+          clearTimeout(timer);
+          window.__AT_EARLY_PROGRAM_BUSY__ = false;
+        }
+      }
+
+      function loadMainScript() {
+        if (window.__AT_MAIN_SCRIPT_LOADING__ || window.__AT_EARLY_MAIN_LOADED__) return;
+        window.__AT_MAIN_SCRIPT_LOADING__ = true;
+        const script = document.createElement('script');
+        script.src = MAIN_SCRIPT_SRC;
+        script.async = true;
+        script.onload = () => {
+          window.__AT_EARLY_MAIN_LOADED__ = true;
+          window.__AT_MAIN_SCRIPT_LOADING__ = false;
+        };
+        script.onerror = () => {
+          window.__AT_MAIN_SCRIPT_LOADING__ = false;
+          status('Ana uygulama dosyası yüklenemedi. Sayfayı yenileyin.');
+        };
+        document.body.appendChild(script);
+      }
+
+      function openDrawerEarly() {
+        $('drawer')?.classList.add('open');
+        $('overlay')?.classList.add('show');
+        $('drawer')?.setAttribute('aria-hidden', 'false');
+      }
+
+      function closeDrawerEarly() {
+        $('drawer')?.classList.remove('open');
+        $('overlay')?.classList.remove('show');
+        $('drawer')?.setAttribute('aria-hidden', 'true');
+      }
+
+      function boot() {
+        const state = readState();
+        const date = state.date || todayLocal();
+        if ($('raceDate')) $('raceDate').value = date;
+        renderCities(state);
+        renderProgram(state);
+        $('loadProgramBtn')?.addEventListener('click', event => {
+          if (window.__AT_EARLY_MAIN_LOADED__) return;
+          event.preventDefault();
+          fetchProgram();
+        });
+        $('citySelect')?.addEventListener('change', event => {
+          if (window.__AT_EARLY_MAIN_LOADED__) return;
+          fetchProgram(event.target.value);
+        });
+        $('menuBtn')?.addEventListener('click', () => {
+          openDrawerEarly();
+          loadMainScript();
+        });
+        $('closeMenu')?.addEventListener('click', closeDrawerEarly);
+        $('overlay')?.addEventListener('click', closeDrawerEarly);
+        window.addEventListener('load', () => {
+          setTimeout(() => {
+            if (!window.__AT_EARLY_PROGRAM_BUSY__) loadMainScript();
+          }, 8000);
+        }, { once: true });
+      }
+
+      boot();
+    })();
+  </script>
 </body>
 </html>

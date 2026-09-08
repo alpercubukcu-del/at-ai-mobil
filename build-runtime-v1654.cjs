@@ -25,8 +25,14 @@ let html = fs.readFileSync(INDEX, 'utf8');
 const guardTag = '  <script src="/mobile-foreground-recovery-v1654.js?v=16540"></script>\n';
 if (!html.includes('/mobile-foreground-recovery-v1654.js')) {
   const appTagMatch = html.match(/\s*<script src="\/at-ai-app-v142\.js\?v=\d+"><\/script>/);
-  if (!appTagMatch) throw new Error('[V16.5.4] Ana uygulama script etiketi bulunamadı.');
-  html = html.replace(appTagMatch[0], `\n${guardTag}  <script src="/at-ai-app-v142.js?v=16540"></script>`);
+  if (appTagMatch) {
+    html = html.replace(appTagMatch[0], `\n${guardTag}  <script src="/at-ai-app-v142.js?v=16540"></script>`);
+  } else if (html.includes('/at-ai-app-v142.js?v=')) {
+    html = html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=16540');
+    html = html.replace('</body>', `${guardTag}</body>`);
+  } else {
+    throw new Error('[V16.5.4] Ana uygulama script etiketi bulunamadı.');
+  }
 } else {
   html = html.replace(/\/mobile-foreground-recovery-v1654\.js\?v=\d+/, '/mobile-foreground-recovery-v1654.js?v=16540');
   html = html.replace(/\/at-ai-app-v142\.js\?v=\d+/, '/at-ai-app-v142.js?v=16540');
