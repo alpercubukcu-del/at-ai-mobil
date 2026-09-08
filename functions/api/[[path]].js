@@ -4,7 +4,6 @@ import tjkBetStartsV11 from '../../api/tjk-bet-starts-v11.js';
 import tjkCareerFallbackV1113 from '../../api/tjk-career-fallback-v1113.js';
 import tjkCareerForeignV1 from '../../api/tjk-career-foreign-v1.js';
 import tjkCareerV10 from '../../api/tjk-career-v10.js';
-import tjkConditionalV4Blind from '../../api/tjk-conditional-v4-blind.js';
 import tjkForeignHorseIdsV1 from '../../api/tjk-foreign-horse-ids-v1.js';
 import tjkHistory from '../../api/tjk-history.js';
 import tjkModelRoadmapV11 from '../../api/tjk-model-roadmap-v11.js';
@@ -22,7 +21,6 @@ const handlers = {
   'tjk-career-fallback-v1113': tjkCareerFallbackV1113,
   'tjk-career-foreign-v1': tjkCareerForeignV1,
   'tjk-career-v10': tjkCareerV10,
-  'tjk-conditional-v4-blind': tjkConditionalV4Blind,
   'tjk-foreign-horse-ids-v1': tjkForeignHorseIdsV1,
   'tjk-history': tjkHistory,
   'tjk-margin-enrich-v122': tjkHistory,
@@ -32,6 +30,10 @@ const handlers = {
   'tjk-roadmap': tjkRoadmap,
   'tjk-similar': tjkSimilar
 };
+
+const nodeOnlyHandlers = new Set([
+  'tjk-conditional-v4-blind'
+]);
 
 function queryFromUrl(url) {
   const out = {};
@@ -130,6 +132,17 @@ export async function onRequest(context) {
   }
 
   const handler = handlers[apiName];
+  if (nodeOnlyHandlers.has(apiName)) {
+    return Response.json(
+      {
+        ok: false,
+        error:
+          `${apiName} Cloudflare Pages üzerinde devre dışı: Node fs/vm gerektiriyor.`
+      },
+      { status: 501 }
+    );
+  }
+
   if (!handler) {
     return Response.json(
       { ok: false, error: `API bulunamadı: ${apiName || '-'}` },
