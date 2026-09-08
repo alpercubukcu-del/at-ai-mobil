@@ -6,6 +6,16 @@
   <meta name="theme-color" content="#07111f" />
   <title>AT AI Mobil</title>
   <link rel="stylesheet" href="/at-ai-styles-v141.css?v=1410" />
+  <style id="atEarlyMenuStyle">
+    #menuBtn{position:relative;z-index:2147483600;touch-action:manipulation;pointer-events:auto}
+    html.at-menu-force-open-v169247 #drawer.drawer,
+    html.at-menu-force-open-v169247.at-hard-modal-lock-v1659 #drawer.drawer{
+      display:block!important;visibility:visible!important;pointer-events:auto!important;right:0!important;transform:none!important;z-index:2147483550!important;
+    }
+    html.at-menu-force-open-v169247 #overlay.overlay{
+      display:block!important;visibility:visible!important;pointer-events:auto!important;z-index:2147483500!important;
+    }
+  </style>
 </head>
 <body>
   <div class="app-shell">
@@ -369,16 +379,53 @@
         document.body.appendChild(script);
       }
 
+      function clearMenuLocks() {
+        document.documentElement.classList.remove(
+          'at-hard-modal-lock-v1659',
+          'drawer-open',
+          'modal-open'
+        );
+        document.body?.classList.remove(
+          'drawer-open',
+          'modal-open'
+        );
+      }
+
       function openDrawerEarly() {
+        clearMenuLocks();
+        document.documentElement.classList.add('at-menu-force-open-v169247');
         $('drawer')?.classList.add('open');
         $('overlay')?.classList.add('show');
         $('drawer')?.setAttribute('aria-hidden', 'false');
       }
 
       function closeDrawerEarly() {
+        document.documentElement.classList.remove('at-menu-force-open-v169247');
         $('drawer')?.classList.remove('open');
         $('overlay')?.classList.remove('show');
         $('drawer')?.setAttribute('aria-hidden', 'true');
+      }
+
+      function bindEarlyMenu() {
+        const menu = $('menuBtn');
+        if (!menu || menu.dataset.earlyMenuV169247 === '1') return;
+        menu.dataset.earlyMenuV169247 = '1';
+        const open = event => {
+          event?.preventDefault?.();
+          event?.stopPropagation?.();
+          openDrawerEarly();
+          loadMainScript();
+        };
+        menu.addEventListener('pointerdown', open, { capture: true });
+        menu.addEventListener('touchstart', open, { capture: true, passive: false });
+        menu.addEventListener('click', open, { capture: true });
+        $('closeMenu')?.addEventListener('pointerdown', closeDrawerEarly, { capture: true });
+        $('closeMenu')?.addEventListener('click', closeDrawerEarly, { capture: true });
+        $('overlay')?.addEventListener('pointerdown', closeDrawerEarly, { capture: true });
+        $('overlay')?.addEventListener('click', closeDrawerEarly, { capture: true });
+        document.addEventListener('keydown', event => {
+          if (event.key === 'Escape') closeDrawerEarly();
+        });
       }
 
       function boot() {
@@ -389,6 +436,7 @@
         saveState(prepared);
         renderCities(prepared);
         renderProgram(prepared);
+        bindEarlyMenu();
         $('loadProgramBtn')?.addEventListener('click', event => {
           if (window.__AT_EARLY_MAIN_LOADED__) return;
           event.preventDefault();
@@ -398,12 +446,6 @@
           if (window.__AT_EARLY_MAIN_LOADED__) return;
           fetchProgram(event.target.value);
         });
-        $('menuBtn')?.addEventListener('click', () => {
-          openDrawerEarly();
-          loadMainScript();
-        });
-        $('closeMenu')?.addEventListener('click', closeDrawerEarly);
-        $('overlay')?.addEventListener('click', closeDrawerEarly);
         window.addEventListener('load', () => {
           setTimeout(() => {
             if (!window.__AT_EARLY_PROGRAM_BUSY__) loadMainScript();

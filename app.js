@@ -1003,6 +1003,28 @@ function clearAnalyses() {
 ========================================================= */
 
 function openDrawer() {
+  document
+    .documentElement
+    ?.classList
+    .remove(
+      'at-hard-modal-lock-v1659',
+      'drawer-open',
+      'modal-open'
+    );
+
+  document
+    .body
+    ?.classList
+    .remove(
+      'drawer-open',
+      'modal-open'
+    );
+
+  document
+    .documentElement
+    ?.classList
+    .add('at-menu-force-open-v169247');
+
   $('drawer')
     ?.classList
     .add('open');
@@ -1019,6 +1041,11 @@ function openDrawer() {
 }
 
 function closeDrawer() {
+  document
+    .documentElement
+    ?.classList
+    .remove('at-menu-force-open-v169247');
+
   $('drawer')
     ?.classList
     .remove('open');
