@@ -17,7 +17,7 @@ const handlers = {
   'tjk-adaptive-roadmap-v101': tjkAdaptiveRoadmapV102,
   'tjk-adaptive-roadmap-v102': tjkAdaptiveRoadmapV102,
   'tjk-bet-starts-v11': tjkBetStartsV11,
-  'tjk-career': tjkCareerV10,
+  'tjk-career': tjkCareerFallbackV1113,
   'tjk-career-fallback-v1113': tjkCareerFallbackV1113,
   'tjk-career-foreign-v1': tjkCareerForeignV1,
   'tjk-career-v10': tjkCareerV10,
