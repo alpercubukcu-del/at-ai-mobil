@@ -2,6 +2,9 @@ const $ = id => document.getElementById(id);
 
 const STORAGE_KEY = 'at_ai_mobil_state_v2';
 const CAREER_UI_VERSION = 'CAREER-UI-V5.1';
+const MAX_BOOT_STATE_BYTES = 700000;
+const MAX_STORED_ANALYSIS_BYTES = 240000;
+const MAX_STORED_STATE_BYTES = 700000;
 
 const BET_TYPES = [
   '7li Ganyan',
@@ -37,21 +40,85 @@ let state = loadState();
    STATE
 ========================================================= */
 
+function freshState() {
+  return structuredClone(defaultState);
+}
+
+function dateFromRawState(raw = '') {
+  const m = String(raw).match(/"date"\s*:\s*"(\d{4}-\d{2}-\d{2})"/);
+  return m ? m[1] : '';
+}
+
+function resetOversizedState(raw = '', reason = 'oversized') {
+  const next = freshState();
+  const date = dateFromRawState(raw);
+  if (date) next.date = date;
+
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  }
+
+  console.warn('Açılış state hafifletildi:', reason);
+  return next;
+}
+
+function analysisForStorage(value) {
+  if (!value || typeof value !== 'object' || !Object.keys(value).length) {
+    return {};
+  }
+
+  try {
+    const raw = JSON.stringify(value);
+    return raw.length <= MAX_STORED_ANALYSIS_BYTES ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+function storageSnapshot(source = state) {
+  const analyses = source?.analyses || {};
+
+  return {
+    date: source?.date || '',
+    city: source?.city || '',
+    cities: Array.isArray(source?.cities) ? source.cities : [],
+    races: Array.isArray(source?.races) ? source.races : [],
+    selectedRace: source?.selectedRace || 'all',
+    signalSource: source?.signalSource || 'combined',
+    tickets: Array.isArray(source?.tickets) ? source.tickets : [],
+    analyses: {
+      current: analysisForStorage(analyses.current),
+      historical: analysisForStorage(analyses.historical),
+      scenario: analysisForStorage(analyses.scenario),
+      career: analysisForStorage(analyses.career)
+    }
+  };
+}
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
 
     if (!raw) {
-      return structuredClone(defaultState);
+      return freshState();
+    }
+
+    if (raw.length > MAX_BOOT_STATE_BYTES) {
+      return resetOversizedState(raw, `state ${raw.length} bayt`);
     }
 
     const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') {
+      return freshState();
+    }
 
     const result = {
-      ...structuredClone(defaultState),
+      ...freshState(),
       ...parsed,
       analyses: {
-        ...structuredClone(defaultState.analyses),
+        ...freshState().analyses,
         ...(parsed.analyses || {})
       }
     };
@@ -70,13 +137,25 @@ function loadState() {
     return result;
   } catch (e) {
     console.warn('State okunamadı:', e);
-    return structuredClone(defaultState);
+    return freshState();
   }
 }
 
 function save() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    let snapshot = storageSnapshot(state);
+    let raw = JSON.stringify(snapshot);
+
+    if (raw.length > MAX_STORED_STATE_BYTES) {
+      snapshot = {
+        ...snapshot,
+        tickets: [],
+        analyses: freshState().analyses
+      };
+      raw = JSON.stringify(snapshot);
+    }
+
+    localStorage.setItem(STORAGE_KEY, raw);
     return true;
   } catch (e) {
     console.warn('State kaydedilemedi:', e);
