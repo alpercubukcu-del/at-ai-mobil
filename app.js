@@ -5,6 +5,7 @@ const CAREER_UI_VERSION = 'CAREER-UI-V5.1';
 const MAX_BOOT_STATE_BYTES = 700000;
 const MAX_STORED_ANALYSIS_BYTES = 240000;
 const MAX_STORED_STATE_BYTES = 700000;
+const PROGRAM_FETCH_TIMEOUT_MS = 18000;
 
 const BET_TYPES = [
   '7li Ganyan',
@@ -180,6 +181,56 @@ function status(text) {
   if (el) el.textContent = text;
 }
 
+function programApiUrl(date, cityId = '') {
+  const params = new URLSearchParams({
+    date,
+    scope: 'selected'
+  });
+
+  if (cityId) {
+    params.set('cityId', cityId);
+    const cityName = cityNameForId(cityId);
+    if (cityName) {
+      params.set('cityName', cityName);
+    }
+  }
+
+  return `/api/tjk-program?${params.toString()}`;
+}
+
+async function fetchProgramData(date, cityId = '') {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(),
+    PROGRAM_FETCH_TIMEOUT_MS
+  );
+
+  try {
+    const res = await fetch(programApiUrl(date, cityId), {
+      method: 'GET',
+      cache: 'default',
+      headers: {
+        accept: 'application/json'
+      },
+      signal: controller.signal
+    });
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok || data?.ok === false) {
+      throw new Error(data?.error || `API ${res.status}`);
+    }
+
+    return data || {};
+  } catch (e) {
+    if (e?.name === 'AbortError') {
+      throw new Error('TJK programı 18 saniyede cevap vermedi.');
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function escapeHtml(value = '') {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -194,12 +245,36 @@ function numberValue(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function getCityName() {
+function cityNameForId(cityId = '') {
   const c = state.cities.find(
-    x => String(x.id) === String(state.city)
+    x => String(x.id) === String(cityId)
   );
 
   return c?.name || '';
+}
+
+function programCitiesFromData(data) {
+  const incoming =
+    Array.isArray(data?.cities)
+      ? data.cities
+      : [];
+
+  if (
+    incoming.length === 1 &&
+    Array.isArray(state.cities) &&
+    state.cities.length > 1 &&
+    state.cities.some(
+      c => String(c.id) === String(incoming[0].id)
+    )
+  ) {
+    return state.cities;
+  }
+
+  return incoming;
+}
+
+function getCityName() {
+  return cityNameForId(state.city);
 }
 
 /* =========================================================
@@ -530,29 +605,13 @@ async function loadProgram() {
   status('TJK programı alınıyor…');
 
   try {
-    const url =
-      `/api/tjk-program?date=${encodeURIComponent(date)}` +
-      `&t=${Date.now()}`;
-
-    const res = await fetch(url, {
-      method: 'GET',
-      cache: 'no-store',
-      headers: {
-        accept: 'application/json'
-      }
-    });
-
-    if (!res.ok) {
-      throw new Error(`API ${res.status}`);
-    }
-
-    const data = await res.json();
+    const data = await fetchProgramData(
+      date,
+      state.city
+    );
 
     state.date = date;
-    state.cities =
-      Array.isArray(data.cities)
-        ? data.cities
-        : [];
+    state.cities = programCitiesFromData(data);
 
     if (state.cities.length === 0) {
       state.city = '';
@@ -665,29 +724,13 @@ async function changeCity(cityId) {
   );
 
   try {
-    const res =
-      await fetch(
-        `/api/tjk-program?date=${encodeURIComponent(
-          date
-        )}&t=${Date.now()}`,
-        {
-          cache: 'no-store'
-        }
-      );
-
-    if (!res.ok) {
-      throw new Error(
-        `API ${res.status}`
-      );
-    }
-
     const data =
-      await res.json();
+      await fetchProgramData(
+        date,
+        state.city
+      );
 
-    state.cities =
-      Array.isArray(data.cities)
-        ? data.cities
-        : [];
+    state.cities = programCitiesFromData(data);
 
     state.races =
       getCurrentRaceList(

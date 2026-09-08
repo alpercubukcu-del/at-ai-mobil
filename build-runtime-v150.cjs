@@ -129,8 +129,12 @@ fs.appendFileSync(STYLE, '\n/* ===== daily-career-archive-v146.css ===== */\n' +
 /* V15.2 — ŞARTLI 5 /DHÖW/Y-1 gibi sınıflarda TJK sorgu tablosunun dekoratörleri düşürmesine tolerans. */
 let similarText = fs.readFileSync(SIMILAR_JS, 'utf8');
 function mustReplaceSimilar(label, from, to) {
-  if (!similarText.includes(from)) throw new Error(`[V15.2] tjk-similar yaması uygulanamadı: ${label}`);
-  similarText = similarText.replace(from, to);
+  if (similarText.includes(from)) {
+    similarText = similarText.replace(from, to);
+    return;
+  }
+  if (similarText.includes(to)) return;
+  throw new Error(`[V15.2] tjk-similar yaması uygulanamadı: ${label}`);
 }
 
 mustReplaceSimilar(

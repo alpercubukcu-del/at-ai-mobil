@@ -22,8 +22,12 @@ for (const f of [BASE,SIMILAR,RACE_META,Y_INC,ANNUAL_ARCHIVE]) {
 */
 let annual = fs.readFileSync(ANNUAL_ARCHIVE, 'utf8');
 function mustAnnualReplace(label, from, to) {
-  if (!annual.includes(from)) throw new Error(`[V15.4] Yıllık arşiv yaması uygulanamadı: ${label}`);
-  annual = annual.replace(from, to);
+  if (annual.includes(from)) {
+    annual = annual.replace(from, to);
+    return;
+  }
+  if (annual.includes(to)) return;
+  throw new Error(`[V15.4] Yıllık arşiv yaması uygulanamadı: ${label}`);
 }
 
 mustAnnualReplace(

@@ -1,7 +1,7 @@
 /* AT AI Mobil — V16.9.1F9 Günlük Arşiv Otomatik Geri Yükleme
    - Ana uygulamadaki lexical state nesnesini arşiv modülleri için window.state ile paylaşır.
-   - TJK programı yeniden yüklendiğinde aynı tarih/şehir günlük arşivi otomatik hydrate edilir.
    - Kariyer ekranı ve Kupon ekranı açılırken arşiv önce geri yüklenir.
+   - Ana sayfa/program yüklemede günlük arşiv hydrate edilmez.
    - Hesaplama formüllerini, Kariyer/Hazırlık puanını ve debut Güncel puanını değiştirmez.
 */
 (() => {
@@ -42,7 +42,6 @@ try{
     loadProgram=async function(...args){
       const out=await baseLoadProgram.apply(this,args);
       exposeState();
-      await hydrate('program-reload');
       return out;
     };
   }
@@ -54,7 +53,6 @@ try{
     changeCity=async function(...args){
       const out=await baseChangeCity.apply(this,args);
       exposeState();
-      await hydrate('city-change');
       return out;
     };
   }
