@@ -23,8 +23,11 @@ let adaptive = fs.readFileSync(ADAPTIVE, 'utf8');
 
 const careerOld = `const loaded = await mapLimit(horsesToLoad, 3, async item => {`;
 const careerNew = `const loaded = await mapLimit(horsesToLoad, 4, async item => {`;
-if (!adaptive.includes(careerOld)) throw new Error('[V15.5] Güncel kariyer concurrency satırı bulunamadı.');
-adaptive = adaptive.replace(careerOld, careerNew);
+if (adaptive.includes(careerOld)) {
+  adaptive = adaptive.replace(careerOld, careerNew);
+} else if (!adaptive.includes(careerNew)) {
+  throw new Error('[V15.5] Güncel kariyer concurrency satırı bulunamadı.');
+}
 
 const roadmapOld = `  const calculatedRaces = [];
   let raceCompleted = 0;
@@ -54,8 +57,11 @@ const roadmapNew = `  let roadmapCompletedV155 = 0;
     content.innerHTML = \`<div style="padding:15px;">Tarihsel veriler puanlanıyor…<br><br>\${raceCompleted} / \${selectedRaces.length} koşu</div>\`;
     const raceHorses = loaded.filter(x => x && Number(x.raceNo) === Number(race.no)).map(x => {`;
 
-if (!adaptive.includes(roadmapOld)) throw new Error('[V15.5] Seri roadmap bloğu bulunamadı.');
-adaptive = adaptive.replace(roadmapOld, roadmapNew);
+if (adaptive.includes(roadmapOld)) {
+  adaptive = adaptive.replace(roadmapOld, roadmapNew);
+} else if (!adaptive.includes('const roadmapRowsV155 = await mapLimit(selectedRaces, 2, async race => {')) {
+  throw new Error('[V15.5] Seri roadmap bloğu bulunamadı.');
+}
 
 fs.writeFileSync(ADAPTIVE, adaptive, 'utf8');
 execFileSync(process.execPath, ['--check', ADAPTIVE], { cwd:ROOT, stdio:'inherit' });
