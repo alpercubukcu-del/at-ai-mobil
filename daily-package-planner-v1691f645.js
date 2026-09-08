@@ -1153,15 +1153,17 @@ function ensureAll() {
   applyProcessMenu();
 }
 
-for (const name of ['at-ai:annual-archive-created','at-ai:annual-archive-open','at-ai:annual-archive-render','at-ai:annual-archive-ready']) {
-  window.addEventListener(name, () => setTimeout(ensureAll, 0));
+window.addEventListener('at-ai:annual-archive-open', () => setTimeout(ensureAll, 0));
+for (const name of ['at-ai:annual-archive-created','at-ai:annual-archive-render','at-ai:annual-archive-ready']) {
+  window.addEventListener(name, () => setTimeout(applyProcessMenu, 0));
 }
 document.addEventListener('click', e => {
-  if (e.target?.closest?.('#annualArchiveBtn,#menuBtn')) setTimeout(ensureAll, 40);
+  if (e.target?.closest?.('#annualArchiveBtn')) setTimeout(ensureAll, 40);
+  else if (e.target?.closest?.('#menuBtn')) setTimeout(applyProcessMenu, 40);
 }, true);
 try { new MutationObserver(() => applyProcessMenu()).observe($('drawer') || document.documentElement, { childList: true, subtree: true, characterData: true }); } catch {}
-setTimeout(ensureAll, 100);
-setTimeout(ensureAll, 600);
+setTimeout(applyProcessMenu, 100);
+setTimeout(applyProcessMenu, 600);
 
 const previous = window.ATDailySourceArchiveV642 || {};
 window.ATDailySourceArchiveV642 = {
