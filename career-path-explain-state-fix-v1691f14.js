@@ -2,12 +2,14 @@
    - F12 strict skorunu değiştirmez.
    - Açıklama katmanı V13.9 ile aynı geniş kariyer alanlarını kullanır.
    - Eski arşiv skoru ile F12 strict skorunu görünür biçimde ayırır.
+   - F60.46: Kart başlığı model skoru değil koşul uyumu gösterir; eksik HP %0 yazılmaz.
 */
 (() => {
 'use strict';
 if (window.__AT_CAREER_PATH_EXPLAIN_STATE_FIX_V1691F14__) return;
 window.__AT_CAREER_PATH_EXPLAIN_STATE_FIX_V1691F14__=true;
 const VERSION='CAREER-PATH-EXPLAIN-STATE-FIX-V16.9.1F14';
+const DISPLAY_FIX='CAREER-PAIR-DISPLAY-FIX-V16.9.1F60.46';
 const GAP=-0.18, MATCH_BASE=0.35, MAX_SHOW=5;
 const clean=v=>String(v??'').replace(/\s+/g,' ').trim();
 const esc=v=>typeof escapeHtml==='function'?escapeHtml(v):String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -15,6 +17,7 @@ const finite=v=>{if(v===null||v===undefined||v==='')return null;const n=Number(S
 const clamp=v=>Math.max(0,Math.min(1,Number(v)||0));
 const finish=r=>finite(r?.finish??r?.rank??r?.sira);
 const carried=r=>finite(r?.weight??r?.siklet??r?.kilo??r?.carriedWeight??r?.kg);
+const hp=r=>finite(r?.hp??r?.hpu??r?.HP);
 
 function currentItem(btn){
   const box=btn.closest?.('[data-v139-horse]'); if(!box) return null;
@@ -74,18 +77,47 @@ function trace(a,b){
   while(i||j){const z=act[i][j];if(z==='M'){pairs.push({a:a[i-1],b:b[j-1],local:local(a[i-1],b[j-1])});i--;j--}else if(z==='D'){i--;gaps++}else{j--;gaps++}}
   return {pairs:pairs.reverse(),gaps};
 }
-function criterion(fn,args){try{if(typeof fn!=='function')return null;const n=Number(fn(...args));return Number.isFinite(n)?Math.round(clamp(n)*100):null}catch{return null}}
+function criterionValue(fn,args){try{if(typeof fn!=='function')return null;const raw=fn(...args);if(raw===null||raw===undefined||raw==='')return null;const n=Number(raw);return Number.isFinite(n)?clamp(n):null}catch{return null}}
+function criterion(fn,args){const n=criterionValue(fn,args);return n===null?null:Math.round(n*100)}
 function weightSim(a,b){try{if(typeof carriedWeightSimilarityV1691F12==='function'){const x=carriedWeightSimilarityV1691F12(a,b);return finite(x)}}catch{}return null}
-function line(r,prefix){return `${esc(prefix)} ${esc(clean(r?.date||r?.isoDate)||'-')} · ${esc(r?.city||r?.sehir||'-')} · ${esc(r?.class||r?.raceClass||'-')} · ${esc(r?.ageGroup||r?.group||'-')} · ${esc(r?.distance||r?.mesafe||r?.msf||'-')} ${esc(r?.track||r?.pist||'-')}${finish(r)!==null?` · ${esc(finish(r))}.`:''}${carried(r)!==null?` · ${esc(carried(r))} kg`:''}${finite(r?.hp)!==null?` · HP ${esc(finite(r?.hp))}`:''}`}
+function finishValue(a,b){
+  const x=finish(a),y=finish(b);if(x===null||y===null)return null;
+  const d=Math.abs(x-y);
+  if(d===0)return 1;
+  if(d===1)return .82;
+  if(d===2)return .65;
+  if(d===3)return .48;
+  if(d===4)return .32;
+  return .20;
+}
+function pairDisplayPct(p){
+  const d=criterionValue(typeof distanceSimilarity==='function'?distanceSimilarity:null,[p.a?.distance||p.a?.mesafe||p.a?.msf,p.b?.distance||p.b?.mesafe||p.b?.msf]);
+  const t=criterionValue(typeof trackSimilarity==='function'?trackSimilarity:null,[p.a?.track||p.a?.pist,p.b?.track||p.b?.pist]);
+  const c=criterionValue(typeof citySimilarity==='function'?citySimilarity:null,[p.a?.city,p.b?.city]);
+  const w=weightSim(p.a,p.b);
+  const h=criterionValue(typeof hpSimilarityV11==='function'?hpSimilarityV11:null,[hp(p.a),hp(p.b)]);
+  const f=finishValue(p.a,p.b);
+  const parts=[[1,.20],[1,.18],[d,.17],[t,.12],[c,.08],[w,.10],[h,.08],[f,.07]];
+  let sum=0,total=0;
+  for(const [value,weight] of parts){if(value===null||value===undefined)continue;sum+=clamp(value)*weight;total+=weight}
+  const quality=total?sum/total:clamp(p.local);
+  const values=[d,t,c,w,h,f].filter(x=>x!==null&&x!==undefined);
+  let cap=values.some(x=>x<.995)?.96:1;
+  if(h===null)cap=Math.min(cap,.94);
+  return Math.round(clamp(Math.min(clamp(p.local),quality,cap))*100);
+}
+function part(label,value){return value===null||value===undefined?null:[label,typeof value==='number'?`%${value}`:value]}
+function line(r,prefix){return `${esc(prefix)} ${esc(clean(r?.date||r?.isoDate)||'-')} · ${esc(r?.city||r?.sehir||'-')} · ${esc(r?.class||r?.raceClass||'-')} · ${esc(r?.ageGroup||r?.group||'-')} · ${esc(r?.distance||r?.mesafe||r?.msf||'-')} ${esc(r?.track||r?.pist||'-')}${finish(r)!==null?` · ${esc(finish(r))}.`:''}${carried(r)!==null?` · ${esc(carried(r))} kg`:''}${hp(r)!==null?` · HP ${esc(hp(r))}`:''}`}
 function pairHtml(p,name,i){
-  const w=weightSim(p.a,p.b),parts=[
-    ['Mesafe',criterion(typeof distanceSimilarity==='function'?distanceSimilarity:null,[p.a?.distance||p.a?.mesafe||p.a?.msf,p.b?.distance||p.b?.mesafe||p.b?.msf])],
-    ['Pist',criterion(typeof trackSimilarity==='function'?trackSimilarity:null,[p.a?.track||p.a?.pist,p.b?.track||p.b?.pist])],
-    ['Şehir',criterion(typeof citySimilarity==='function'?citySimilarity:null,[p.a?.city,p.b?.city])],
-    ['HP',criterion(typeof hpSimilarityV11==='function'?hpSimilarityV11:null,[p.a?.hp,p.b?.hp])],
-    ['Sıklet',w===null?null:Math.round(clamp(w)*100)]
-  ].filter(x=>x[1]!==null);
-  return `<div class="cpm-pair-v1691f11"><div class="cpm-pair-head-v1691f11"><b>${i+1}. güçlü koşu çifti</b><strong>%${Math.round(clamp(p.local)*100)}</strong></div><div class="cpm-rowline-v1691f11"><b>${line(p.a,'Bugünkü atın yolu:')}</b></div><div class="cpm-rowline-v1691f11">${line(p.b,(name||'Referans')+' yolu:')}</div><div class="cpm-criteria-v1691f11"><span>Sınıf <b>✓ TAM</b></span><span>Yaş/Grup <b>✓ TAM</b></span>${parts.map(([k,v])=>`<span>${esc(k)} <b>%${esc(v)}</b></span>`).join('')}</div></div>`;
+  const w=weightSim(p.a,p.b),hpPct=criterion(typeof hpSimilarityV11==='function'?hpSimilarityV11:null,[hp(p.a),hp(p.b)]),parts=[
+    part('Mesafe',criterion(typeof distanceSimilarity==='function'?distanceSimilarity:null,[p.a?.distance||p.a?.mesafe||p.a?.msf,p.b?.distance||p.b?.mesafe||p.b?.msf])),
+    part('Pist',criterion(typeof trackSimilarity==='function'?trackSimilarity:null,[p.a?.track||p.a?.pist,p.b?.track||p.b?.pist])),
+    part('Şehir',criterion(typeof citySimilarity==='function'?citySimilarity:null,[p.a?.city,p.b?.city])),
+    part('HP',hp(p.a)===null||hp(p.b)===null?'yok':hpPct),
+    part('Sıklet',w===null?null:Math.round(clamp(w)*100)),
+    part('Bitiriş',finishValue(p.a,p.b)===null?null:Math.round(finishValue(p.a,p.b)*100))
+  ].filter(Boolean);
+  return `<div class="cpm-pair-v1691f11"><div class="cpm-pair-head-v1691f11"><b>${i+1}. güçlü koşu çifti</b><strong>Uyum %${pairDisplayPct(p)}</strong></div><div class="cpm-rowline-v1691f11"><b>${line(p.a,'Bugünkü atın yolu:')}</b></div><div class="cpm-rowline-v1691f11">${line(p.b,(name||'Referans')+' yolu:')}</div><div class="cpm-criteria-v1691f11"><span>Sınıf <b>✓ TAM</b></span><span>Yaş/Grup <b>✓ TAM</b></span>${parts.map(([k,v])=>`<span>${esc(k)} <b>${esc(v)}</b></span>`).join('')}</div></div>`;
 }
 async function renderFixed(btn,out){
   const item=currentItem(btn); if(!item) throw new Error('Aktif at bulunamadı.');
@@ -125,5 +157,5 @@ if(yearBefore){
     return badge+html;
   };
 }
-console.info('[AT AI]',VERSION,'aktif — açıklama yolu V13.9 alanlarıyla senkron');
+console.info('[AT AI]',VERSION,DISPLAY_FIX,'aktif — açıklama yolu V13.9 alanlarıyla senkron');
 })();
