@@ -2,9 +2,9 @@ const $ = id => document.getElementById(id);
 
 const STORAGE_KEY = 'at_ai_mobil_state_v2';
 const CAREER_UI_VERSION = 'CAREER-UI-V5.1';
-const MAX_BOOT_STATE_BYTES = 700000;
-const MAX_STORED_ANALYSIS_BYTES = 240000;
-const MAX_STORED_STATE_BYTES = 700000;
+const MAX_BOOT_STATE_BYTES = 120000;
+const MAX_STORED_ANALYSIS_BYTES = 40000;
+const MAX_STORED_STATE_BYTES = 120000;
 
 const BET_TYPES = [
   '7li Ganyan',
@@ -71,6 +71,8 @@ function analysisForStorage(value) {
 
   try {
     const raw = JSON.stringify(value);
+    // Analiz önbelleği ana sayfa başlangıcında eşzamanlı ayrıştırılır.
+    // Büyük kayıtlar mobilde ilk ekranı kilitlediği için yalnız küçük özetleri sakla.
     return raw.length <= MAX_STORED_ANALYSIS_BYTES ? value : {};
   } catch {
     return {};
