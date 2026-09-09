@@ -3,7 +3,6 @@ import tjkAdaptiveRoadmapV102 from '../../api/tjk-adaptive-roadmap-v102.js';
 import tjkBetStartsV11 from '../../api/tjk-bet-starts-v11.js';
 import tjkCareerFallbackV1113 from '../../api/tjk-career-fallback-v1113.js';
 import tjkCareerForeignV1 from '../../api/tjk-career-foreign-v1.js';
-import tjkCareerV10 from '../../api/tjk-career-v10.js';
 import tjkForeignHorseIdsV1 from '../../api/tjk-foreign-horse-ids-v1.js';
 import tjkHistory from '../../api/tjk-history.js';
 import tjkModelRoadmapV11 from '../../api/tjk-model-roadmap-v11.js';
@@ -20,7 +19,7 @@ const handlers = {
   'tjk-career': tjkCareerFallbackV1113,
   'tjk-career-fallback-v1113': tjkCareerFallbackV1113,
   'tjk-career-foreign-v1': tjkCareerForeignV1,
-  'tjk-career-v10': tjkCareerV10,
+  'tjk-career-v10': tjkCareerFallbackV1113,
   'tjk-foreign-horse-ids-v1': tjkForeignHorseIdsV1,
   'tjk-history': tjkHistory,
   'tjk-margin-enrich-v122': tjkHistory,
