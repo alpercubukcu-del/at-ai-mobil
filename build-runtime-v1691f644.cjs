@@ -10,17 +10,53 @@ app+='\n\n'+fs.readFileSync(EXTRA,'utf8').trim()+'\n';
 for(const token of['TJK-ANNUAL-ARCHIVE-V14.2-SCHEMA-REPAIR','lastDbWriteError','ANNUAL-DB-COEXISTENCE-V16.9.1F60.43','PROCESS-FLOW-PLANNER-V16.9.1F60.45','Yerel Katalogu Say','Seçilen Benzer Yarışları İndir','CAREER-PAIR-DISPLAY-FIX-V16.9.1F60.46','Uyum %','HP\',hp(p.a)===null||hp(p.b)===null?\'yok\''])if(!app.includes(token))throw new Error('[F60.46] Verification failed: '+token);
 new Function(app);
 fs.writeFileSync(APP,app,'utf8');
-const CACHE_BUST='169252';
-const MENU_BRIDGE_VERSION='MENU-BRIDGE-V16.9.1F60.52';
-const menuBridge=`
-<script id="atMenuBridgeV169252">
+const CACHE_BUST='169253';
+const BOOT_GUARD_VERSION='BOOT-STATE-GUARD-V16.9.1F60.53';
+const MENU_BRIDGE_VERSION='MENU-BRIDGE-V16.9.1F60.53';
+const bootGuard=`
+<script id="atBootStateGuardV169253">
 (() => {
 'use strict';
-if (window.__AT_MENU_BRIDGE_V169252__) return;
-window.__AT_MENU_BRIDGE_V169252__ = true;
-const VERSION = 'MENU-BRIDGE-V16.9.1F60.52';
-const MAIN_SCRIPT_SRC = '/at-ai-app-v142.js?v=169252';
+if (window.__AT_BOOT_STATE_GUARD_V169253__) return;
+window.__AT_BOOT_STATE_GUARD_V169253__ = true;
+const VERSION = 'BOOT-STATE-GUARD-V16.9.1F60.53';
+const KEY = 'at_ai_mobil_state_v2';
+const MAX_BYTES = 320000;
+function dateFrom(raw) {
+  const match = String(raw || '').match(/"date"\\s*:\\s*"(\\d{4}-\\d{2}-\\d{2})"/);
+  return match ? match[1] : '';
+}
+function reset(raw, reason) {
+  const next = {
+    date: dateFrom(raw),
+    city: '',
+    cities: [],
+    races: [],
+    selectedRace: 'all',
+    signalSource: 'combined',
+    tickets: [],
+    analyses: { current: {}, historical: {}, scenario: {}, career: {} },
+    compactedBy: VERSION,
+    compactedReason: reason
+  };
+  try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { try { localStorage.removeItem(KEY); } catch {} }
+}
+try {
+  const raw = localStorage.getItem(KEY);
+  if (raw && raw.length > MAX_BYTES) reset(raw, 'oversized:' + raw.length);
+} catch {}
+})();
+</script>`;
+const menuBridge=`
+<script id="atMenuBridgeV169253">
+(() => {
+'use strict';
+if (window.__AT_MENU_BRIDGE_V169253__) return;
+window.__AT_MENU_BRIDGE_V169253__ = true;
+const VERSION = 'MENU-BRIDGE-V16.9.1F60.53';
+const MAIN_SCRIPT_SRC = '/at-ai-app-v142.js?v=169253';
 const STORAGE_KEY = 'at_ai_mobil_state_v2';
+const MAX_STATE_BYTES = 320000;
 const $ = id => document.getElementById(id);
 const titles = {
   current: 'Güncel Analiz',
@@ -55,7 +91,23 @@ function num(value) {
 
 function readState() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {};
+    const raw = localStorage.getItem(STORAGE_KEY) || '{}';
+    if (raw.length > MAX_STATE_BYTES) {
+      const match = raw.match(/"date"\\s*:\\s*"(\\d{4}-\\d{2}-\\d{2})"/);
+      const next = {
+        date: match ? match[1] : '',
+        city: '',
+        cities: [],
+        races: [],
+        selectedRace: 'all',
+        signalSource: 'combined',
+        tickets: [],
+        analyses: { current: {}, historical: {}, scenario: {}, career: {} }
+      };
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+      return next;
+    }
+    return JSON.parse(raw) || {};
   } catch {
     return {};
   }
@@ -68,6 +120,7 @@ function clearLocks() {
       'at-menu-force-open-v169250',
       'at-menu-force-open-v169251',
       'at-menu-force-open-v169252',
+      'at-menu-force-open-v169253',
       'at-hard-modal-lock-v1659',
       'drawer-open',
       'modal-open'
@@ -284,9 +337,9 @@ function openLightView(view) {
 }
 
 function injectCouponStyle() {
-  if ($('atLightCouponStyleV169252')) return;
+  if ($('atLightCouponStyleV169253')) return;
   const style = document.createElement('style');
-  style.id = 'atLightCouponStyleV169252';
+  style.id = 'atLightCouponStyleV169253';
   style.textContent = '#couponCenterDialog{position:fixed!important;inset:0!important;width:100%!important;max-width:100%!important;height:100dvh!important;max-height:100dvh!important;margin:0!important;border:0!important;border-radius:0!important;background:#07131f!important;color:#eef7ff!important;overflow:hidden!important}#couponCenterDialog[open]{display:flex!important;flex-direction:column!important}#couponCenterDialog::backdrop{background:#07131f!important;opacity:1!important}.coupon-menu-scroll-v1681{flex:1 1 auto;min-height:0;overflow:auto;padding:12px;box-sizing:border-box}';
   document.head.appendChild(style);
 }
@@ -315,8 +368,8 @@ function bindLightCoupon() {
   $('couponSetupV1681')?.removeAttribute('hidden');
   $('couponResultV1681')?.removeAttribute('hidden');
   const close = $('closeCouponMenuV1681');
-  if (close && close.dataset.lightV169252 !== '1') {
-    close.dataset.lightV169252 = '1';
+  if (close && close.dataset.lightV169253 !== '1') {
+    close.dataset.lightV169253 = '1';
     close.addEventListener('click', () => {
       try { $('couponCenterDialog')?.close(); } catch { $('couponCenterDialog')?.removeAttribute('open'); }
     });
@@ -382,15 +435,18 @@ document.addEventListener('click', event => {
 $('analysisRace')?.addEventListener('change', () => {
   if (!window.__AT_EARLY_MAIN_LOADED__ && $('analysisDialog')?.dataset?.view === 'current') renderCurrentAnalysis();
 });
-window.ATMenuBridgeV169252 = { version: VERSION, openLightView, openLightCoupon, loadFullFor, closeDrawerSafe };
+window.ATMenuBridgeV169253 = { version: VERSION, openLightView, openLightCoupon, loadFullFor, closeDrawerSafe };
 console.info('[AT AI]', VERSION, 'aktif');
 })();
 </script>`;
 let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/g,'/at-ai-app-v142.js?v='+CACHE_BUST);
+html=html.replace(/<script id="atBootStateGuardV\d+">[\s\S]*?<\/script>\s*/g,'');
 html=html.replace(/<script id="atMenuBridgeV169\d+">[\s\S]*?<\/script>\s*/g,'');
+html=html.includes('<script>\n    (() => {')?html.replace('<script>\n    (() => {',bootGuard+'\n  <script>\n    (() => {'):bootGuard+html;
 html=html.includes('</body>')?html.replace('</body>',menuBridge+'\n</body>'):html+menuBridge;
 fs.writeFileSync(INDEX,html,'utf8');
 fs.writeFileSync(HEADERS,'/*\n  Cache-Control: no-store\n','utf8');
-if(!html.includes('/at-ai-app-v142.js?v='+CACHE_BUST))throw new Error('[F60.52] Cache bust failed.');
-if(!html.includes(MENU_BRIDGE_VERSION))throw new Error('[F60.52] Menu bridge injection failed.');
-console.log('[AT AI] V16.9.1F60.52 build complete: lightweight drawer opens without loading the heavy runtime.');
+if(!html.includes('/at-ai-app-v142.js?v='+CACHE_BUST))throw new Error('[F60.53] Cache bust failed.');
+if(!html.includes(BOOT_GUARD_VERSION))throw new Error('[F60.53] Boot state guard injection failed.');
+if(!html.includes(MENU_BRIDGE_VERSION))throw new Error('[F60.53] Menu bridge injection failed.');
+console.log('[AT AI] V16.9.1F60.53 build complete: boot state guard plus lightweight drawer avoid mobile home freezes.');
