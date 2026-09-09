@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-PARSER-V14-CSV-ID-ENRICH';
+const VERSION = 'TJK-PARSER-V15-SELECTIVE-ID-ENRICH';
 const TJK_ROOT =
   'https://www.tjk.org/TR/YarisSever/Info/Page/GunlukYarisProgrami';
 const TJK_CITY =
@@ -815,6 +815,14 @@ function horseIdCountForRaces(races = []) {
         ? race.horses.filter(h => h?.id).length
         : 0),
     0
+  );
+}
+
+function filterRacesByNo(races = [], raceNo = null) {
+  if (!raceNo) return races;
+
+  return races.filter(
+    race => Number(race?.no || race?.raceNo || 0) === Number(raceNo)
   );
 }
 
@@ -2013,6 +2021,7 @@ async function loadCityProgram(city, isoDate, options = {}) {
   */
 
   const forceCsv = options?.forceCsv === true;
+  const enrichHorseIds = options?.enrichHorseIds === true;
   let html = '';
   let htmlError = null;
 
@@ -2204,6 +2213,7 @@ async function loadCityProgram(city, isoDate, options = {}) {
   };
 
   if (
+    enrichHorseIds &&
     (forceCsv || csvAudit.csvFallbackUsed) &&
     horseIdCountForRaces(finalRaces) < horseCountForRaces(finalRaces)
   ) {
@@ -2298,6 +2308,11 @@ export default async function handler(req, res) {
     Boolean(requestedCityId || requestedCityName);
   const forceCsvFallback =
     String(req.query?.forceCsvFallback || '') === '1';
+  const enrichHorseIds =
+    String(req.query?.enrichIds || req.query?.enrichHorseIds || '') === '1';
+  const requestedRaceNo = parseInteger(
+    req.query?.raceNo || req.query?.selectedRace || ''
+  );
   const selectedCsvMode =
     cityScope && !citiesOnly;
 
@@ -2323,15 +2338,23 @@ export default async function handler(req, res) {
           selectedCity,
           isoDate,
           {
-            forceCsv: forceCsvFallback || selectedCsvMode
+            forceCsv: forceCsvFallback || selectedCsvMode,
+            enrichHorseIds
           }
+        );
+        const selectedRaces = filterRacesByNo(
+          loaded.races || [],
+          requestedRaceNo
         );
 
         racesByCity[String(selectedCity.id)] =
-          loaded.races || [];
+          selectedRaces;
         programs[String(selectedCity.id)] =
-          loaded.races || [];
-        parserAudit[String(selectedCity.id)] = loaded.audit;
+          selectedRaces;
+        parserAudit[String(selectedCity.id)] = {
+          ...loaded.audit,
+          requestedRaceNo: requestedRaceNo || null
+        };
       } catch (e) {
         errors.push({
           city: selectedCity.name,
@@ -2475,15 +2498,23 @@ export default async function handler(req, res) {
           selectedCity,
           isoDate,
           {
-            forceCsv: forceCsvFallback || selectedCsvMode
+            forceCsv: forceCsvFallback || selectedCsvMode,
+            enrichHorseIds
           }
+        );
+        const selectedRaces = filterRacesByNo(
+          loaded.races || [],
+          requestedRaceNo
         );
 
         racesByCity[String(selectedCity.id)] =
-          loaded.races || [];
+          selectedRaces;
         programs[String(selectedCity.id)] =
-          loaded.races || [];
-        parserAudit[String(selectedCity.id)] = loaded.audit;
+          selectedRaces;
+        parserAudit[String(selectedCity.id)] = {
+          ...loaded.audit,
+          requestedRaceNo: requestedRaceNo || null
+        };
       } catch (e) {
         errors.push({
           city: selectedCity.name,
