@@ -8,7 +8,7 @@ const TJK_CITY =
 const TJK_CDN =
   'https://medya-cdn.tjk.org/raporftp/TJKPDF';
 const FETCH_TIMEOUT_MS = 28000;
-const ID_ENRICH_TIMEOUT_MS = 6500;
+const ID_ENRICH_TIMEOUT_MS = 15000;
 
 const HEADERS = {
   'User-Agent':
@@ -718,7 +718,7 @@ function horseLookupKeys(name = '') {
     .trim();
   const stripped = base
     .replace(/\s*\(\d+\)\s*$/g, '')
-    .replace(/\b(?:KG|SK|DB|KUL|GKR|SGKR|GKG|YP|AP|DS)\b/g, ' ')
+    .replace(/\b(?:KG|SKG|SK|DB|KUL|GKR|SGKR|GKG|YP|AP|DS|K)\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -738,6 +738,18 @@ function lookupHorseId(horseIdByName = {}, name = '') {
     if (id) return id;
   }
   return null;
+}
+
+function isCsvBetStartMarker(name = '') {
+  const k = key(name);
+
+  return (
+    /BUKOSUDANBASLAR/.test(k) ||
+    /CIFTE/.test(k) ||
+    /GANYAN/.test(k) ||
+    /PLASE/.test(k) ||
+    /BAHIS/.test(k)
+  );
 }
 
 function horseCountForRaces(races = []) {
@@ -1069,6 +1081,10 @@ function parseProgramCsv(csvText, htmlMeta, horseIdByName, city) {
     );
 
     if (!horseName || !horseNo) {
+      continue;
+    }
+
+    if (isCsvBetStartMarker(horseName)) {
       continue;
     }
 
