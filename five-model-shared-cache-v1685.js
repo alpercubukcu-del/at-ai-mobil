@@ -235,6 +235,6 @@ document.addEventListener('click',e=>{
   if(e.target?.closest?.('#couponMenuBtn'))setTimeout(()=>void hydrateCurrent(),0);
   if(e.target?.closest?.('#buildAllBtn'))void hydrateCurrent();
 },true);
-window.addEventListener('pageshow',()=>{clearOtherContext();importManual();setTimeout(()=>void hydrateCurrent(),0);},{passive:true});
+window.addEventListener('pageshow',()=>{clearOtherContext();importManual();},{passive:true});
 console.info('[AT AI]',VERSION,'aktif — başarısız roadmap sonucu cache edilmez; eski bozuk koşu kaydı gerektiğinde otomatik temizlenir.');
 })();

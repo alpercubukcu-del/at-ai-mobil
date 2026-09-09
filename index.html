@@ -263,7 +263,22 @@
         const tabs = $('raceTabs');
         const list = $('raceList');
         const races = Array.isArray(state.races) ? state.races : [];
-        if (tabs) tabs.innerHTML = races.map(race => `<button class="race-tab" type="button">${esc(race.no || race.raceNo || '')}. Koşu</button>`).join('');
+        const selectedRace = state.selectedRace || 'all';
+        if (tabs) {
+          tabs.innerHTML = races.length
+            ? `<button class="race-tab ${selectedRace === 'all' ? 'active' : ''}" type="button" data-race="all">Tümü</button>` +
+              races.map(race => {
+                const no = race.no || race.raceNo || '';
+                return `<button class="race-tab ${String(selectedRace) === String(no) ? 'active' : ''}" type="button" data-race="${esc(no)}">${esc(no)}. Koşu</button>`;
+              }).join('')
+            : '';
+          tabs.querySelectorAll('[data-race]').forEach(button => {
+            button.onclick = () => {
+              const next = saveState({ ...readState(), selectedRace: button.dataset.race || 'all' });
+              renderProgram(next);
+            };
+          });
+        }
         if (!list) return;
         if (!races.length) {
           list.classList.add('empty');
@@ -271,7 +286,12 @@
           return;
         }
         list.classList.remove('empty');
-        list.innerHTML = races.map(race => `
+        const shown = selectedRace === 'all'
+          ? races
+          : races.filter(race => String(race.no || race.raceNo || '') === String(selectedRace));
+        list.innerHTML = shown.map(race => {
+          const horses = Array.isArray(race.horses) ? race.horses : [];
+          return `
           <article class="race-card">
             <div class="race-head"><div><strong>${esc(race.no || race.raceNo || '')}. Koşu</strong>${race.time ? `<span>${esc(race.time)}</span>` : ''}</div></div>
             <div class="race-meta">
@@ -280,8 +300,23 @@
               ${race.distance ? `<span>${esc(race.distance)}</span>` : ''}
               ${race.track ? `<span>${esc(race.track)}</span>` : ''}
             </div>
+            <div class="horse-list">
+              ${horses.length ? horses.map(horse => `
+                <div class="horse-row">
+                  <div>
+                    <b>${esc(horse.no || '')}. ${esc(horse.name || horse.atadi || '')}</b>
+                    ${horse.jockey ? `<small>${esc(horse.jockey)}</small>` : ''}
+                  </div>
+                  <div class="horse-stats">
+                    ${horse.hp !== '' && horse.hp !== undefined && horse.hp !== null ? `<span>HP ${esc(horse.hp)}</span>` : ''}
+                    ${horse.odds ? `<span>Gny ${esc(horse.odds)}</span>` : ''}
+                  </div>
+                </div>
+              `).join('') : '<div class="empty">At listesi alınamadı.</div>'}
+            </div>
           </article>
-        `).join('');
+        `;
+        }).join('');
       }
 
       function programUrl(state, forceCityId = '') {
@@ -325,7 +360,6 @@
 
             if (!selected) {
               status('Bu tarih için şehir bulunamadı.');
-              loadMainScript();
               return;
             }
           }
@@ -353,7 +387,6 @@
           renderCities(next);
           renderProgram(next);
           status(`${nextCities.length || 1} şehir bulundu · ${races.length} koşu`);
-          loadMainScript();
         } catch (error) {
           status(error?.name === 'AbortError' ? 'TJK programı 22 saniyede cevap vermedi.' : `Program alınamadı: ${error?.message || error}`);
         } finally {
@@ -371,12 +404,30 @@
         script.onload = () => {
           window.__AT_EARLY_MAIN_LOADED__ = true;
           window.__AT_MAIN_SCRIPT_LOADING__ = false;
+          const pendingView = window.__AT_PENDING_VIEW__;
+          window.__AT_PENDING_VIEW__ = '';
+          if (pendingView) {
+            setTimeout(() => {
+              try {
+                if (typeof openAnalysis === 'function') openAnalysis(pendingView);
+              } catch {}
+            }, 0);
+          }
         };
         script.onerror = () => {
           window.__AT_MAIN_SCRIPT_LOADING__ = false;
           status('Ana uygulama dosyası yüklenemedi. Sayfayı yenileyin.');
         };
         document.body.appendChild(script);
+      }
+
+      function scheduleMainScript(delay = 180) {
+        const run = () => setTimeout(loadMainScript, delay);
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(() => requestAnimationFrame(run));
+        } else {
+          run();
+        }
       }
 
       function clearMenuLocks() {
@@ -414,7 +465,7 @@
           event?.preventDefault?.();
           event?.stopPropagation?.();
           openDrawerEarly();
-          loadMainScript();
+          scheduleMainScript();
         };
         menu.addEventListener('pointerdown', open, { capture: true });
         menu.addEventListener('touchstart', open, { capture: true, passive: false });
@@ -423,6 +474,16 @@
         $('closeMenu')?.addEventListener('click', closeDrawerEarly, { capture: true });
         $('overlay')?.addEventListener('pointerdown', closeDrawerEarly, { capture: true });
         $('overlay')?.addEventListener('click', closeDrawerEarly, { capture: true });
+        document.querySelectorAll('[data-view]').forEach(button => {
+          button.addEventListener('click', event => {
+            if (window.__AT_EARLY_MAIN_LOADED__) return;
+            event.preventDefault();
+            event.stopPropagation();
+            window.__AT_PENDING_VIEW__ = button.dataset.view || '';
+            status('Menü hazırlanıyor...');
+            scheduleMainScript(0);
+          }, { capture: true });
+        });
         document.addEventListener('keydown', event => {
           if (event.key === 'Escape') closeDrawerEarly();
         });
@@ -446,11 +507,6 @@
           if (window.__AT_EARLY_MAIN_LOADED__) return;
           fetchProgram(event.target.value);
         });
-        window.addEventListener('load', () => {
-          setTimeout(() => {
-            if (!window.__AT_EARLY_PROGRAM_BUSY__) loadMainScript();
-          }, 8000);
-        }, { once: true });
       }
 
       boot();

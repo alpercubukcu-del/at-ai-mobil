@@ -519,11 +519,19 @@ document.addEventListener('click', event => {
   });
 }, true);
 
-window.addEventListener('pageshow', () => setTimeout(() => prepareArchiveAction('pageshow'), 350), { passive:true });
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') setTimeout(() => prepareArchiveAction('visible'), 350);
+function careerArchiveViewOpen() {
+  const dialog = document.getElementById('analysisDialog');
+  return Boolean(dialog?.open && dialog.dataset?.view === 'career');
+}
+
+window.addEventListener('pageshow', () => {
+  if (careerArchiveViewOpen()) setTimeout(() => prepareArchiveAction('pageshow'), 350);
 }, { passive:true });
-setTimeout(() => prepareArchiveAction('startup'), 800);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && careerArchiveViewOpen()) {
+    setTimeout(() => prepareArchiveAction('visible'), 350);
+  }
+}, { passive:true });
 
 window.ATCareerArchiveScoreGuardV1691F33 = {
   version:VERSION,
