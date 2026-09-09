@@ -480,7 +480,7 @@ async function runLightCareer() {
     if (content) content.innerHTML = '<div style="padding:15px;line-height:1.55">Kariyer kayıtları alınıyor: 0/' + esc(withId.length) + '</div>';
     const items = await mapLimit(withId, 2, async horse => {
       try {
-        const data = await fetchJson('/api/tjk-career-v10?horseId=' + encodeURIComponent(horse.id) + '&before=' + encodeURIComponent(state.date || ''), 45000);
+        const data = await fetchJson('/api/tjk-career?horseId=' + encodeURIComponent(horse.id) + '&before=' + encodeURIComponent(state.date || ''), 45000);
         return { horse, career: data, ok: true, score: lightCareerScore(horse, data) };
       } catch (error) {
         return { horse, career: null, ok: false, error: error?.message || 'Kariyer alınamadı.', score: -1 };
