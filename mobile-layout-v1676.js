@@ -81,6 +81,25 @@ html.${CLASS} .section-title-row > *{min-width:0!important;}
 html.${CLASS} .race-tabs{max-width:100%!important;min-width:0!important;overflow-x:auto!important;}
 html.${CLASS} .horse,
 html.${CLASS} .horse-row{min-width:0!important;max-width:100%!important;}
+html.${CLASS} #drawer.open,
+html.${CLASS}.at-menu-force-open-v169247 #drawer{
+  inset:0!important;right:0!important;left:0!important;top:0!important;bottom:0!important;
+  width:100dvw!important;max-width:100dvw!important;height:100dvh!important;max-height:100dvh!important;
+  padding:max(18px,env(safe-area-inset-top)) 16px max(22px,env(safe-area-inset-bottom))!important;
+  border-left:0!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain!important;
+  box-sizing:border-box!important;transform:none!important;
+}
+html.${CLASS} #drawer.open .drawer-head,
+html.${CLASS}.at-menu-force-open-v169247 #drawer .drawer-head{
+  position:sticky!important;top:0!important;z-index:2!important;background:#08131f!important;
+}
+html.${CLASS} #drawer.open #closeMenu,
+html.${CLASS}.at-menu-force-open-v169247 #closeMenu{
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  min-width:44px!important;min-height:44px!important;flex:0 0 44px!important;
+}
+html.${CLASS}.at-menu-force-open-v169247,
+html.${CLASS}.at-menu-force-open-v169247 body{overflow:hidden!important;}
 @media (max-width:390px){
   html.${CLASS} .bet-grid{grid-template-columns:minmax(0,1fr)!important;}
 }

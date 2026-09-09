@@ -85,17 +85,16 @@ if(window.HTMLDialogElement?.prototype?.show){
   }
 }
 
-/* Drawer içinden bir pencere açılacaksa, hedef handler çalışmadan önce drawer fiziksel olarak kaybolsun. */
+/* Drawer içinden tıklanan hedef önce çalışmalı; Android Chrome hedef kaybolursa click'i iptal edebiliyor. */
 document.addEventListener('pointerdown',e=>{
   const b=e.target?.closest?.('#drawer button');
   if(!b || b.id==='closeMenu')return;
-  lockLayers();
+  ROOT.classList.remove('at-hard-modal-lock-v1659');
 },true);
 
 document.addEventListener('click',e=>{
   const b=e.target?.closest?.('#drawer button');
   if(!b || b.id==='closeMenu')return;
-  lockLayers();
   setTimeout(syncLayers,0);
   setTimeout(syncLayers,80);
   setTimeout(syncLayers,300);

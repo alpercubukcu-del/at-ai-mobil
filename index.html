@@ -15,6 +15,23 @@
     html.at-menu-force-open-v169247 #overlay.overlay{
       display:block!important;visibility:visible!important;pointer-events:auto!important;z-index:2147483500!important;
     }
+    @media(max-width:760px){
+      html.at-menu-force-open-v169247,
+      html.at-menu-force-open-v169247 body{overflow:hidden!important}
+      html.at-menu-force-open-v169247 #drawer.drawer{
+        inset:0!important;width:100dvw!important;max-width:100dvw!important;height:100dvh!important;max-height:100dvh!important;
+        padding:max(18px,env(safe-area-inset-top)) 16px max(22px,env(safe-area-inset-bottom))!important;
+        border-left:0!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain!important;
+        box-sizing:border-box!important;
+      }
+      html.at-menu-force-open-v169247 #drawer .drawer-head{
+        position:sticky!important;top:0!important;z-index:2!important;background:#08131f!important;
+      }
+      html.at-menu-force-open-v169247 #closeMenu{
+        display:inline-flex!important;align-items:center!important;justify-content:center!important;
+        position:sticky!important;top:0!important;right:0!important;min-width:44px!important;min-height:44px!important;
+      }
+    }
   </style>
 </head>
 <body>
@@ -102,7 +119,7 @@
 
   <script>
     (() => {
-      const MAIN_SCRIPT_SRC = '/at-ai-app-v142.js?v=169247';
+      const MAIN_SCRIPT_SRC = '/at-ai-app-v142.js?v=169248';
       const STORAGE_KEY = 'at_ai_mobil_state_v2';
       const CAREER_UI_VERSION = 'CAREER-UI-V5.1';
       const BOOT_TIMEOUT_MS = 22000;

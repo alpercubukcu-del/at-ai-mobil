@@ -25,14 +25,12 @@ function syncLayers(){
   if(anyDialog && $('drawer')?.classList.contains('open')) closeDrawerSafe();
 }
 
-/* Menüdeki data-view dışı butonlar (Kariyer Excel, Yıllık Arşiv vb.)
-   kendi dialoglarını açarken eski drawer'ı arkada bırakıyordu.
-   Capture fazında önce drawer'ı kapat, butonun kendi işlemi normal devam etsin. */
+/* Menü butonunun kendi işlemi önce çalışsın; drawer kapanışı click sonrasına alınır. */
 document.addEventListener('click',event=>{
   const button=event.target?.closest?.('#drawer button');
   if(!button)return;
   if(button.id==='closeMenu')return;
-  closeDrawerSafe();
+  setTimeout(closeDrawerSafe,0);
 },true);
 
 /* Herhangi bir dialog sonradan açılırsa ikinci güvenlik katmanı. */
