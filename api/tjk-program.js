@@ -1,13 +1,13 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-PARSER-V11-TABLE-LOCK';
+const VERSION = 'TJK-PARSER-V12-CSV-FALLBACK';
 const TJK_ROOT =
   'https://www.tjk.org/TR/YarisSever/Info/Page/GunlukYarisProgrami';
 const TJK_CITY =
   'https://www.tjk.org/TR/YarisSever/Info/Sehir/GunlukYarisProgrami';
 const TJK_CDN =
   'https://medya-cdn.tjk.org/raporftp/TJKPDF';
-const FETCH_TIMEOUT_MS = 16000;
+const FETCH_TIMEOUT_MS = 28000;
 
 const HEADERS = {
   'User-Agent':
@@ -118,12 +118,25 @@ function dateParts(iso) {
 
 function parseNumber(v) {
   if (v === null || v === undefined) return null;
-  const s = String(v).trim();
-  if (!s || s === '-') return null;
+  let s = String(v).trim();
+  if (!s || /^[-–—]$/.test(s)) return null;
 
-  const n = Number(
-    s.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '')
-  );
+  s = s
+    .replace(/\([^)]*\)/g, '')
+    .replace(/%/g, '')
+    .trim();
+
+  const match = s.match(/-?\d+(?:[.,]\d+)?/);
+  if (!match) return null;
+
+  let token = match[0];
+  if (token.includes(',')) {
+    token = token.replace(/\./g, '').replace(',', '.');
+  } else if (/^\d{1,3}(?:\.\d{3})+$/.test(token)) {
+    token = token.replace(/\./g, '');
+  }
+
+  const n = Number(token);
 
   return Number.isFinite(n) ? n : null;
 }
@@ -555,6 +568,8 @@ function valueByAliases(obj, aliases = []) {
     if (!k) continue;
 
     for (const [hk, v] of map.entries()) {
+      if (!hk) continue;
+      if (hk.length < 2 || k.length < 2) continue;
       if (hk.includes(k) || k.includes(hk)) return v;
     }
   }
@@ -580,7 +595,7 @@ function splitRaceConditionText(raw) {
 
   for (const p of parts) {
     if (!distance) {
-      const m = p.match(/\b(\d{3,4})\s*(Çim|Kum|Sentetik)\b/i);
+      const m = p.match(/\b(\d{3,4})\s*m?\s*(Çim|Kum|Sentetik)\b/i);
       if (m) {
         distance = m[1];
         track = m[2];
@@ -656,7 +671,7 @@ function parseHtmlRaceMeta(html) {
 
     if (!currentRace) continue;
 
-    if (/\d{3,4}\s*(?:Çim|Kum|Sentetik)\b/i.test(t)) {
+    if (/\d{3,4}\s*m?\s*(?:Çim|Kum|Sentetik)\b/i.test(t)) {
       const meta = splitRaceConditionText(t);
       byRace[currentRace] = {
         ...byRace[currentRace],
@@ -695,9 +710,87 @@ function parseHtmlHorseIds(html) {
    CSV -> KOŞULAR
 --------------------------------------------------------- */
 
+function csvRaceHeader(row) {
+  const head = oneLine(
+    [row[0], row[1], row.join(' ')].filter(Boolean).join(' ')
+  );
+  const m = head.match(
+    /(?:^|\s)(\d{1,2})\.\s*(?:Koşu|Kosu)\s*:?\s*(\d{1,2}[.:]\d{2})?/i
+  );
+
+  if (!m) return null;
+
+  return {
+    no: Number(m[1]),
+    time: (m[2] || '').replace('.', ':')
+  };
+}
+
+function isRaceClassCell(value) {
+  const k = key(value);
+  return /SARTLI|MAIDEN|HANDIKAP|KV|KISAVADELI|SATIS|LISTED|GRUP|^G[1-3]$/.test(k);
+}
+
+function trackFromCsvCell(value) {
+  const k = key(value);
+  if (k === 'CIM') return 'Çim';
+  if (k === 'KUM') return 'Kum';
+  if (k === 'SENTETIK') return 'Sentetik';
+  return '';
+}
+
+function distanceFromCsvCell(value) {
+  const m = oneLine(value).match(/\b(\d{3,4})\s*m?\b/i);
+  return m ? m[1] : '';
+}
+
+function csvRaceMetaFromRow(row) {
+  const cells = row.map(oneLine).filter(Boolean);
+  const header = csvRaceHeader(cells);
+  if (!header) return null;
+
+  const raceClass =
+    cells.find((cell, idx) => idx > 0 && isRaceClassCell(cell)) ||
+    '';
+  const ageGroup =
+    cells.map(ageGroupFromText).find(Boolean) ||
+    '';
+  const condition =
+    cells.find((cell, idx) => idx > 0 && /\b(?:kg|kilo)\b/i.test(cell)) ||
+    '';
+  const distance =
+    cells.map(distanceFromCsvCell).find(Boolean) ||
+    '';
+  const track =
+    cells.map(trackFromCsvCell).find(Boolean) ||
+    '';
+  const fallback =
+    splitRaceConditionText(cells.join(', '));
+
+  return {
+    no: header.no,
+    time: header.time || '',
+
+    class: raceClass || fallback.class || '',
+    yaradi1: raceClass || fallback.yaradi1 || fallback.class || '',
+
+    ageGroup: ageGroup || fallback.ageGroup || '',
+    yaradi2: ageGroup || fallback.yaradi2 || fallback.ageGroup || '',
+
+    condition: condition || fallback.condition || '',
+    yaradi3: condition || fallback.yaradi3 || fallback.condition || '',
+
+    distance: distance || fallback.distance || '',
+    mesafe: distance || fallback.mesafe || fallback.distance || '',
+
+    track: track || fallback.track || '',
+    pist: track || fallback.pist || fallback.track || ''
+  };
+}
+
 function parseProgramCsv(csvText, htmlMeta, horseIdByName, city) {
   /*
-    V9:
+    V12:
     TJK CSV'sinde "Koşu No" sütunu yok.
     Gerçek yapı bloklar halinde ilerliyor:
       koşu başlığı / boş satır / at başlık satırı / atlar / sonraki blok.
@@ -720,11 +813,7 @@ function parseProgramCsv(csvText, htmlMeta, horseIdByName, city) {
   };
 
   const looksLikeRaceMeta = row => {
-    const t = oneLine(row.join(' '));
-    return (
-      /\b(?:ŞARTLI|Maiden|Handikap|KV-|KISA VADELİ|SATIŞ|SATIS|Listed|Grup|G[1-3])\b/i.test(t) &&
-      /\b\d{3,4}\s*(?:Çim|Kum|Sentetik)\b/i.test(t)
-    );
+    return Boolean(csvRaceMetaFromRow(row));
   };
 
   const finalize = () => {
@@ -750,15 +839,13 @@ function parseProgramCsv(csvText, htmlMeta, horseIdByName, city) {
     if (looksLikeRaceMeta(row)) {
       finalize();
 
-      currentRaceNo += 1;
-
-      const metaText = oneLine(row.join(' '));
-      const csvMeta = splitRaceConditionText(metaText);
+      const csvMeta = csvRaceMetaFromRow(row);
+      currentRaceNo = csvMeta?.no || (currentRaceNo + 1);
       const hmeta = htmlMeta[currentRaceNo] || {};
 
       race = {
         no: currentRaceNo,
-        time: hmeta.time || '',
+        time: hmeta.time || csvMeta.time || '',
 
         class:
           csvMeta.class ||
@@ -958,6 +1045,46 @@ function parseProgramCsv(csvText, htmlMeta, horseIdByName, city) {
       .filter(r => (r.horses || []).length)
       .sort((a, b) => a.no - b.no),
     headers: auditHeaders
+  };
+}
+
+async function loadCityProgramFromCsv(
+  city,
+  isoDate,
+  htmlMeta = {},
+  horseIdByName = {},
+  htmlError = null
+) {
+  const csvUrl = buildCsvUrl(isoDate, city.name);
+  const csvText = await fetchCsvText(csvUrl);
+  const parsed = parseProgramCsv(
+    csvText,
+    htmlMeta,
+    horseIdByName,
+    {
+      ...city,
+      url: csvUrl
+    }
+  );
+  const horseCount = parsed.races.reduce(
+    (sum, race) =>
+      sum + (Array.isArray(race.horses)
+        ? race.horses.length
+        : 0),
+    0
+  );
+
+  return {
+    races: parsed.races,
+    audit: {
+      csvFallbackAttempted: true,
+      csvFallbackUsed: parsed.races.length > 0,
+      csvUrl,
+      csvRaceCount: parsed.races.length,
+      csvHorseCount: horseCount,
+      csvHeaders: parsed.headers,
+      htmlError
+    }
   };
 }
 
@@ -1686,19 +1813,23 @@ function parseHtmlRaceBlocks(html, city) {
    TEK ŞEHİR
 --------------------------------------------------------- */
 
-async function loadCityProgram(city, isoDate) {
+async function loadCityProgram(city, isoDate, options = {}) {
   /*
-    V10:
+    V12:
     Ana veri kaynağı canlı TJK HTML DOM'dur.
-    CSV at listesi için kullanılmaz.
-    Şehir + koşu numarası V7 mantığıyla korunur.
+    TJK HTML 503/boş dönerse resmi CSV yedeği kullanılır.
   */
 
+  const forceCsv = options?.forceCsv === true;
   let html = '';
   let htmlError = null;
 
   try {
-    html = await fetchText(city.url);
+    if (forceCsv) {
+      htmlError = 'HTML atlandı: CSV yedeği zorlandı';
+    } else {
+      html = await fetchText(city.url);
+    }
   } catch (e) {
     htmlError = String(e?.message || e);
   }
@@ -1727,6 +1858,9 @@ async function loadCityProgram(city, isoDate) {
         city
       )
     : [];
+  const htmlHorseIds = html
+    ? parseHtmlHorseIds(html)
+    : {};
 
   /*
     DOM yarışında meta eksikse skeleton meta'sını koru;
@@ -1810,9 +1944,65 @@ async function loadCityProgram(city, isoDate) {
         race.horses.length > 0
     };
   });
+  let finalRaces = races;
+  const domHorseCount = domRaces.reduce(
+    (sum, race) =>
+      sum + (race.horses?.length || 0),
+    0
+  );
+  let csvAudit = {
+    csvFallbackAttempted: false,
+    csvFallbackUsed: false
+  };
+
+  if (
+    forceCsv ||
+    htmlError ||
+    !finalRaces.length ||
+    !domHorseCount
+  ) {
+    try {
+      const csvLoaded = await loadCityProgramFromCsv(
+        city,
+        isoDate,
+        htmlMeta,
+        htmlHorseIds,
+        htmlError
+      );
+      const csvHorseCount = csvLoaded.races.reduce(
+        (sum, race) =>
+          sum + (Array.isArray(race.horses)
+            ? race.horses.length
+            : 0),
+        0
+      );
+
+      if (csvLoaded.races.length && csvHorseCount) {
+        finalRaces = finalRaces.length
+          ? mergeRaceDetails(finalRaces, csvLoaded.races)
+          : csvLoaded.races;
+        csvAudit = {
+          ...csvLoaded.audit,
+          csvFallbackUsed: true
+        };
+      } else {
+        csvAudit = {
+          ...csvLoaded.audit,
+          csvFallbackUsed: false,
+          csvFallbackReason: 'CSV program boş geldi.'
+        };
+      }
+    } catch (e) {
+      csvAudit = {
+        csvFallbackAttempted: true,
+        csvFallbackUsed: false,
+        csvError: String(e?.message || e)
+      };
+    }
+  }
 
   return {
-    races,
+    races: finalRaces,
     audit: {
       cityPageFetched: Boolean(html),
       htmlError,
@@ -1826,12 +2016,7 @@ async function loadCityProgram(city, isoDate) {
       domRaceCount:
         domRaces.length,
 
-      domHorseCount:
-        domRaces.reduce(
-          (sum, race) =>
-            sum + (race.horses?.length || 0),
-          0
-        ),
+      domHorseCount,
 
       domHorseWithIdCount:
         domRaces.reduce(
@@ -1841,7 +2026,9 @@ async function loadCityProgram(city, isoDate) {
         ),
 
       domAgeGroupMissingRaceCount:
-        races.filter(r => !r.ageGroup).length
+        finalRaces.filter(r => !r.ageGroup).length,
+
+      ...csvAudit
     }
   };
 }
@@ -1885,6 +2072,8 @@ export default async function handler(req, res) {
   const requestedCityName = req.query?.cityName || '';
   const hasRequestedCity =
     Boolean(requestedCityId || requestedCityName);
+  const forceCsvFallback =
+    String(req.query?.forceCsvFallback || '') === '1';
 
   try {
     const directCity = cityScope
@@ -1906,7 +2095,10 @@ export default async function handler(req, res) {
       try {
         const loaded = await loadCityProgram(
           selectedCity,
-          isoDate
+          isoDate,
+          {
+            forceCsv: forceCsvFallback
+          }
         );
 
         racesByCity[String(selectedCity.id)] =
@@ -2055,7 +2247,10 @@ export default async function handler(req, res) {
       try {
         const loaded = await loadCityProgram(
           selectedCity,
-          isoDate
+          isoDate,
+          {
+            forceCsv: forceCsvFallback
+          }
         );
 
         racesByCity[String(selectedCity.id)] =
@@ -2123,7 +2318,10 @@ export default async function handler(req, res) {
       try {
         const loaded = await loadCityProgram(
           city,
-          isoDate
+          isoDate,
+          {
+            forceCsv: forceCsvFallback
+          }
         );
 
         /*

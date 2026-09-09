@@ -119,10 +119,10 @@
 
   <script>
     (() => {
-      const MAIN_SCRIPT_SRC = '/at-ai-app-v142.js?v=169248';
+      const MAIN_SCRIPT_SRC = '/at-ai-app-v142.js?v=169249';
       const STORAGE_KEY = 'at_ai_mobil_state_v2';
       const CAREER_UI_VERSION = 'CAREER-UI-V5.1';
-      const BOOT_TIMEOUT_MS = 22000;
+      const BOOT_TIMEOUT_MS = 30000;
       const $ = id => document.getElementById(id);
       const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
       const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -358,11 +358,18 @@
           if ($('raceDate')) $('raceDate').value = date;
           let cities = Array.isArray(state.cities) ? state.cities : [];
           let selected = forceCityId || $('citySelect')?.value || state.city || '';
+          let cityListFallback = false;
           const cityListIsCurrent = state.date === date && hasCity(cities, selected);
 
           if (!cityListIsCurrent) {
             status('TJK şehirleri alınıyor...');
-            cities = await fetchCityList(date, controller.signal);
+            try {
+              cities = await fetchCityList(date, controller.signal);
+            } catch (cityError) {
+              if (!cities.length) throw cityError;
+              cityListFallback = true;
+              status('TJK şehir listesi alınamadı; kayıtlı şehir deneniyor...');
+            }
             selected = chooseCity(cities, forceCityId || state.city);
             state = saveState({
               ...state,
@@ -403,9 +410,9 @@
           });
           renderCities(next);
           renderProgram(next);
-          status(`${nextCities.length || 1} şehir bulundu · ${races.length} koşu`);
+          status(`${nextCities.length || 1} şehir bulundu · ${races.length} koşu${cityListFallback ? ' · kayıtlı liste' : ''}`);
         } catch (error) {
-          status(error?.name === 'AbortError' ? 'TJK programı 22 saniyede cevap vermedi.' : `Program alınamadı: ${error?.message || error}`);
+          status(error?.name === 'AbortError' ? 'TJK programı 30 saniyede cevap vermedi.' : `Program alınamadı: ${error?.message || error}`);
         } finally {
           clearTimeout(timer);
           window.__AT_EARLY_PROGRAM_BUSY__ = false;

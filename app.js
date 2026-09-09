@@ -5,7 +5,7 @@ const CAREER_UI_VERSION = 'CAREER-UI-V5.1';
 const MAX_BOOT_STATE_BYTES = 700000;
 const MAX_STORED_ANALYSIS_BYTES = 240000;
 const MAX_STORED_STATE_BYTES = 700000;
-const PROGRAM_FETCH_TIMEOUT_MS = 18000;
+const PROGRAM_FETCH_TIMEOUT_MS = 30000;
 
 const BET_TYPES = [
   '7li Ganyan',
@@ -251,7 +251,7 @@ async function fetchProgramCities(date) {
     return Array.isArray(data?.cities) ? data.cities : [];
   } catch (e) {
     if (e?.name === 'AbortError') {
-      throw new Error('TJK şehir listesi 18 saniyede cevap vermedi.');
+      throw new Error('TJK şehir listesi 30 saniyede cevap vermedi.');
     }
     throw e;
   } finally {
@@ -284,7 +284,7 @@ async function fetchProgramData(date, cityId = '') {
     return data || {};
   } catch (e) {
     if (e?.name === 'AbortError') {
-      throw new Error('TJK programı 18 saniyede cevap vermedi.');
+      throw new Error('TJK programı 30 saniyede cevap vermedi.');
     }
     throw e;
   } finally {
@@ -666,6 +666,7 @@ async function loadProgram() {
   status('TJK programı alınıyor…');
 
   try {
+    let cityListFallback = false;
     const cityListIsCurrent =
       state.date === date &&
       state.city &&
@@ -679,8 +680,20 @@ async function loadProgram() {
     if (!cityListIsCurrent) {
       status('TJK şehirleri alınıyor…');
 
+      const cachedCities =
+        Array.isArray(state.cities)
+          ? state.cities
+          : [];
+
       state.date = date;
-      state.cities = await fetchProgramCities(date);
+      try {
+        state.cities = await fetchProgramCities(date);
+      } catch (cityError) {
+        if (!cachedCities.length) throw cityError;
+        cityListFallback = true;
+        state.cities = cachedCities;
+        status('TJK şehir listesi alınamadı; kayıtlı şehir deneniyor…');
+      }
       state.races = [];
 
       if (state.cities.length === 0) {
@@ -792,7 +805,7 @@ async function loadProgram() {
     renderTickets();
 
     status(
-      `${state.cities.length} şehir bulundu · ${state.races.length} koşu`
+      `${state.cities.length} şehir bulundu · ${state.races.length} koşu${cityListFallback ? ' · kayıtlı liste' : ''}`
     );
   } catch (err) {
     console.error(
