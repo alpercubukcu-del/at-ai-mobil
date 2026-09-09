@@ -2733,10 +2733,17 @@ function initialize() {
       };
   }
 
+  const loadedRaceCount =
+    Array.isArray(state.races)
+      ? state.races.length
+      : 0;
+
   status(
-    state.cities.length
-      ? `${state.cities.length} şehir kayıtlı.`
-      : 'Hazır'
+    loadedRaceCount
+      ? `${state.cities.length || 1} şehir bulundu · ${loadedRaceCount} koşu`
+      : state.cities.length
+        ? `${state.cities.length} şehir kayıtlı.`
+        : 'Hazır'
   );
 }
 

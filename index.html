@@ -102,7 +102,7 @@
 
   <script>
     (() => {
-      const MAIN_SCRIPT_SRC = '/at-ai-app-v142.js?v=1420';
+      const MAIN_SCRIPT_SRC = '/at-ai-app-v142.js?v=169247';
       const STORAGE_KEY = 'at_ai_mobil_state_v2';
       const CAREER_UI_VERSION = 'CAREER-UI-V5.1';
       const BOOT_TIMEOUT_MS = 22000;
@@ -406,10 +406,20 @@
           window.__AT_MAIN_SCRIPT_LOADING__ = false;
           const pendingView = window.__AT_PENDING_VIEW__;
           window.__AT_PENDING_VIEW__ = '';
+          const pendingCoupon = window.__AT_PENDING_COUPON__;
+          window.__AT_PENDING_COUPON__ = false;
           if (pendingView) {
             setTimeout(() => {
               try {
                 if (typeof openAnalysis === 'function') openAnalysis(pendingView);
+              } catch {}
+            }, 0);
+          }
+          if (pendingCoupon) {
+            setTimeout(() => {
+              try {
+                const dialog = document.getElementById('couponCenterDialog');
+                if (dialog && !dialog.open) dialog.showModal();
               } catch {}
             }, 0);
           }
@@ -465,7 +475,6 @@
           event?.preventDefault?.();
           event?.stopPropagation?.();
           openDrawerEarly();
-          scheduleMainScript();
         };
         menu.addEventListener('pointerdown', open, { capture: true });
         menu.addEventListener('touchstart', open, { capture: true, passive: false });
@@ -484,6 +493,14 @@
             scheduleMainScript(0);
           }, { capture: true });
         });
+        $('couponMenuBtn')?.addEventListener('click', event => {
+          if (window.__AT_EARLY_MAIN_LOADED__) return;
+          event.preventDefault();
+          event.stopPropagation();
+          window.__AT_PENDING_COUPON__ = true;
+          status('Kupon menüsü hazırlanıyor...');
+          scheduleMainScript(0);
+        }, { capture: true });
         document.addEventListener('keydown', event => {
           if (event.key === 'Escape') closeDrawerEarly();
         });
