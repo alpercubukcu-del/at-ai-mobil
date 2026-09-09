@@ -10,16 +10,16 @@ app+='\n\n'+fs.readFileSync(EXTRA,'utf8').trim()+'\n';
 for(const token of['TJK-ANNUAL-ARCHIVE-V14.2-SCHEMA-REPAIR','lastDbWriteError','ANNUAL-DB-COEXISTENCE-V16.9.1F60.43','PROCESS-FLOW-PLANNER-V16.9.1F60.45','Yerel Katalogu Say','Seçilen Benzer Yarışları İndir','CAREER-PAIR-DISPLAY-FIX-V16.9.1F60.46','Uyum %','HP\',hp(p.a)===null||hp(p.b)===null?\'yok\''])if(!app.includes(token))throw new Error('[F60.46] Verification failed: '+token);
 new Function(app);
 fs.writeFileSync(APP,app,'utf8');
-const CACHE_BUST='169250';
-const MENU_BRIDGE_VERSION='MENU-BRIDGE-V16.9.1F60.50';
+const CACHE_BUST='169251';
+const MENU_BRIDGE_VERSION='MENU-BRIDGE-V16.9.1F60.51';
 const menuBridge=`
-<script id="atMenuBridgeV169250">
+<script id="atMenuBridgeV169251">
 (() => {
 'use strict';
-if (window.__AT_MENU_BRIDGE_V169250__) return;
-window.__AT_MENU_BRIDGE_V169250__ = true;
-const VERSION = 'MENU-BRIDGE-V16.9.1F60.50';
-const MAIN_SCRIPT_SRC = '/at-ai-app-v142.js?v=169250';
+if (window.__AT_MENU_BRIDGE_V169251__) return;
+window.__AT_MENU_BRIDGE_V169251__ = true;
+const VERSION = 'MENU-BRIDGE-V16.9.1F60.51';
+const MAIN_SCRIPT_SRC = '/at-ai-app-v142.js?v=169251';
 const $ = id => document.getElementById(id);
 const titles = {
   current: 'Güncel Analiz',
@@ -41,6 +41,7 @@ function clearLocks() {
     document.documentElement.classList.remove(
       'at-menu-force-open-v169247',
       'at-menu-force-open-v169250',
+      'at-menu-force-open-v169251',
       'at-hard-modal-lock-v1659',
       'drawer-open',
       'modal-open'
@@ -140,11 +141,36 @@ function ensureMainScript(callback) {
   document.body.appendChild(script);
 }
 
-function openView(view) {
+function replayButton(button) {
+  if (!button) return false;
+  try {
+    window.__AT_MENU_BRIDGE_REPLAY__ = true;
+    button.dispatchEvent(new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      view: window
+    }));
+    return true;
+  } catch (error) {
+    console.warn('[AT AI]', VERSION, 'replay hata', error);
+    return false;
+  } finally {
+    setTimeout(() => {
+      window.__AT_MENU_BRIDGE_REPLAY__ = false;
+    }, 0);
+  }
+}
+
+function openView(view, sourceButton) {
   status('Menü hazırlanıyor...');
   ensureMainScript(() => {
     setTimeout(() => {
-      if (!callOpenAnalysis(view)) fallbackAnalysis(view);
+      replayButton(sourceButton);
+      setTimeout(() => {
+        const dialog = $('analysisDialog');
+        if (dialog && dialog.open) return;
+        if (!callOpenAnalysis(view)) fallbackAnalysis(view);
+      }, 90);
       setTimeout(() => {
         const dialog = $('analysisDialog');
         if (dialog && !dialog.open) fallbackAnalysis(view);
@@ -153,30 +179,37 @@ function openView(view) {
   });
 }
 
-function openCoupon() {
+function openCoupon(sourceButton) {
   status('Kupon menüsü hazırlanıyor...');
   ensureMainScript(() => {
-    closeDrawerSafe();
-    try {
-      const decision = window.ATCouponDecisionV1671;
-      if (decision && typeof decision.open === 'function') {
-        decision.open();
-      }
-    } catch (error) {
-      console.warn('[AT AI]', VERSION, 'coupon decision hata', error);
-    }
-    const dialog = $('couponCenterDialog');
-    if (dialog) {
-      try {
-        if (!dialog.open) dialog.showModal();
-      } catch {
-        dialog.setAttribute('open', '');
-      }
-    }
+    setTimeout(() => {
+      replayButton(sourceButton);
+      setTimeout(() => {
+        const dialog = $('couponCenterDialog');
+        if (dialog && dialog.open) return;
+        closeDrawerSafe();
+        try {
+          const decision = window.ATCouponDecisionV1671;
+          if (decision && typeof decision.open === 'function') {
+            decision.open();
+          }
+        } catch (error) {
+          console.warn('[AT AI]', VERSION, 'coupon decision hata', error);
+        }
+        if (dialog) {
+          try {
+            if (!dialog.open) dialog.showModal();
+          } catch {
+            dialog.setAttribute('open', '');
+          }
+        }
+      }, 90);
+    }, 30);
   });
 }
 
 function handleDrawerActivation(event) {
+  if (window.__AT_MENU_BRIDGE_REPLAY__) return;
   const button = event.target?.closest?.('#drawer button');
   if (!button || button.id === 'closeMenu') return;
   const view = button.dataset?.view || '';
@@ -187,13 +220,13 @@ function handleDrawerActivation(event) {
   const now = Date.now();
   if (now - lastActivation < 450) return;
   lastActivation = now;
-  if (isCoupon) openCoupon();
-  else openView(view);
+  if (isCoupon) openCoupon(button);
+  else openView(view, button);
 }
 
 document.addEventListener('pointerdown', handleDrawerActivation, true);
 document.addEventListener('click', handleDrawerActivation, true);
-window.ATMenuBridgeV169250 = { version: VERSION, openView, openCoupon, closeDrawerSafe };
+window.ATMenuBridgeV169251 = { version: VERSION, openView, openCoupon, closeDrawerSafe, replayButton };
 console.info('[AT AI]', VERSION, 'aktif');
 })();
 </script>`;
@@ -202,6 +235,6 @@ html=html.replace(/<script id="atMenuBridgeV169\d+">[\s\S]*?<\/script>\s*/g,'');
 html=html.includes('</body>')?html.replace('</body>',menuBridge+'\n</body>'):html+menuBridge;
 fs.writeFileSync(INDEX,html,'utf8');
 fs.writeFileSync(HEADERS,'/*\n  Cache-Control: no-store\n','utf8');
-if(!html.includes('/at-ai-app-v142.js?v='+CACHE_BUST))throw new Error('[F60.50] Cache bust failed.');
-if(!html.includes(MENU_BRIDGE_VERSION))throw new Error('[F60.50] Menu bridge injection failed.');
-console.log('[AT AI] V16.9.1F60.50 build complete: menu activation bridge keeps drawer buttons opening after lazy app load.');
+if(!html.includes('/at-ai-app-v142.js?v='+CACHE_BUST))throw new Error('[F60.51] Cache bust failed.');
+if(!html.includes(MENU_BRIDGE_VERSION))throw new Error('[F60.51] Menu bridge injection failed.');
+console.log('[AT AI] V16.9.1F60.51 build complete: menu activation bridge replays real drawer actions after lazy app load.');
