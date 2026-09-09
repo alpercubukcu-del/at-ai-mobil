@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-PARSER-V13-SELECTED-CSV-FIRST';
+const VERSION = 'TJK-PARSER-V14-CSV-ID-ENRICH';
 const TJK_ROOT =
   'https://www.tjk.org/TR/YarisSever/Info/Page/GunlukYarisProgrami';
 const TJK_CITY =
@@ -8,6 +8,7 @@ const TJK_CITY =
 const TJK_CDN =
   'https://medya-cdn.tjk.org/raporftp/TJKPDF';
 const FETCH_TIMEOUT_MS = 28000;
+const ID_ENRICH_TIMEOUT_MS = 6500;
 
 const HEADERS = {
   'User-Agent':
@@ -166,11 +167,11 @@ function extractQueryNumber(href, names = []) {
   return null;
 }
 
-async function fetchResponse(url, accept = '*/*') {
+async function fetchResponse(url, accept = '*/*', timeoutMs = FETCH_TIMEOUT_MS) {
   const controller = new AbortController();
   const timer = setTimeout(
     () => controller.abort(),
-    FETCH_TIMEOUT_MS
+    timeoutMs
   );
 
   let res;
@@ -187,7 +188,7 @@ async function fetchResponse(url, accept = '*/*') {
   } catch (e) {
     if (e?.name === 'AbortError') {
       throw new Error(
-        `TJK yanıt süresi aşıldı (${Math.round(FETCH_TIMEOUT_MS / 1000)} sn)`
+        `TJK yanıt süresi aşıldı (${Math.round(timeoutMs / 1000)} sn)`
       );
     }
     throw e;
@@ -202,10 +203,11 @@ async function fetchResponse(url, accept = '*/*') {
   return res;
 }
 
-async function fetchText(url) {
+async function fetchText(url, timeoutMs = FETCH_TIMEOUT_MS) {
   const res = await fetchResponse(
     url,
-    'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+    'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    timeoutMs
   );
   return await res.text();
 }
@@ -691,6 +693,7 @@ function parseHtmlHorseIds(html) {
   $('a[href*="QueryParameter_AtId="],a[href*="AtKosuBilgileri"]').each(
     (_, a) => {
       const name = oneLine($(a).text());
+      const cleanName = cleanHorseNameFromLink($, a);
       const href = $(a).attr('href') || '';
       const id = extractQueryNumber(
         href,
@@ -699,11 +702,133 @@ function parseHtmlHorseIds(html) {
 
       if (!name || !id) return;
 
-      byName[norm(name)] = id;
+      addHorseIdLookupKeys(byName, name, id);
+      addHorseIdLookupKeys(byName, cleanName, id);
     }
   );
 
   return byName;
+}
+
+function horseLookupKeys(name = '') {
+  const base = norm(name);
+  const stripped = base
+    .replace(/\b(?:KG|SK|DB|KUL|GKR|SGKR|GKG|YP|AP|DS)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return [...new Set([base, stripped].filter(Boolean))];
+}
+
+function addHorseIdLookupKeys(target, name, id) {
+  if (!target || !name || !id) return;
+  for (const lookupKey of horseLookupKeys(name)) {
+    target[lookupKey] = id;
+  }
+}
+
+function lookupHorseId(horseIdByName = {}, name = '') {
+  for (const lookupKey of horseLookupKeys(name)) {
+    const id = horseIdByName[lookupKey];
+    if (id) return id;
+  }
+  return null;
+}
+
+function horseCountForRaces(races = []) {
+  return races.reduce(
+    (sum, race) =>
+      sum + (Array.isArray(race.horses)
+        ? race.horses.length
+        : 0),
+    0
+  );
+}
+
+function horseIdCountForRaces(races = []) {
+  return races.reduce(
+    (sum, race) =>
+      sum + (Array.isArray(race.horses)
+        ? race.horses.filter(h => h?.id).length
+        : 0),
+    0
+  );
+}
+
+function applyHorseIdsToRaces(races = [], horseIdByName = {}) {
+  let added = 0;
+  const nextRaces = races.map(race => ({
+    ...race,
+    horses: Array.isArray(race.horses)
+      ? race.horses.map(horse => {
+          if (horse?.id) return horse;
+          const id = lookupHorseId(
+            horseIdByName,
+            horse?.name || horse?.atadi || ''
+          );
+          if (!id) return horse;
+          added += 1;
+          return {
+            ...horse,
+            id
+          };
+        })
+      : []
+  }));
+
+  return {
+    races: nextRaces,
+    added
+  };
+}
+
+async function enrichHorseIdsFromCityHtml(city, races = []) {
+  const before = horseIdCountForRaces(races);
+  const total = horseCountForRaces(races);
+
+  if (!races.length || before >= total) {
+    return {
+      races,
+      audit: {
+        idEnrichmentAttempted: false,
+        horseIdCountBefore: before,
+        horseIdCountAfter: before,
+        horseIdMissingCount: Math.max(0, total - before)
+      }
+    };
+  }
+
+  try {
+    const html = await fetchText(city.url, ID_ENRICH_TIMEOUT_MS);
+    const horseIdByName = parseHtmlHorseIds(html);
+    const applied = applyHorseIdsToRaces(races, horseIdByName);
+    const after = horseIdCountForRaces(applied.races);
+
+    return {
+      races: applied.races,
+      audit: {
+        idEnrichmentAttempted: true,
+        idEnrichmentSource: 'TJK_CITY_HTML_AT_LINKS',
+        idEnrichmentKeyCount: Object.keys(horseIdByName).length,
+        idEnrichmentAdded: applied.added,
+        horseIdCountBefore: before,
+        horseIdCountAfter: after,
+        horseIdMissingCount: Math.max(0, total - after)
+      }
+    };
+  } catch (e) {
+    return {
+      races,
+      audit: {
+        idEnrichmentAttempted: true,
+        idEnrichmentSource: 'TJK_CITY_HTML_AT_LINKS',
+        idEnrichmentError: String(e?.message || e),
+        horseIdCountBefore: before,
+        horseIdCountAfter: before,
+        horseIdMissingCount: Math.max(0, total - before)
+      }
+    };
+  }
 }
 
 /* ---------------------------------------------------------
@@ -950,7 +1075,7 @@ function parseProgramCsv(csvText, htmlMeta, horseIdByName, city) {
 
     const horseId =
       horseIdCsv ||
-      horseIdByName[norm(horseName)] ||
+      lookupHorseId(horseIdByName, horseName) ||
       null;
 
     const age = oneLine(
@@ -2001,6 +2126,28 @@ async function loadCityProgram(city, isoDate, options = {}) {
     }
   }
 
+  let idEnrichmentAudit = {
+    idEnrichmentAttempted: false,
+    horseIdCountBefore: horseIdCountForRaces(finalRaces),
+    horseIdCountAfter: horseIdCountForRaces(finalRaces),
+    horseIdMissingCount: Math.max(
+      0,
+      horseCountForRaces(finalRaces) - horseIdCountForRaces(finalRaces)
+    )
+  };
+
+  if (
+    (forceCsv || csvAudit.csvFallbackUsed) &&
+    horseIdCountForRaces(finalRaces) < horseCountForRaces(finalRaces)
+  ) {
+    const enriched = await enrichHorseIdsFromCityHtml(
+      city,
+      finalRaces
+    );
+    finalRaces = enriched.races;
+    idEnrichmentAudit = enriched.audit;
+  }
+
   return {
     races: finalRaces,
     audit: {
@@ -2028,6 +2175,16 @@ async function loadCityProgram(city, isoDate, options = {}) {
       domAgeGroupMissingRaceCount:
         finalRaces.filter(r => !r.ageGroup).length,
 
+      horseIdCount:
+        horseIdCountForRaces(finalRaces),
+
+      horseIdMissingCount:
+        Math.max(
+          0,
+          horseCountForRaces(finalRaces) - horseIdCountForRaces(finalRaces)
+        ),
+
+      ...idEnrichmentAudit,
       ...csvAudit
     }
   };
