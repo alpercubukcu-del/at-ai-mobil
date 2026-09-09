@@ -10,16 +10,16 @@ app+='\n\n'+fs.readFileSync(EXTRA,'utf8').trim()+'\n';
 for(const token of['TJK-ANNUAL-ARCHIVE-V14.2-SCHEMA-REPAIR','lastDbWriteError','ANNUAL-DB-COEXISTENCE-V16.9.1F60.43','PROCESS-FLOW-PLANNER-V16.9.1F60.45','Yerel Katalogu Say','Seçilen Benzer Yarışları İndir','CAREER-PAIR-DISPLAY-FIX-V16.9.1F60.46','Uyum %','HP\',hp(p.a)===null||hp(p.b)===null?\'yok\''])if(!app.includes(token))throw new Error('[F60.46] Verification failed: '+token);
 new Function(app);
 fs.writeFileSync(APP,app,'utf8');
-const CACHE_BUST='169253';
-const BOOT_GUARD_VERSION='BOOT-STATE-GUARD-V16.9.1F60.53';
-const MENU_BRIDGE_VERSION='MENU-BRIDGE-V16.9.1F60.53';
+const CACHE_BUST='169254';
+const BOOT_GUARD_VERSION='BOOT-STATE-GUARD-V16.9.1F60.54';
+const MENU_BRIDGE_VERSION='MENU-BRIDGE-V16.9.1F60.54';
 const bootGuard=`
-<script id="atBootStateGuardV169253">
+<script id="atBootStateGuardV169254">
 (() => {
 'use strict';
-if (window.__AT_BOOT_STATE_GUARD_V169253__) return;
-window.__AT_BOOT_STATE_GUARD_V169253__ = true;
-const VERSION = 'BOOT-STATE-GUARD-V16.9.1F60.53';
+if (window.__AT_BOOT_STATE_GUARD_V169254__) return;
+window.__AT_BOOT_STATE_GUARD_V169254__ = true;
+const VERSION = 'BOOT-STATE-GUARD-V16.9.1F60.54';
 const KEY = 'at_ai_mobil_state_v2';
 const MAX_BYTES = 320000;
 function dateFrom(raw) {
@@ -48,13 +48,13 @@ try {
 })();
 </script>`;
 const menuBridge=`
-<script id="atMenuBridgeV169253">
+<script id="atMenuBridgeV169254">
 (() => {
 'use strict';
-if (window.__AT_MENU_BRIDGE_V169253__) return;
-window.__AT_MENU_BRIDGE_V169253__ = true;
-const VERSION = 'MENU-BRIDGE-V16.9.1F60.53';
-const MAIN_SCRIPT_SRC = '/at-ai-app-v142.js?v=169253';
+if (window.__AT_MENU_BRIDGE_V169254__) return;
+window.__AT_MENU_BRIDGE_V169254__ = true;
+const VERSION = 'MENU-BRIDGE-V16.9.1F60.54';
+const MAIN_SCRIPT_SRC = '/at-ai-app-v142.js?v=169254';
 const STORAGE_KEY = 'at_ai_mobil_state_v2';
 const MAX_STATE_BYTES = 320000;
 const $ = id => document.getElementById(id);
@@ -121,6 +121,7 @@ function clearLocks() {
       'at-menu-force-open-v169251',
       'at-menu-force-open-v169252',
       'at-menu-force-open-v169253',
+      'at-menu-force-open-v169254',
       'at-hard-modal-lock-v1659',
       'drawer-open',
       'modal-open'
@@ -209,6 +210,269 @@ function renderCurrentAnalysis() {
         )).join('') + '</div>' +
         '</section>';
     }).join('');
+}
+
+function writeState(next) {
+  try {
+    const compact = {
+      date: next?.date || '',
+      city: next?.city || '',
+      cities: Array.isArray(next?.cities) ? next.cities : [],
+      races: Array.isArray(next?.races) ? next.races : [],
+      selectedRace: next?.selectedRace || 'all',
+      signalSource: next?.signalSource || 'combined',
+      tickets: Array.isArray(next?.tickets) ? next.tickets : [],
+      analyses: { current: {}, historical: {}, scenario: {}, career: {} }
+    };
+    let raw = JSON.stringify(compact);
+    if (raw.length > MAX_STATE_BYTES) {
+      compact.tickets = [];
+      compact.analyses = { current: {}, historical: {}, scenario: {}, career: {} };
+      raw = JSON.stringify(compact);
+    }
+    localStorage.setItem(STORAGE_KEY, raw);
+    return compact;
+  } catch {
+    return next || {};
+  }
+}
+
+function stateCityName(state) {
+  const cities = Array.isArray(state?.cities) ? state.cities : [];
+  const found = cities.find(city => String(city?.id || '') === String(state?.city || ''));
+  return found?.name || '';
+}
+
+function selectedProgramUrl(state) {
+  const date = state?.date || $('raceDate')?.value || '';
+  const cityId = state?.city || $('citySelect')?.value || '';
+  if (!date || !cityId) return '';
+  const params = new URLSearchParams({ date, scope: 'selected', enrichIds: '1', t: String(Date.now()) });
+  params.set('cityId', cityId);
+  const cityName = stateCityName(state);
+  if (cityName) params.set('cityName', cityName);
+  return '/api/tjk-program?' + params.toString();
+}
+
+async function fetchJson(url, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs || 30000);
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: { accept: 'application/json' },
+      signal: controller.signal
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || data?.ok === false) {
+      throw new Error(data?.error || ('API ' + response.status));
+    }
+    return data || {};
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('API 30 saniyede cevap vermedi.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function currentRaceValue() {
+  return $('analysisRace')?.value || readState().selectedRace || 'all';
+}
+
+function raceNo(race) {
+  return race?.no || race?.raceNo || '';
+}
+
+function findRace(races, value) {
+  return (Array.isArray(races) ? races : []).find(race => String(raceNo(race)) === String(value));
+}
+
+function hasMissingHorseIds(race) {
+  const horses = Array.isArray(race?.horses) ? race.horses : [];
+  return horses.some(horse => !horse?.id);
+}
+
+function careerRows(data) {
+  for (const key of ['roadmap', 'top5', 'races', 'preparationPath', 'recentForm', 'history', 'wins']) {
+    if (Array.isArray(data?.[key]) && data[key].length) return data[key];
+  }
+  return [];
+}
+
+function careerModeLabel(mode) {
+  if (mode === 'WIN_PATH') return 'Galibiyet yolu';
+  if (mode === 'PREPARATION_PATH') return 'Hazırlık yolu';
+  if (mode === 'DEBUT') return 'Debut';
+  return mode || 'Kariyer';
+}
+
+function lightCareerScore(horse, career) {
+  const summary = career?.summary || {};
+  const counts = career?.counts || {};
+  const rows = careerRows(career);
+  const wins = Number(summary.first ?? counts.wins ?? 0) || 0;
+  const top5 = Number(summary.totalTop5 ?? counts.top5 ?? rows.length ?? 0) || 0;
+  const agf = num(horse?.agf) || 0;
+  const hp = num(horse?.hp) || 0;
+  const odd = num(horse?.odds);
+  const oddsScore = odd && odd > 0 ? Math.max(0, 40 - odd) : 0;
+  const score = wins * 14 + top5 * 3 + Math.min(rows.length, 12) * 1.2 + agf * 1.1 + hp * 0.18 + oddsScore * 0.25;
+  return Math.round(score * 10) / 10;
+}
+
+async function mapLimit(items, limit, worker) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  async function runOne() {
+    while (nextIndex < items.length) {
+      const current = nextIndex++;
+      results[current] = await worker(items[current], current);
+    }
+  }
+  const runners = Array.from({ length: Math.min(limit, items.length) }, runOne);
+  await Promise.all(runners);
+  return results;
+}
+
+function renderCareerIntro(message) {
+  const content = $('analysisContent');
+  if (!content) return;
+  const state = readState();
+  syncAnalysisRace(state);
+  const races = Array.isArray(state.races) ? state.races : [];
+  const selected = currentRaceValue();
+  content.classList.remove('empty');
+  if (!races.length) {
+    content.innerHTML = '<div style="padding:15px;line-height:1.55"><b>Kariyer Yol Haritası</b><br>Önce ana sayfadan TJK programını yükleyin.</div>';
+    return;
+  }
+  const raceButtons = races.map(race => (
+    '<button type="button" class="secondary small" data-at-light-career-race="' + esc(raceNo(race)) + '">' + esc(raceNo(race)) + '. Koşu</button>'
+  )).join('');
+  content.innerHTML =
+    '<div style="padding:15px;line-height:1.55">' +
+      '<b>Kariyer Yol Haritası</b><br>' +
+      '<span style="opacity:.78">Telefonun kilitlenmemesi için kariyer hesabı tek koşu üzerinden çalışır.</span>' +
+      (message ? '<div style="margin-top:10px;color:#ffbd82">' + esc(message) + '</div>' : '') +
+      '<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:7px">' + raceButtons + '</div>' +
+      '<div style="margin-top:12px;opacity:.72">Seçim: <b>' + esc(selected === 'all' ? 'Tüm koşular' : selected + '. Koşu') + '</b>. Analizi Hesapla düğmesine basınca sadece seçili koşu hesaplanır.</div>' +
+      '<button type="button" class="secondary small" data-at-load-full="career" style="margin-top:12px">Tam motoru ayrıca yükle</button>' +
+    '</div>';
+}
+
+async function refreshProgramWithIds(state, content) {
+  const url = selectedProgramUrl(state);
+  if (!url) throw new Error('Tarih veya şehir seçili değil.');
+  if (content) {
+    content.innerHTML = '<div style="padding:15px;line-height:1.55">At ID eşleştirmesi TJK linklerinden tamamlanıyor...</div>';
+  }
+  const data = await fetchJson(url, 33000);
+  const selectedId = String(data.selectedCityId || state.city || '');
+  const races = data?.racesByCity?.[selectedId] || data?.programs?.[selectedId] || [];
+  const incomingCities = Array.isArray(data.cities) ? data.cities : [];
+  const oldCities = Array.isArray(state.cities) ? state.cities : [];
+  const cities = incomingCities.length === 1 && oldCities.length > 1 ? oldCities : (incomingCities.length ? incomingCities : oldCities);
+  const next = writeState({
+    ...state,
+    date: data.date || state.date,
+    city: selectedId || state.city,
+    cities,
+    races,
+    selectedRace: currentRaceValue(),
+    tickets: [],
+    analyses: { current: {}, historical: {}, scenario: {}, career: {} }
+  });
+  syncAnalysisRace(next);
+  return next;
+}
+
+function careerRowLine(row) {
+  const date = row?.isoDate || row?.date || row?.tarih || '';
+  const city = row?.city || row?.sehir || '';
+  const klass = row?.class || row?.raceClass || '';
+  const distance = row?.distance || row?.mesafe || '';
+  const finish = row?.finish ?? row?.rank ?? row?.sira ?? row?.der ?? '';
+  return [date, city, klass, distance ? distance + 'm' : '', finish ? finish + '.' : ''].filter(Boolean).join(' · ');
+}
+
+function renderLightCareerResult(race, items, skippedCount) {
+  const content = $('analysisContent');
+  if (!content) return;
+  const sorted = [...items].sort((a, b) => Number(b.score || -1) - Number(a.score || -1) || Number(a.horse?.no || 999) - Number(b.horse?.no || 999));
+  content.classList.remove('empty');
+  content.innerHTML =
+    '<div style="margin-bottom:10px;font-size:13px;line-height:1.5">' +
+      '<b>Hafif Kariyer Yol Haritası · ' + esc(raceNo(race)) + '. Koşu</b><br>' +
+      '<span style="opacity:.72">' + esc(race?.class || '') + ' · ' + esc(race?.ageGroup || '') + ' · ' + esc(race?.distance || '') + ' ' + esc(race?.track || '') + '</span>' +
+      (skippedCount ? '<br><span style="color:#ffbd82">' + esc(skippedCount) + ' at ID gelmediği için kariyerden atlandı.</span>' : '') +
+    '</div>' +
+    sorted.map((item, index) => {
+      const rows = careerRows(item.career).slice(0, 6);
+      const ok = item.ok !== false;
+      return '<details class="career-horse-accordion-v104">' +
+        '<summary><div class="career-horse-summary-v104">' +
+          '<div style="min-width:0"><div class="career-horse-name-v104">' + esc(item.horse?.no || '') + '. ' + esc(item.horse?.name || item.horse?.atadi || '') + '</div>' +
+          '<div class="career-horse-status-v104">' + (ok ? esc(careerModeLabel(item.career?.analysisMode)) + ' · ' + esc(rows.length) + ' kayıt önizleme' : esc(item.error || 'Kariyer alınamadı')) + '</div></div>' +
+          '<div class="career-horse-score-v104"><div><div style="font-size:18px;font-weight:900;line-height:1;color:' + (ok ? '#7ee2a8' : '#ffbd82') + '">' + (ok ? esc(item.score.toLocaleString('tr-TR')) : '-') + '</div><div style="font-size:9px;opacity:.72;margin-top:2px">Sıra ' + esc(index + 1) + '</div></div><div class="career-detail-label-v104">Detay</div></div>' +
+        '</div></summary>' +
+        '<div style="padding:6px 10px 12px;line-height:1.45;font-size:12px">' +
+          (ok && rows.length ? rows.map(row => '<div style="padding:6px 0;border-top:1px solid rgba(120,160,200,.18)">' + esc(careerRowLine(row)) + '</div>').join('') : '<div style="opacity:.72">' + esc(item.error || 'Kariyer kaydı yok.') + '</div>') +
+        '</div>' +
+      '</details>';
+    }).join('');
+}
+
+let lightCareerRunning = false;
+
+async function runLightCareer() {
+  if (lightCareerRunning) return;
+  lightCareerRunning = true;
+  const content = $('analysisContent');
+  try {
+    let state = readState();
+    syncAnalysisRace(state);
+    const selected = currentRaceValue();
+    if (selected === 'all') {
+      renderCareerIntro('Lütfen tek koşu seçin; tüm koşuları aynı anda hesaplamak telefonda kilitlenmeye yol açıyordu.');
+      return;
+    }
+    let race = findRace(state.races, selected);
+    if (!race) {
+      renderCareerIntro('Seçilen koşu programda bulunamadı. Programı yeniden yükleyin.');
+      return;
+    }
+    if (hasMissingHorseIds(race)) {
+      state = await refreshProgramWithIds(state, content);
+      race = findRace(state.races, selected);
+    }
+    const horses = Array.isArray(race?.horses) ? race.horses : [];
+    const withId = horses.filter(horse => horse?.id);
+    const skippedCount = horses.length - withId.length;
+    if (!withId.length) {
+      if (content) content.innerHTML = '<div style="padding:15px;line-height:1.55;color:#ffbd82"><b>Kariyer için At ID alınamadı.</b><br>Program kartları geldi, fakat TJK at linkleri Cloudflare tarafında ID vermediği için yanlış ata bağlamamak adına hesap durduruldu.</div>';
+      return;
+    }
+    let done = 0;
+    if (content) content.innerHTML = '<div style="padding:15px;line-height:1.55">Kariyer kayıtları alınıyor: 0/' + esc(withId.length) + '</div>';
+    const items = await mapLimit(withId, 2, async horse => {
+      try {
+        const data = await fetchJson('/api/tjk-career-v10?horseId=' + encodeURIComponent(horse.id) + '&before=' + encodeURIComponent(state.date || ''), 45000);
+        return { horse, career: data, ok: true, score: lightCareerScore(horse, data) };
+      } catch (error) {
+        return { horse, career: null, ok: false, error: error?.message || 'Kariyer alınamadı.', score: -1 };
+      } finally {
+        done += 1;
+        if (content) content.innerHTML = '<div style="padding:15px;line-height:1.55">Kariyer kayıtları alınıyor: ' + esc(done) + '/' + esc(withId.length) + '</div>';
+      }
+    });
+    renderLightCareerResult(race, items, skippedCount);
+  } finally {
+    lightCareerRunning = false;
+  }
 }
 
 function fallbackAnalysis(view) {
@@ -330,6 +594,7 @@ function openLightView(view) {
   if ($('dialogEyebrow')) $('dialogEyebrow').textContent = view === 'calibration' ? 'GÜNLÜK KALİBRASYON' : 'AT AI ANALİZ';
   showDialog(dialog);
   if (view === 'current') renderCurrentAnalysis();
+  else if (view === 'career') renderCareerIntro();
   else if ($('analysisContent')) {
     $('analysisContent').classList.remove('empty');
     $('analysisContent').innerHTML = lightNotice(view);
@@ -337,9 +602,9 @@ function openLightView(view) {
 }
 
 function injectCouponStyle() {
-  if ($('atLightCouponStyleV169253')) return;
+  if ($('atLightCouponStyleV169254')) return;
   const style = document.createElement('style');
-  style.id = 'atLightCouponStyleV169253';
+  style.id = 'atLightCouponStyleV169254';
   style.textContent = '#couponCenterDialog{position:fixed!important;inset:0!important;width:100%!important;max-width:100%!important;height:100dvh!important;max-height:100dvh!important;margin:0!important;border:0!important;border-radius:0!important;background:#07131f!important;color:#eef7ff!important;overflow:hidden!important}#couponCenterDialog[open]{display:flex!important;flex-direction:column!important}#couponCenterDialog::backdrop{background:#07131f!important;opacity:1!important}.coupon-menu-scroll-v1681{flex:1 1 auto;min-height:0;overflow:auto;padding:12px;box-sizing:border-box}';
   document.head.appendChild(style);
 }
@@ -368,8 +633,8 @@ function bindLightCoupon() {
   $('couponSetupV1681')?.removeAttribute('hidden');
   $('couponResultV1681')?.removeAttribute('hidden');
   const close = $('closeCouponMenuV1681');
-  if (close && close.dataset.lightV169253 !== '1') {
-    close.dataset.lightV169253 = '1';
+  if (close && close.dataset.lightV169254 !== '1') {
+    close.dataset.lightV169254 = '1';
     close.addEventListener('click', () => {
       try { $('couponCenterDialog')?.close(); } catch { $('couponCenterDialog')?.removeAttribute('open'); }
     });
@@ -409,6 +674,15 @@ function handleDrawerActivation(event) {
 document.addEventListener('pointerdown', handleDrawerActivation, true);
 document.addEventListener('click', handleDrawerActivation, true);
 document.addEventListener('click', event => {
+  const lightCareerRace = event.target?.closest?.('[data-at-light-career-race]');
+  if (lightCareerRace && !window.__AT_EARLY_MAIN_LOADED__) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const select = $('analysisRace');
+    if (select) select.value = lightCareerRace.getAttribute('data-at-light-career-race') || 'all';
+    runLightCareer();
+    return;
+  }
   const load = event.target?.closest?.('[data-at-load-full]');
   if (load) {
     event.preventDefault();
@@ -422,6 +696,7 @@ document.addEventListener('click', event => {
     event.preventDefault();
     event.stopImmediatePropagation();
     if (view === 'current') renderCurrentAnalysis();
+    else if (view === 'career') runLightCareer();
     else loadFullFor(view);
     return;
   }
@@ -434,8 +709,9 @@ document.addEventListener('click', event => {
 }, true);
 $('analysisRace')?.addEventListener('change', () => {
   if (!window.__AT_EARLY_MAIN_LOADED__ && $('analysisDialog')?.dataset?.view === 'current') renderCurrentAnalysis();
+  if (!window.__AT_EARLY_MAIN_LOADED__ && $('analysisDialog')?.dataset?.view === 'career') renderCareerIntro();
 });
-window.ATMenuBridgeV169253 = { version: VERSION, openLightView, openLightCoupon, loadFullFor, closeDrawerSafe };
+window.ATMenuBridgeV169254 = { version: VERSION, openLightView, openLightCoupon, loadFullFor, closeDrawerSafe, runLightCareer };
 console.info('[AT AI]', VERSION, 'aktif');
 })();
 </script>`;
@@ -446,7 +722,7 @@ html=html.includes('<script>\n    (() => {')?html.replace('<script>\n    (() => 
 html=html.includes('</body>')?html.replace('</body>',menuBridge+'\n</body>'):html+menuBridge;
 fs.writeFileSync(INDEX,html,'utf8');
 fs.writeFileSync(HEADERS,'/*\n  Cache-Control: no-store\n','utf8');
-if(!html.includes('/at-ai-app-v142.js?v='+CACHE_BUST))throw new Error('[F60.53] Cache bust failed.');
-if(!html.includes(BOOT_GUARD_VERSION))throw new Error('[F60.53] Boot state guard injection failed.');
-if(!html.includes(MENU_BRIDGE_VERSION))throw new Error('[F60.53] Menu bridge injection failed.');
-console.log('[AT AI] V16.9.1F60.53 build complete: boot state guard plus lightweight drawer avoid mobile home freezes.');
+if(!html.includes('/at-ai-app-v142.js?v='+CACHE_BUST))throw new Error('[F60.54] Cache bust failed.');
+if(!html.includes(BOOT_GUARD_VERSION))throw new Error('[F60.54] Boot state guard injection failed.');
+if(!html.includes(MENU_BRIDGE_VERSION))throw new Error('[F60.54] Menu bridge injection failed.');
+console.log('[AT AI] V16.9.1F60.54 build complete: lightweight drawer plus single-race career mode avoid mobile freezes.');
