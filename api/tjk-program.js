@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-PARSER-V12-CSV-FALLBACK';
+const VERSION = 'TJK-PARSER-V13-SELECTED-CSV-FIRST';
 const TJK_ROOT =
   'https://www.tjk.org/TR/YarisSever/Info/Page/GunlukYarisProgrami';
 const TJK_CITY =
@@ -2074,6 +2074,8 @@ export default async function handler(req, res) {
     Boolean(requestedCityId || requestedCityName);
   const forceCsvFallback =
     String(req.query?.forceCsvFallback || '') === '1';
+  const selectedCsvMode =
+    cityScope && !citiesOnly;
 
   try {
     const directCity = cityScope
@@ -2097,7 +2099,7 @@ export default async function handler(req, res) {
           selectedCity,
           isoDate,
           {
-            forceCsv: forceCsvFallback
+            forceCsv: forceCsvFallback || selectedCsvMode
           }
         );
 
@@ -2249,7 +2251,7 @@ export default async function handler(req, res) {
           selectedCity,
           isoDate,
           {
-            forceCsv: forceCsvFallback
+            forceCsv: forceCsvFallback || selectedCsvMode
           }
         );
 
@@ -2320,7 +2322,7 @@ export default async function handler(req, res) {
           city,
           isoDate,
           {
-            forceCsv: forceCsvFallback
+            forceCsv: forceCsvFallback || selectedCsvMode
           }
         );
 
