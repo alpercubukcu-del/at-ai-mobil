@@ -249,6 +249,8 @@ function selectedProgramUrl(state) {
   if (!date || !cityId) return '';
   const params = new URLSearchParams({ date, scope: 'selected', enrichIds: '1', t: String(Date.now()) });
   params.set('cityId', cityId);
+  const selected = currentRaceValue();
+  if (selected && selected !== 'all') params.set('raceNo', selected);
   const cityName = stateCityName(state);
   if (cityName) params.set('cityName', cityName);
   return '/api/tjk-program?' + params.toString();
@@ -372,7 +374,25 @@ async function refreshProgramWithIds(state, content) {
   }
   const data = await fetchJson(url, 33000);
   const selectedId = String(data.selectedCityId || state.city || '');
-  const races = data?.racesByCity?.[selectedId] || data?.programs?.[selectedId] || [];
+  const incomingRaces = data?.racesByCity?.[selectedId] || data?.programs?.[selectedId] || [];
+  const selected = currentRaceValue();
+  let races = incomingRaces;
+  if (
+    selected &&
+    selected !== 'all' &&
+    incomingRaces.length &&
+    Array.isArray(state.races) &&
+    state.races.length > incomingRaces.length
+  ) {
+    const incoming = incomingRaces[0];
+    let replaced = false;
+    races = state.races.map(race => {
+      if (String(raceNo(race)) !== String(selected)) return race;
+      replaced = true;
+      return incoming;
+    });
+    if (!replaced) races = [...races, incoming];
+  }
   const incomingCities = Array.isArray(data.cities) ? data.cities : [];
   const oldCities = Array.isArray(state.cities) ? state.cities : [];
   const cities = incomingCities.length === 1 && oldCities.length > 1 ? oldCities : (incomingCities.length ? incomingCities : oldCities);
