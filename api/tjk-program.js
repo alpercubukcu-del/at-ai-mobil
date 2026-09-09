@@ -712,12 +712,17 @@ function parseHtmlHorseIds(html) {
 
 function horseLookupKeys(name = '') {
   const base = norm(name);
+  const noParen = base
+    .replace(/\s*\(\d+\)\s*$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
   const stripped = base
+    .replace(/\s*\(\d+\)\s*$/g, '')
     .replace(/\b(?:KG|SK|DB|KUL|GKR|SGKR|GKG|YP|AP|DS)\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-  return [...new Set([base, stripped].filter(Boolean))];
+  return [...new Set([base, noParen, stripped].filter(Boolean))];
 }
 
 function addHorseIdLookupKeys(target, name, id) {
