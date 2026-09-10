@@ -1,15 +1,15 @@
 /* AT AI Mobil - V16.9.1F33 CAREER ARCHIVE SCORE GUARD
    - Replaces the F32 daily archive bridge.
-   - Archives Career races only when at least one horse has a numeric score.
+   - Archives Career races once the race result structure exists.
    - Prevents a scoreless browser restore/state from overwriting a scored archive row.
-   - Removes stale all-scoreless race rows before archive/PDF restore paths can use them.
+   - Keeps scoreless-but-complete mobile rows so the phone does not recalculate forever.
 */
 (() => {
 'use strict';
 if (window.__AT_CAREER_ARCHIVE_SCORE_GUARD_V1691F33__) return;
 window.__AT_CAREER_ARCHIVE_SCORE_GUARD_V1691F33__ = true;
 
-const VERSION = 'CAREER-ARCHIVE-SCORE-GUARD-V16.9.1F33';
+const VERSION = 'CAREER-ARCHIVE-SCORE-GUARD-V16.9.1F33+F60.48-KEEP-MOBILE-ROWS';
 const DB_NAME = 'at_ai_daily_career_archive_v146';
 const STORE = 'entries';
 const ENGINE = typeof CAREER_UI_VERSION !== 'undefined' ? CAREER_UI_VERSION : 'CAREER-UI';
@@ -234,7 +234,7 @@ function updateVisibleArchiveCount(date, city) {
     try {
       const rows = (await listDate(date)).filter(r => {
         if (r?.kind !== 'race' || clean(r?.city) !== clean(city)) return false;
-        return recordScoreQuality(r).scoredHorseCount > 0;
+        return recordScoreQuality(r).horseCount > 0;
       });
       const count = document.getElementById('careerArchiveCountV146');
       if (count) count.textContent = rows.length ? `(${rows.length})` : '';
@@ -295,6 +295,8 @@ async function archiveCareerResult(result, selectedRaces = [], raceValue = 'all'
 
   let saved = 0;
   let skippedScoreless = 0;
+  let storedScoreless = 0;
+  let skippedEmpty = 0;
   let keptScoredExisting = 0;
   let skippedWorseThanExisting = 0;
   let deletedScoreless = 0;
@@ -308,9 +310,10 @@ async function archiveCareerResult(result, selectedRaces = [], raceValue = 'all'
     const existingQuality = recordScoreQuality(existing);
     const scoreQuality = normalizeRaceScores(race);
     normalizedScoreCount += scoreQuality.normalizedScoreCount;
+    const fingerprint = raceFingerprint(programRace || race);
 
-    if (scoreQuality.horseCount <= 0 || scoreQuality.scoredHorseCount <= 0) {
-      skippedScoreless += 1;
+    if (scoreQuality.horseCount <= 0) {
+      skippedEmpty += 1;
       if (existingQuality.scoredHorseCount > 0) {
         keptScoredExisting += 1;
       } else if (existing?.key && await deleteRecord(existing.key)) {
@@ -319,8 +322,16 @@ async function archiveCareerResult(result, selectedRaces = [], raceValue = 'all'
       continue;
     }
 
-    const fingerprint = raceFingerprint(programRace || race);
-    if (existingQuality.scoredHorseCount > scoreQuality.scoredHorseCount && existing?.fingerprint === fingerprint) {
+    if (scoreQuality.scoredHorseCount <= 0) {
+      skippedScoreless += 1;
+      if (existingQuality.scoredHorseCount > 0 && existing?.fingerprint === fingerprint) {
+        keptScoredExisting += 1;
+        continue;
+      }
+      storedScoreless += 1;
+    }
+
+    if (scoreQuality.scoredHorseCount > 0 && existingQuality.scoredHorseCount > scoreQuality.scoredHorseCount && existing?.fingerprint === fingerprint) {
       skippedWorseThanExisting += 1;
       continue;
     }
@@ -347,6 +358,7 @@ async function archiveCareerResult(result, selectedRaces = [], raceValue = 'all'
       archivedAt:new Date().toISOString(),
       archiveBridgeVersion:VERSION,
       archiveScoreGuardVersion:VERSION,
+      archiveScoreless:scoreQuality.scoredHorseCount <= 0,
       archiveBridgeReason:reason
     };
     if (await putRecord(record)) saved += 1;
@@ -359,15 +371,15 @@ async function archiveCareerResult(result, selectedRaces = [], raceValue = 'all'
   updateVisibleArchiveCount(date, city);
   try {
     window.dispatchEvent(new CustomEvent('at-ai:daily-career-archive-updated', {
-      detail:{ version:VERSION, date, city, saved, skippedScoreless, keptScoredExisting, skippedWorseThanExisting, deletedScoreless, reason }
+      detail:{ version:VERSION, date, city, saved, skippedScoreless, storedScoreless, skippedEmpty, keptScoredExisting, skippedWorseThanExisting, deletedScoreless, reason }
     }));
   } catch {}
-  if ((saved || skippedScoreless || deletedScoreless) && typeof console !== 'undefined') {
+  if ((saved || skippedScoreless || deletedScoreless || skippedEmpty) && typeof console !== 'undefined') {
     console.info('[AT AI]', VERSION, 'career archive score guard', {
-      reason, date, city, saved, skippedScoreless, keptScoredExisting, skippedWorseThanExisting, deletedScoreless
+      reason, date, city, saved, skippedScoreless, storedScoreless, skippedEmpty, keptScoredExisting, skippedWorseThanExisting, deletedScoreless
     });
   }
-  return { saved, reason, date, city, skippedScoreless, keptScoredExisting, skippedWorseThanExisting, deletedScoreless };
+  return { saved, reason, date, city, skippedScoreless, storedScoreless, skippedEmpty, keptScoredExisting, skippedWorseThanExisting, deletedScoreless };
 }
 
 async function repairFromState(reason = 'repair') {
@@ -392,8 +404,8 @@ async function pruneScorelessForDate(date, city = '') {
       if (await putRecord(row)) normalized += 1;
       continue;
     }
-    if (quality.scoredHorseCount > 0) continue;
-    if (quality.horseCount <= 0 || recordMatchesProgram(row) || !city) {
+    if (quality.horseCount > 0) continue;
+    if (recordMatchesProgram(row) || !city) {
       if (await deleteRecord(row.key)) deleted += 1;
     }
   }
@@ -422,8 +434,8 @@ async function pruneScorelessForCurrentSelection() {
       if (await putRecord(rec)) normalized += 1;
       continue;
     }
-    if (quality.scoredHorseCount > 0) continue;
-    if (quality.horseCount <= 0 || recordMatchesProgram(rec)) {
+    if (quality.horseCount > 0) continue;
+    if (recordMatchesProgram(rec)) {
       if (await deleteRecord(rec.key)) deleted += 1;
     }
   }
@@ -466,10 +478,12 @@ async function prepareRecordAction(key, reason = 'record-action') {
     if (quality.scoredHorseCount > 0) return true;
   }
 
+  if (quality.horseCount > 0) return true;
+
   if (rec?.key && await deleteRecord(rec.key)) {
     updateVisibleArchiveCount(rec.date, rec.city);
   }
-  try { alert('Bu arsiv kaydi puansiz oldugu icin kaldirildi. Lutfen bu kosuyu Yeniden Hesapla ile tekrar olusturun.'); } catch {}
+  try { alert('Bu arsiv kaydi bos oldugu icin kaldirildi. Lutfen bu kosuyu Yeniden Hesapla ile tekrar olusturun.'); } catch {}
   return false;
 }
 
