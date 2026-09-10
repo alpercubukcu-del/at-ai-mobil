@@ -1,0 +1,14 @@
+const fs=require('fs');
+const path=require('path');
+const {execFileSync}=require('child_process');
+const ROOT=__dirname,BASE=path.join(ROOT,'build-runtime-v1691f640.cjs'),APP=path.join(ROOT,'public','at-ai-app-v142.js'),INDEX=path.join(ROOT,'public','index.html');
+if(!fs.existsSync(BASE))throw new Error('[V16.9.1F60.41] Missing F60.40 base build.');
+execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
+const app=fs.readFileSync(APP,'utf8');
+for(const token of['TJK-ANNUAL-ARCHIVE-FIVE-MODEL-V14.1-F60.41-COOPERATIVE-SCORING','modelScoresCooperativeV1691F641','referans ${done}/${total}','ANNUAL-FIVE-MODEL-ANALYSIS-ARCHIVE-V16.9.1F60.40'])if(!app.includes(token))throw new Error('[V16.9.1F60.41] Verification failed: '+token);
+new Function(app);
+let html=fs.readFileSync(INDEX,'utf8');
+html=html.replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169241');
+fs.writeFileSync(INDEX,html,'utf8');
+if(!html.includes('/at-ai-app-v142.js?v=169241'))throw new Error('[V16.9.1F60.41] Cache bust failed.');
+console.log('[AT AI] V16.9.1F60.41 build complete: cooperative annual model scoring and granular progress.');

@@ -116,7 +116,6 @@ function bind(){
 }
 
 bind();
-const mo=new MutationObserver(bind);try{mo.observe(document.documentElement,{subtree:true,childList:true});}catch{}
 window.addEventListener('pageshow',bind,{passive:true});
 window.__AT_COUPON_MENU_COMPACT_VERSION__=VERSION;
 console.info('[AT AI]',VERSION,'aktif — eski bahis kartları gizli, kupon ekranı kompakt.');

@@ -10,6 +10,7 @@ if (window.__AT_ANNUAL_CAREER_FIVE_MODEL_V14__) return;
 window.__AT_ANNUAL_CAREER_FIVE_MODEL_V14__ = true;
 
 const VERSION = 'TJK-ANNUAL-ARCHIVE-FIVE-MODEL-V14.1-TOP3-YEARBEST';
+const COOPERATIVE_SCORING_VERSION_V1691F641 = 'TJK-ANNUAL-ARCHIVE-FIVE-MODEL-V14.1-F60.41-COOPERATIVE-SCORING';
 const ARCHIVE_DB = 'at_ai_tjk_annual_archive_v13';
 const ARCHIVE_STORE = 'races';
 const CAREER_DB = 'at_ai_tjk_annual_career_v138';
@@ -258,6 +259,38 @@ function annualTop3YearBestScore(currentCareer, races, useCondition) {
   };
 }
 function scoreRows(careerData, races, useCondition) { return annualTop3YearBestScore(careerData, races, useCondition); }
+const nextTaskV1691F641 = () => new Promise(resolve => setTimeout(resolve, 0));
+async function scoreRowsCooperativeV1691F641(currentCareer, races, useCondition, progress) {
+  const path = currentCareer?.fullPathBefore || currentCareer?.roadmap || [];
+  const list = Array.isArray(races) ? races : [], byYear = new Map();
+  let referencesEvaluated = 0;
+  for (let raceIndex = 0; raceIndex < list.length; raceIndex++) {
+    const race = list[raceIndex];
+    if (race?.ok !== false) {
+      const year = Number(race?.sourceYear || String(race?.date || '').slice(0, 4)) || null;
+      const refs = year ? (Array.isArray(race?.top3) ? race.top3 : []).filter(ref => { const f = Number(ref?.finish ?? ref?.rank ?? ref?.sira); return Number.isFinite(f) ? f >= 1 && f <= 3 : true; }).slice(0, 3) : [];
+      for (const ref of refs) {
+        const rp = ref?.career?.fullPathBefore || ref?.career?.roadmap || [];
+        if (!path.length || !rp.length) continue;
+        referencesEvaluated++;
+        const raw = typeof orderedPathSimilarity === 'function' ? orderedPathSimilarity(path, rp) : 0;
+        const pathScore = Math.round(Math.max(0, Math.min(1, Number(raw) || 0)) * 100);
+        const condition = useCondition ? Math.max(0, Math.min(100, Number(race?.transferabilityScore ?? race?.raceConditionSimilarity ?? 100) || 0)) : 100;
+        const scored = annualPartialScoreV1691F19(pathScore, condition, path, rp);
+        const item = { year, score: scored.score, baseScore: scored.baseScore, pathScore, conditionScore: condition, partialSupportScore: scored.partialSupportScore, partialSupportUsed: scored.partialSupportUsed, partialSupport: scored.partialSupport, partialSupportVersion: ANNUAL_PARTIAL_SUPPORT_VERSION, historicalHorse: ref?.horseName || '', historicalHorseId: ref?.horseId || '', historicalFinish: Number(ref?.finish ?? ref?.rank ?? ref?.sira) || null, raceDate: race?.date || '', raceCity: race?.city || '', raceNo: race?.raceNo || '', referenceType: race?.referenceType || '', currentPathCount: path.length, referencePathCount: rp.length, sourceRule: 'ANNUAL_TOP3_YEAR_BEST_WITH_PARTIAL_V19' };
+        const prev = byYear.get(year);
+        if (annualBetterReferenceV1691F19(item, prev)) byYear.set(year, item);
+      }
+    }
+    if ((raceIndex + 1) % 4 === 0 || raceIndex + 1 === list.length) {
+      progress?.(raceIndex + 1, list.length);
+      await nextTaskV1691F641();
+    }
+  }
+  const rows = [...byYear.values()].sort((a, b) => b.year - a.year);
+  const strongest = rows.length ? [...rows].sort(annualSortReferencesV1691F19)[0] : null;
+  return { score: strongest?.score ?? null, strongest, rows, baseScore: strongest?.baseScore ?? null, partialSupportScore: strongest?.partialSupportScore ?? 0, partialSupportUsed: !!strongest?.partialSupportUsed, partialSupport: strongest?.partialSupport ?? null, partialSupportVersion: ANNUAL_PARTIAL_SUPPORT_VERSION, coverageYears: rows.length, strongYears: rows.filter(x => x.score >= 85).length, supportYears: rows.filter(x => x.score >= 70).length, latestScore: rows[0]?.score ?? null, referencesEvaluated, yearAggregation: 'BEST_REFERENCE_PER_YEAR', referenceRule: 'EACH_HISTORICAL_RACE_TOP3_PRE_RACE_CAREER' };
+}
 function composite(ch) {
   try { if (typeof compositeScoreV11 === 'function') return compositeScoreV11(ch); } catch {}
   const w = { exact: .4, twin: .25, family: .2, career: .15 }; let sum = 0, used = 0;
@@ -269,6 +302,19 @@ function modelScores(c, models) {
   const all = [...models.EXACT, ...models.CONDITION_TWIN, ...models.RACE_FAMILY].filter((r, i, a) => a.findIndex(x => x.date === r.date && x.city === r.city && Number(x.raceNo) === Number(r.raceNo)) === i);
   const careerScore = scoreRows(c, all, false);
   return { exact, twin, family, career: careerScore, composite: composite({ exact, twin, family, career: careerScore }) };
+}
+async function modelScoresCooperativeV1691F641(c, models, onProgress) {
+  const channels = [['exact', models.EXACT, true], ['twin', models.CONDITION_TWIN, true], ['family', models.RACE_FAMILY, true]];
+  const result = {};
+  for (let i = 0; i < channels.length; i++) {
+    const [id, rows, useCondition] = channels[i];
+    result[id] = await scoreRowsCooperativeV1691F641(c, rows, useCondition, (done, total) => onProgress?.(id, i + 1, done, total));
+  }
+  const all = [...models.EXACT, ...models.CONDITION_TWIN, ...models.RACE_FAMILY].filter((r, i, a) => a.findIndex(x => x.date === r.date && x.city === r.city && Number(x.raceNo) === Number(r.raceNo)) === i);
+  result.career = await scoreRowsCooperativeV1691F641(c, all, false, (done, total) => onProgress?.('career', 4, done, total));
+  result.composite = composite(result);
+  await nextTaskV1691F641();
+  return result;
 }
 function scoreVal(x, id) { return finite(x?.scores?.[id]?.score); }
 function ranking(data, id) {
@@ -311,8 +357,20 @@ async function runInternalF6023() {
     const models = { EXACT: [], CONDITION_TWIN: [], RACE_FAMILY: [] };
     for (const r of refs) models[r.referenceType]?.push(r);
     let hd = 0;
-    const horses = await mapLimit(ctx.horses, 2, async horse => {
-      try { const c = await career(horse.id, ctx.date); hd++; if (out) out.innerHTML = `<div class="aa-note">Bugünkü atlar: ${hd}/${ctx.horses.length}</div>`; return { horse, career: c, scores: modelScores(c, models) }; }
+    const modelNames = { exact:'Tam', twin:'İkiz', family:'Aile', career:'Kariyer' };
+    const horses = await mapLimit(ctx.horses, 1, async horse => {
+      try {
+        const horseNo = hd + 1;
+        if (out) out.innerHTML = `<div class="aa-note">Bugünkü atlar ve 1/2/3 at modelleri: ${horseNo}/${ctx.horses.length} · kariyer alınıyor…</div>`;
+        const c = await career(horse.id, ctx.date);
+        const scores = await modelScoresCooperativeV1691F641(c, models, (id, modelNo, done, total) => {
+          if (out) out.innerHTML = `<div class="aa-note">Bugünkü atlar ve 1/2/3 at modelleri: ${horseNo}/${ctx.horses.length} · ${modelNames[id] || id} ${modelNo}/4 · referans ${done}/${total}</div>`;
+        });
+        hd++;
+        if (out) out.innerHTML = `<div class="aa-note">Bugünkü atlar tamamlandı: ${hd}/${ctx.horses.length}</div>`;
+        await nextTaskV1691F641();
+        return { horse, career: c, scores };
+      }
       catch (e) { return { horse, career: { ok: false, fullPathBefore: [] }, scores: { exact: { score: null }, twin: { score: null }, family: { score: null }, career: { score: null }, composite: { score: null } }, error: e?.message || String(e) }; }
     });
     const prepared = {
@@ -351,6 +409,6 @@ document.addEventListener('click', event => {
   if (!btn || event.isTrusted) return;
   event.preventDefault(); event.stopImmediatePropagation(); run();
 }, true);
-window.ATAnnualCareerFiveModelV138 = { version: VERSION, run, pending: () => Boolean(sharedRunPromiseF6023), scoringRule: 'TOP3_EACH_RACE_THEN_BEST_PER_YEAR_WITH_PARTIAL_SUPPORT_F19' };
+window.ATAnnualCareerFiveModelV138 = { version: VERSION, cooperativeScoringVersion: COOPERATIVE_SCORING_VERSION_V1691F641, run, pending: () => Boolean(sharedRunPromiseF6023), scoringRule: 'TOP3_EACH_RACE_THEN_BEST_PER_YEAR_WITH_PARTIAL_SUPPORT_F19' };
 console.info('[AT AI]', VERSION, 'aktif — yıllık arşiv ilk 3 ayrı kariyer yolu + yılın en iyi referansı');
 })();

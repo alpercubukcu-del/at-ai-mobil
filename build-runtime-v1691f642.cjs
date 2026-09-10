@@ -1,0 +1,12 @@
+const fs=require('fs');
+const path=require('path');
+const {execFileSync}=require('child_process');
+const ROOT=__dirname,BASE=path.join(ROOT,'build-runtime-v1691f641.cjs'),EXTRA=path.join(ROOT,'daily-source-archive-v1691f642.js'),APP=path.join(ROOT,'public','at-ai-app-v142.js'),INDEX=path.join(ROOT,'public','index.html');
+if(!fs.existsSync(BASE)||!fs.existsSync(EXTRA))throw new Error('[F60.42] Missing base or daily source archive module.');
+execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
+let app=fs.readFileSync(APP,'utf8');app+='\n\n'+fs.readFileSync(EXTRA,'utf8').trim()+'\n';
+for(const token of['DAILY-SOURCE-ARCHIVE-V16.9.1F60.42','Tümünü Sırayla İndir','leakageGuardVersion','daily-source-v642','TJK-ANNUAL-ARCHIVE-FIVE-MODEL-V14.1-F60.41-COOPERATIVE-SCORING'])if(!app.includes(token))throw new Error('[F60.42] Verification failed: '+token);
+new Function(app);fs.writeFileSync(APP,app,'utf8');
+let html=fs.readFileSync(INDEX,'utf8');html=html.replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169242');fs.writeFileSync(INDEX,html,'utf8');
+if(!html.includes('/at-ai-app-v142.js?v=169242'))throw new Error('[F60.42] Cache bust failed.');
+console.log('[AT AI] V16.9.1F60.42 build complete: daily source archive and shared local cache.');

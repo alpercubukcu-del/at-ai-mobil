@@ -1,0 +1,16 @@
+const fs=require('fs');
+const path=require('path');
+const {execFileSync}=require('child_process');
+const ROOT=__dirname,BASE=path.join(ROOT,'build-runtime-v1691f642.cjs'),EXTRA=path.join(ROOT,'daily-package-planner-v1691f645.js'),APP=path.join(ROOT,'public','at-ai-app-v142.js'),INDEX=path.join(ROOT,'public','index.html');
+if(!fs.existsSync(BASE))throw new Error('[F60.44] Missing F60.42 complete asset builder.');
+if(!fs.existsSync(EXTRA))throw new Error('[F60.45] Missing daily package planner module.');
+execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
+let app=fs.readFileSync(APP,'utf8');
+app+='\n\n'+fs.readFileSync(EXTRA,'utf8').trim()+'\n';
+for(const token of['TJK-ANNUAL-ARCHIVE-V14.2-SCHEMA-REPAIR','lastDbWriteError','ANNUAL-DB-COEXISTENCE-V16.9.1F60.43','PROCESS-FLOW-PLANNER-V16.9.1F60.45','Yerel Katalogu Say','Seçilen Benzer Yarışları İndir'])if(!app.includes(token))throw new Error('[F60.45] Verification failed: '+token);
+new Function(app);
+fs.writeFileSync(APP,app,'utf8');
+let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169245');
+fs.writeFileSync(INDEX,html,'utf8');
+if(!html.includes('/at-ai-app-v142.js?v=169245'))throw new Error('[F60.45] Cache bust failed.');
+console.log('[AT AI] V16.9.1F60.45 build complete: annual queue + local reference counting + selected daily package downloads.');
