@@ -181,10 +181,41 @@ function recordMatchesProgramA(record) {
   return Boolean(race && record.fingerprint && record.fingerprint === raceFingerprintA(race));
 }
 
+function itemCareerScoreA(item) {
+  const sim = item?.galibiyetBenzerligi || {};
+  const candidates = [
+    sim.rankingRawScore,
+    sim.score,
+    sim.evidenceScore,
+    sim.finalScore,
+    sim.displayScore,
+    sim?.strongest?.rankingRawScore,
+    sim?.strongest?.score
+  ];
+  for (const value of candidates) {
+    const score = finiteA(value);
+    if (score !== null) return score;
+  }
+  return null;
+}
+
+function recordHasCareerEvidenceA(record) {
+  const quality = record?.scoreQuality || record?.meta?.scoreQuality;
+  const scoredHorseCount = finiteA(quality?.scoredHorseCount);
+  if (scoredHorseCount !== null && scoredHorseCount > 0) return true;
+  const horses = Array.isArray(record?.race?.horses) ? record.race.horses : [];
+  return horses.some(item => itemCareerScoreA(item) !== null);
+}
+
+function recordCanRestoreA(record) {
+  return recordMatchesProgramA(record) && recordHasCareerEvidenceA(record);
+}
+
 function resultMetaA(result = {}) {
   return {
     type: result.type || 'career',
     version: result.version || ENGINE,
+    fastProgressVersion: result.fastProgressVersion || null,
     careerApiVersion: result.careerApiVersion || null,
     roadmapApiVersion: result.roadmapApiVersion || null,
     raceMetaApiVersion: result.raceMetaApiVersion || null,
@@ -231,7 +262,7 @@ async function archiveCalculatedResultA(result, selectedRaces = [], raceValue = 
 }
 
 function restoreRecordIntoStateA(record, extraRecords = []) {
-  const records = [record, ...extraRecords].filter(Boolean);
+  const records = [record, ...extraRecords].filter(recordCanRestoreA);
   if (!records.length) return null;
   const base = records[0];
   const existing = (() => {
@@ -283,7 +314,7 @@ async function tryRestoreSelectedA() {
 
   if (raceValue !== 'all') {
     const rec = await idbGetA(raceKeyA(date, city, raceValue));
-    if (!recordMatchesProgramA(rec)) return false;
+    if (!recordCanRestoreA(rec)) return false;
     const result = restoreRecordIntoStateA(rec);
     if (!result) return false;
     if (typeof renderCareerAnalysis === 'function') renderCareerAnalysis(result, raceValue);
@@ -296,7 +327,7 @@ async function tryRestoreSelectedA() {
   const records = [];
   for (const race of programRaces) {
     const rec = await idbGetA(raceKeyA(date, city, race.no));
-    if (!recordMatchesProgramA(rec)) return false;
+    if (!recordCanRestoreA(rec)) return false;
     records.push(rec);
   }
   const result = restoreRecordIntoStateA(records[0], records.slice(1));
@@ -500,6 +531,10 @@ async function renderArchiveDialogA() {
     if (!rec) return;
     if (!recordMatchesProgramA(rec)) {
       alert(`Bu kaydı açmak için önce ${rec.date} / ${rec.cityName || rec.city} programını yükleyin. Program koşu listesi de arşivdeki kayıtla aynı olmalıdır.`);
+      return;
+    }
+    if (!recordHasCareerEvidenceA(rec)) {
+      alert(`${rec.raceNo}. Koşu arşiv kaydında Kariyer Kanıtı puanı yok. Bu koşuyu Yeniden Hesapla ile tekrar hazırlayın.`);
       return;
     }
     const select = $a('analysisRace');
