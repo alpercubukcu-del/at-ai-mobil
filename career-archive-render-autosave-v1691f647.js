@@ -1,7 +1,8 @@
-/* AT AI Mobil - V16.9.1F60.47 CAREER ARCHIVE RENDER AUTOSAVE
+/* AT AI Mobil - V16.9.1F60.48 CAREER ARCHIVE RENDER AUTOSAVE
    - V13.9 intentionally keeps Career results out of localStorage.
    - Persist the visible Career result to the daily IndexedDB archive after
      runAnalysis/renderCareerAnalysis so a phone refresh does not force recalc.
+   - Store scoreless-but-complete mobile rows, while preserving scored rows.
    - Does not change scoring, ranking, annual archive, PDF, or coupon rules.
 */
 (() => {
@@ -9,7 +10,7 @@
 if (window.__AT_CAREER_ARCHIVE_RENDER_AUTOSAVE_V1691F647__) return;
 window.__AT_CAREER_ARCHIVE_RENDER_AUTOSAVE_V1691F647__ = true;
 
-const VERSION = 'CAREER-ARCHIVE-RENDER-AUTOSAVE-V16.9.1F60.47';
+const VERSION = 'CAREER-ARCHIVE-RENDER-AUTOSAVE-V16.9.1F60.48';
 const DB_NAME = 'at_ai_daily_career_archive_v146';
 const STORE = 'entries';
 const ENGINE = typeof CAREER_UI_VERSION !== 'undefined' ? CAREER_UI_VERSION : 'CAREER-UI';
@@ -76,6 +77,39 @@ function raceKey(date, city, raceNo) {
   return `race|${clean(date)}|${clean(city)}|${clean(raceNo)}`;
 }
 
+function setupStore(db, tx) {
+  const store = db.objectStoreNames.contains(STORE)
+    ? tx.objectStore(STORE)
+    : db.createObjectStore(STORE, { keyPath:'key' });
+  if (!store.indexNames.contains('date')) store.createIndex('date', 'date', { unique:false });
+  if (!store.indexNames.contains('kind')) store.createIndex('kind', 'kind', { unique:false });
+}
+
+function needsRepair(db) {
+  try {
+    if (!db.objectStoreNames.contains(STORE)) return true;
+    const store = db.transaction(STORE, 'readonly').objectStore(STORE);
+    return !store.indexNames.contains('date') || !store.indexNames.contains('kind');
+  } catch {
+    return true;
+  }
+}
+
+function repairDb(version) {
+  return new Promise(resolve => {
+    let req;
+    try { req = indexedDB.open(DB_NAME, Math.max(2, Number(version || 1) + 1)); } catch { return resolve(null); }
+    req.onupgradeneeded = () => {
+      try { setupStore(req.result, req.transaction); } catch {}
+    };
+    req.onsuccess = () => {
+      try { req.result.onversionchange = () => { try { req.result.close(); } catch {} }; } catch {}
+      resolve(req.result);
+    };
+    req.onerror = req.onblocked = () => resolve(null);
+  });
+}
+
 function openDb() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise(resolve => {
@@ -83,15 +117,22 @@ function openDb() {
     let req;
     try { req = indexedDB.open(DB_NAME, 1); } catch { return resolve(null); }
     req.onupgradeneeded = () => {
-      const db = req.result;
-      const store = db.objectStoreNames.contains(STORE)
-        ? req.transaction.objectStore(STORE)
-        : db.createObjectStore(STORE, { keyPath:'key' });
-      if (!store.indexNames.contains('date')) store.createIndex('date', 'date', { unique:false });
-      if (!store.indexNames.contains('kind')) store.createIndex('kind', 'kind', { unique:false });
+      try { setupStore(req.result, req.transaction); } catch {}
     };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = req.onblocked = () => resolve(null);
+    req.onsuccess = async () => {
+      const db = req.result;
+      try { db.onversionchange = () => { try { db.close(); } catch {} }; } catch {}
+      if (needsRepair(db)) {
+        const nextVersion = db.version;
+        try { db.close(); } catch {}
+        const repaired = await repairDb(nextVersion);
+        if (repaired) return resolve(repaired);
+        dbPromise = null;
+        return resolve(null);
+      }
+      resolve(db);
+    };
+    req.onerror = req.onblocked = () => { dbPromise = null; resolve(null); };
   });
   return dbPromise;
 }
@@ -107,6 +148,20 @@ async function putRecord(record) {
       tx.onerror = tx.onabort = () => resolve(false);
     } catch {
       resolve(false);
+    }
+  });
+}
+
+async function getRecord(key) {
+  const db = await openDb();
+  if (!db) return null;
+  return new Promise(resolve => {
+    try {
+      const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
     }
   });
 }
@@ -278,22 +333,38 @@ async function archiveVisible(result, raceFilter = '', reason = 'manual') {
 
   let saved = 0;
   let skippedScoreless = 0;
+  let storedScoreless = 0;
+  let skippedEmpty = 0;
   for (const race of races) {
     if (!race?.no) continue;
     const quality = scoreQuality(race);
+    if (!quality.horseCount) {
+      skippedEmpty += 1;
+      continue;
+    }
     if (!quality.scoredHorseCount) {
       skippedScoreless += 1;
-      continue;
+      storedScoreless += 1;
     }
 
     const programRace = currentProgramRace(race.no);
+    const key = raceKey(date, city, race.no);
+    const fingerprint = raceFingerprint(programRace || race);
+    const existing = await getRecord(key);
+    const existingQuality = scoreQuality(existing?.race || {});
+    if (!quality.scoredHorseCount && existingQuality.scoredHorseCount > 0 && existing?.fingerprint === fingerprint) {
+      continue;
+    }
+    if (quality.scoredHorseCount > 0 && existingQuality.scoredHorseCount > quality.scoredHorseCount && existing?.fingerprint === fingerprint) {
+      continue;
+    }
     const meta = {
       ...resultMeta(career),
       scoreQuality:quality,
       archiveBridgeReason:reason
     };
     const record = {
-      key:raceKey(date, city, race.no),
+      key,
       kind:'race',
       schemaVersion:'DAILY-CAREER-ARCHIVE-V14.6',
       engine:ENGINE,
@@ -301,13 +372,14 @@ async function archiveVisible(result, raceFilter = '', reason = 'manual') {
       city,
       cityName:clean(career.cityName || currentCityName()),
       raceNo:String(race.no),
-      fingerprint:raceFingerprint(programRace || race),
+      fingerprint,
       meta,
       race,
       scoreQuality:quality,
       generatedAt:career.generatedAt || new Date().toISOString(),
       archivedAt:new Date().toISOString(),
       archiveRenderAutosaveVersion:VERSION,
+      archiveScoreless:quality.scoredHorseCount <= 0,
       archiveBridgeReason:reason
     };
     if (await putRecord(record)) saved += 1;
@@ -317,13 +389,13 @@ async function archiveVisible(result, raceFilter = '', reason = 'manual') {
   await updateArchiveCount(date, city);
   try {
     window.dispatchEvent(new CustomEvent('at-ai:daily-career-archive-updated', {
-      detail:{ version:VERSION, date, city, saved, skippedScoreless, reason }
+      detail:{ version:VERSION, date, city, saved, skippedScoreless, storedScoreless, skippedEmpty, reason }
     }));
   } catch {}
   if (saved && typeof console !== 'undefined') {
-    console.info('[AT AI]', VERSION, `${saved} gorunur kariyer kosusu gunluk arsive yazildi`, { reason, date, city });
+    console.info('[AT AI]', VERSION, `${saved} gorunur kariyer kosusu gunluk arsive yazildi`, { reason, date, city, storedScoreless, skippedEmpty });
   }
-  return { saved, skippedScoreless, reason, date, city };
+  return { saved, skippedScoreless, storedScoreless, skippedEmpty, reason, date, city };
 }
 
 function scheduleArchive(result, raceFilter, reason) {
