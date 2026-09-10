@@ -208,7 +208,8 @@ window.ATCouponDecisionV1671={...oldApi,VERSION,audit,open:openCareerOnly,comput
 try{buildTicketsV11=buildCareerTickets}catch{}
 try{buildTickets=buildCareerTickets}catch{}
 
-// Ticket creation calls the patch functions directly; avoid observing all document renders.
+const mo=new MutationObserver(()=>{patchCouponUi();patchTicketUi()});
+try{mo.observe(document.documentElement,{subtree:true,childList:true})}catch{}
 patchCouponUi();patchTicketUi();
 window.ATCouponCareerOnlyV1691F1={VERSION,SOURCE_ID,audit,buildCareerTickets,scoreRows};
 console.info('[AT AI]',VERSION,'aktif — kupon yalnız Kariyer/Hazırlık sıralamasından; tek yalnız açık üstünlükte.');

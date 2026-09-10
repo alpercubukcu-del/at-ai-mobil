@@ -114,7 +114,8 @@ document.addEventListener('click',e=>{
 // Eski fonksiyon çağrıları da artık inline listeye yönlenir.
 try{openBetSheetV117=openDrop;closeBetSheetV117=closeDrop;}catch{}
 
-// Bind at boot/pageshow; dropdown content is handled by the click delegate above.
+const mo=new MutationObserver(()=>{cleanupLegacy();bind();});
+try{mo.observe(document.documentElement,{subtree:true,childList:true});}catch{}
 bind();
 window.addEventListener('pageshow',()=>{cleanupLegacy();bind();},{passive:true});
 window.__AT_COUPON_BET_DROPDOWN_VERSION__=VERSION;

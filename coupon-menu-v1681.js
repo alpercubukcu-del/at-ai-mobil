@@ -204,7 +204,9 @@ document.addEventListener('click',e=>{
   e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();showSetup();
 },true);
 
-// Dialog controls are created with the page; bind at lifecycle boundaries instead of every DOM change.
+const mo=new MutationObserver(()=>bind());
+try{mo.observe(document.documentElement,{subtree:true,childList:true});}catch{}
+
 bind();
 window.addEventListener('load',()=>setTimeout(bind,0));
 window.addEventListener('pageshow',bind,{passive:true});

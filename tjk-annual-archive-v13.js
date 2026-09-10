@@ -6,10 +6,9 @@
 if (window.__AT_TJK_ANNUAL_ARCHIVE_V14__) return;
 window.__AT_TJK_ANNUAL_ARCHIVE_V14__ = true;
 
-const VERSION = 'TJK-ANNUAL-ARCHIVE-V14.1-BATCH-WRITE';
-const SCHEMA_REPAIR_VERSION = 'TJK-ANNUAL-ARCHIVE-V14.2-SCHEMA-REPAIR';
+const VERSION = 'TJK-ANNUAL-ARCHIVE-V14.0';
 const DB_NAME = 'at_ai_tjk_annual_archive_v13';
-const DB_VERSION = 3;
+const DB_VERSION = 2;
 const STORE_RACES = 'races';
 const STORE_META = 'meta';
 const STORE_DAY = 'daycache';
@@ -26,7 +25,6 @@ let loadedRangeKey = '';
 let tokenUniverse = [];
 let activeUpdate = false;
 let activeSearch = false;
-let lastDbWriteError = '';
 const selectedIds = window.__AT_AA_SELECTED_IDS_V134__ instanceof Set
   ? window.__AT_AA_SELECTED_IDS_V134__
   : new Set();
@@ -103,13 +101,9 @@ function openDb() {
       if (races && !races.indexNames.contains('year')) races.createIndex('year', 'value.year', { unique: false });
       if (races && !races.indexNames.contains('date')) races.createIndex('date', 'value.date', { unique: false });
     };
-    req.onsuccess = () => {
-      const db = req.result;
-      db.onversionchange = () => { try { db.close(); } catch {} dbPromise = null; };
-      resolve(db);
-    };
-    req.onerror = () => { lastDbWriteError = req.error?.name || 'Veritabanı açılamadı'; dbPromise = null; resolve(null); };
-    req.onblocked = () => { lastDbWriteError = 'Veritabanı yükseltmesi başka sekme tarafından engellendi'; console.warn('[AT AI]', VERSION, lastDbWriteError); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => { dbPromise = null; resolve(null); };
+    req.onblocked = () => console.warn('[AT AI]', VERSION, 'IndexedDB upgrade blocked');
   });
   return dbPromise;
 }
@@ -167,9 +161,8 @@ async function rowsForYearRange(fromYear, toYear) {
     } catch { resolve([]); }
   });
 }
-async function deleteYearRows(year) {
-  lastDbWriteError = '';
-  const db = await openDb(); if (!db) { lastDbWriteError ||= 'Veritabanı açılamadı'; return false; }
+async function replaceYear(year, rows) {
+  const db = await openDb(); if (!db) return false;
   return new Promise(resolve => {
     try {
       const tx = db.transaction(STORE_RACES, 'readwrite');
@@ -177,49 +170,18 @@ async function deleteYearRows(year) {
       const index = store.indexNames.contains('year') ? store.index('year') : null;
       const req = index ? index.openCursor(IDBKeyRange.only(Number(year))) : store.openCursor();
       req.onsuccess = e => {
-        const cursor = e.target.result;
-        if (!cursor) return;
-        const row = cursor.value?.value;
-        if (index || Number(row?.year) === Number(year)) cursor.delete();
-        cursor.continue();
+        const c = e.target.result;
+        if (c) {
+          const row = c.value?.value;
+          if (!index && Number(row?.year) !== Number(year)) { c.continue(); return; }
+          c.delete(); c.continue(); return;
+        }
+        for (const row of rows) store.put({ key: row.id, value: row, updatedAt: Date.now() });
       };
-      tx.oncomplete = () => resolve(true);
-      tx.onerror = tx.onabort = () => { lastDbWriteError = tx.error?.name || 'Yıllık kayıt temizleme işlemi iptal edildi'; resolve(false); };
-    } catch (e) { lastDbWriteError = e?.name || e?.message || 'races tablosu açılamadı'; resolve(false); }
+      tx.oncomplete = () => { loadedRangeKey = ''; loadedRows = []; currentRows = []; resolve(true); };
+      tx.onerror = tx.onabort = () => resolve(false);
+    } catch { resolve(false); }
   });
-}
-async function writeRaceBatch(rows) {
-  const db = await openDb(); if (!db) { lastDbWriteError ||= 'Veritabanı açılamadı'; return false; }
-  return new Promise(resolve => {
-    try {
-      const tx = db.transaction(STORE_RACES, 'readwrite');
-      const store = tx.objectStore(STORE_RACES);
-      const now = Date.now();
-      for (const row of rows) store.put({ key: row.id, value: row, updatedAt: now });
-      tx.oncomplete = () => resolve(true);
-      tx.onerror = tx.onabort = () => { lastDbWriteError = tx.error?.name || 'Yıllık kayıt yazma işlemi iptal edildi'; resolve(false); };
-    } catch (e) { lastDbWriteError = e?.name || e?.message || 'Yıllık kayıt yazılamadı'; resolve(false); }
-  });
-}
-async function replaceYear(year, rows) {
-  const list = Array.isArray(rows) ? rows : [];
-  if (!await deleteYearRows(year)) return false;
-
-  const BATCH_SIZE = 250;
-  let written = 0;
-  for (let i = 0; i < list.length; i += BATCH_SIZE) {
-    const batch = list.slice(i, i + BATCH_SIZE);
-    if (!await writeRaceBatch(batch)) return false;
-    written += batch.length;
-    const pct = 92 + Math.round((written / Math.max(1, list.length)) * 7);
-    setStatus(`${year}: ${written}/${list.length} yarış yerel arşive yazıldı…`, pct);
-    await nextFrame();
-  }
-
-  loadedRangeKey = '';
-  loadedRows = [];
-  currentRows = [];
-  return true;
 }
 
 async function mapLimit(items, limit, worker) {
@@ -326,7 +288,7 @@ async function updateYear(year) {
       throw new Error(`TJK sayfalama doğrulaması başarısız (${final.length}/${expected}).`);
     }
     setStatus(`${year}: ${final.length} yarış yerel arşive yazılıyor…`, 92);
-    if (!await replaceYear(year, final)) throw new Error(`Yerel arşiv yazımı başarısız: ${lastDbWriteError || 'bilinmeyen IndexedDB hatası'}.`);
+    if (!await replaceYear(year, final)) throw new Error('Yerel arşiv yazımı başarısız.');
     await dbPut(STORE_META, `year:${year}`, { year, status: 'complete', recordCount: final.length, totalReported: expected, updatedAt: new Date().toISOString(), version: VERSION });
     setStatus(`${year} tamamlandı: ${final.length} yarış.`, 100);
     await loadMetaOnly(true);

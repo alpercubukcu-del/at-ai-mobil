@@ -18,15 +18,15 @@ for (const file of [BASE, EXPORT_UI, MARGIN]) {
 let exportUi = fs.readFileSync(EXPORT_UI, 'utf8');
 const visibleOld = "const V='CAREER-EXPORT-V12.2', MIN_YEAR=2000, cache=";
 const visibleNew = "const V='CAREER-EXPORT-V12.2.1-2023', MIN_YEAR=2023, cache=";
-if (exportUi.includes(visibleOld)) exportUi = exportUi.replace(visibleOld, visibleNew);
-else if (!exportUi.includes(visibleNew)) throw new Error('[V16.2.1] career-export-v121 MIN_YEAR kalıbı bulunamadı.');
+if (!exportUi.includes(visibleOld)) throw new Error('[V16.2.1] career-export-v121 MIN_YEAR kalıbı bulunamadı.');
+exportUi = exportUi.replace(visibleOld, visibleNew);
 fs.writeFileSync(EXPORT_UI, exportUi, 'utf8');
 
 let margin = fs.readFileSync(MARGIN, 'utf8');
 const bulkOld = "const q=new URLSearchParams({date:meta.date,city:meta.city,class:meta.class,ageGroup:meta.age,track:meta.track,distance:String(meta.distance),minYear:'2000',t:String(Date.now())});";
 const bulkNew = "const q=new URLSearchParams({date:meta.date,city:meta.city,class:meta.class,ageGroup:meta.age,track:meta.track,distance:String(meta.distance),minYear:'2023',t:String(Date.now())});";
-if (margin.includes(bulkOld)) margin = margin.replace(bulkOld, bulkNew);
-else if (!margin.includes(bulkNew)) throw new Error('[V16.2.1] career-margin-v124 toplu kazanan MIN_YEAR kalıbı bulunamadı.');
+if (!margin.includes(bulkOld)) throw new Error('[V16.2.1] career-margin-v124 toplu kazanan MIN_YEAR kalıbı bulunamadı.');
+margin = margin.replace(bulkOld, bulkNew);
 fs.writeFileSync(MARGIN, margin, 'utf8');
 
 execFileSync(process.execPath, [BASE], { cwd: ROOT, stdio: 'inherit' });

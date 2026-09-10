@@ -84,7 +84,7 @@ function decorate(){
 
 function openDailyCalibration(event){
   const button=event.target?.closest?.('[data-view="scenario"]');
-  if(!button || button.id==='analysisDialog') return;
+  if(!button) return;
   event.preventDefault();
   event.stopImmediatePropagation();
   try{$('closeMenu')?.click()}catch{}

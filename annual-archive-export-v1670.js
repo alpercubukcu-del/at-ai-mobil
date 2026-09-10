@@ -45,8 +45,7 @@ async function exportAll(){if(exporting)return;exporting=true;const btn=document
   const mb=(blob.size/1024/1024).toFixed(2);setStatus(`${data.length} yarış · ${years.length} yıl · ${mb} MB JSON hazırlandı.`);
 }catch(e){setStatus(`Dışa aktarım olmadı: ${e?.message||e}`);}finally{exporting=false;if(btn){btn.disabled=false;btn.textContent='Tüm Arşivi JSON Dışa Aktar';}}}
 function install(){const d=document.getElementById('tjkAnnualArchiveDialog');if(!d)return false;if(document.getElementById(BTN_ID))return true;const update=document.getElementById('aaUpdateYear');const actions=update?.closest('.aa-actions');if(!actions)return false;const btn=document.createElement('button');btn.className='aa-btn secondary';btn.id=BTN_ID;btn.type='button';btn.textContent='Tüm Arşivi JSON Dışa Aktar';btn.addEventListener('click',exportAll);actions.appendChild(btn);const st=document.createElement('div');st.id=STATUS_ID;st.className='aa-status';st.textContent='Dışa aktarım yalnız telefonda zaten bulunan yılları kullanır; yeni veri indirmez.';actions.insertAdjacentElement('afterend',st);return true;}
-// The archive lifecycle creates the dialog. Reconcile only when that dialog is opened or rendered.
-for(const name of['at-ai:annual-archive-created','at-ai:annual-archive-open','at-ai:annual-archive-render'])window.addEventListener(name,()=>setTimeout(install,0));
+const obs=new MutationObserver(()=>install());try{obs.observe(document.documentElement,{subtree:true,childList:true});}catch{}
 window.addEventListener('load',()=>setTimeout(install,80));setTimeout(install,0);
 window.ATAnnualArchiveExportV1670={VERSION,exportAll,install};
 console.info('[AT AI]',VERSION,'aktif — yıllık arşiv kompakt JSON dışa aktarım.');

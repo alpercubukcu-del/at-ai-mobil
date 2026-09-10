@@ -71,7 +71,8 @@ function scrub(){
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',scrub,{once:true});else scrub();
 window.addEventListener('pageshow',scrub,{passive:true});
-// Coupon setup invokes `scrub` directly; a document-wide observer re-ran it on unrelated renders.
+const mo=new MutationObserver(()=>{clearTimeout(scrub._t);scrub._t=setTimeout(scrub,0);});
+try{mo.observe(document.documentElement,{subtree:true,childList:true});}catch{}
 window.ATCouponManualNoFiveModelV1691F10={VERSION,prepare:prepareNoFiveModel};
 console.info('[AT AI]',VERSION,'aktif — Manuel Kupon 5 Model hazırlığı kapalı.');
 })();

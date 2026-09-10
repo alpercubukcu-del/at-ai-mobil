@@ -52,8 +52,10 @@ function bindDialogs(){
   });
 }
 
+const domObserver=new MutationObserver(()=>bindDialogs());
 function start(){
   bindDialogs();
+  domObserver.observe(document.body,{childList:true,subtree:true});
   window.addEventListener('pageshow',()=>{
     /* Arka plandan dönüşte sadece gerçek açık dialog varsa menüyü kapat. */
     if([...document.querySelectorAll('dialog')].some(d=>d.open)) closeDrawerSafe();

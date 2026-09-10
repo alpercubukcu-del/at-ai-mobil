@@ -29,7 +29,11 @@ setTimeout(fixDrawerNumbers,500);
 window.addEventListener('load',fixDrawerNumbers,{once:false});
 window.addEventListener('pageshow',fixDrawerNumbers,{passive:true});
 
-// Labels are reconciled at boot, load and pageshow; no persistent drawer observer is needed.
+const drawer=document.getElementById('drawer');
+if(drawer){
+  const mo=new MutationObserver(()=>fixDrawerNumbers());
+  try{mo.observe(drawer,{childList:true,subtree:true});}catch{}
+}
 
 window.ATDrawerMenuNumberingV1682={version:VERSION,fix:fixDrawerNumbers};
 console.info('[AT AI]',VERSION,'aktif — menü 1-8 sıralaması düzeltildi.');

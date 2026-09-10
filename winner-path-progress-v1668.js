@@ -128,8 +128,8 @@ function scan(){
   if(content.querySelector('.wpb-bad')&&!content.querySelector('.wpb-progress-v1668')) stop();
 }
 
-// Progress starts from the explicit blind-test control; avoid observing every document mutation.
-document.addEventListener('click',e=>{if(e.target?.closest?.('#wpdRunV1669,[data-wpb-run],#winnerCalRunV1673'))setTimeout(scan,0)},true);
+const obs=new MutationObserver(()=>scan());
+try{obs.observe(document.documentElement,{subtree:true,childList:true,characterData:true});}catch{}
 window.addEventListener('load',()=>setTimeout(scan,50));
 ensureStyle();
 setTimeout(scan,0);
