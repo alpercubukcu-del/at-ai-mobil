@@ -13,9 +13,9 @@ const oldLabels="const MODEL_LABELS={composite:'Bileşik',exact:'Tam',twin:'İki
 const newLabels="const MODEL_LABELS={...(window.ATModelMatrixV646?.labels||{composite:'Bileşik',exact:'Tam',twin:'İkiz',family:'Aile',career:'Kariyer'}),winner:'Kazanan Yolu'};";
 if(!app.includes(oldIds)||!app.includes(oldLabels))throw new Error('[F60.46] Winner calibration model declarations not found.');
 app=app.replace(oldIds,newIds).replace(oldLabels,newLabels);
-for(const token of['SELECTED-PACKAGE-20-MODEL-MATRIX-V16.9.1F60.46','PROCESS-FLOW-PLANNER-V16.9.1F60.45','TJK-ANNUAL-ARCHIVE-V14.2-SCHEMA-REPAIR','Seçilen Benzer Yarışları İndir'])if(!app.includes(token))throw new Error('[F60.46] Verification failed: '+token);
+for(const token of['SELECTED-PACKAGE-20-MODEL-MATRIX-V16.9.1F60.46','PROCESS-FLOW-PLANNER-V16.9.1F60.45','TJK-ANNUAL-ARCHIVE-V14.2-SCHEMA-REPAIR','Seçilen Benzer Yarışları İndir','yıllık arşiv telefonda hazır değil'])if(!app.includes(token))throw new Error('[F60.46] Verification failed: '+token);
 new Function(app);fs.writeFileSync(APP,app,'utf8');
-let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169246');
+let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169247');
 fs.writeFileSync(INDEX,html,'utf8');
-if(!html.includes('/at-ai-app-v142.js?v=169246'))throw new Error('[F60.46] Cache bust failed.');
-console.log('[AT AI] V16.9.1F60.46 build complete: selected package defaults + 20 model calibration matrix.');
+if(!html.includes('/at-ai-app-v142.js?v=169247'))throw new Error('[F60.46] Cache bust failed.');
+console.log('[AT AI] V16.9.1F60.46 build complete: selected package defaults + 20 model calibration matrix + annual-empty guard.');
