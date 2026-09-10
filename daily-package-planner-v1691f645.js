@@ -47,9 +47,12 @@ function installPlannerStyle() {
   style.textContent = `
     .aa-year-tools-f645,.dsa-row-f645{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .aa-year-tools-f645 select,.dsa-row-f645 select,.dsa-row-f645 input{min-height:34px}
-    .aa-year-table-f645{width:100%;border-collapse:collapse;font-size:13px}
-    .aa-year-table-f645 th,.aa-year-table-f645 td{padding:8px 6px;border-bottom:1px solid rgba(148,163,184,.25);text-align:left;vertical-align:middle}
-    .aa-year-table-f645 th:nth-child(3),.aa-year-table-f645 td:nth-child(3){text-align:right}
+    .aa-year-hint-f645{margin:10px 0;padding:10px;border-radius:10px;background:rgba(56,189,248,.10);border:1px solid rgba(125,190,255,.24);line-height:1.4}
+    .aa-year-table-f645{width:100%;font-size:13px}
+    .aa-year-head-f645,.aa-year-row-f645{display:grid;grid-template-columns:62px minmax(0,1fr) 76px 72px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(148,163,184,.25)}
+    .aa-year-head-f645{font-size:12px;letter-spacing:.04em;opacity:.75}
+    .aa-year-row-f645 small{display:block;font-size:11px;line-height:1.25;margin-top:3px;opacity:.8;overflow-wrap:anywhere}
+    .aa-year-row-f645 span:nth-child(3){text-align:right}
     .aa-year-table-f645 button{min-height:30px;padding:4px 9px}
     .dsa-counts-f645{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0}
     .dsa-count-f645{border:1px solid rgba(148,163,184,.3);border-radius:8px;padding:9px;background:rgba(15,23,42,.03)}
@@ -69,7 +72,7 @@ function installPlannerStyle() {
       .dsa-counts-f645{grid-template-columns:repeat(2,minmax(0,1fr))}
       .dsa-limits-f645{grid-template-columns:1fr}
       .aa-year-table-f645{font-size:12px}
-      .aa-year-table-f645 th,.aa-year-table-f645 td{padding:7px 4px}
+      .aa-year-head-f645,.aa-year-row-f645{grid-template-columns:52px minmax(0,1fr) 40px 62px;gap:6px}
     }
   `;
   document.head.appendChild(style);
@@ -340,6 +343,26 @@ async function annualRowsForRange(from, to) {
     } catch { resolve([]); }
   });
 }
+function annualCompleteMetasInRange(metas, from, to) {
+  const lo = Math.min(Number(from) || 0, Number(to) || 9999);
+  const hi = Math.max(Number(from) || 0, Number(to) || 9999);
+  return (Array.isArray(metas) ? metas : [])
+    .filter(x => x?.status === 'complete' && Number(x.year) >= lo && Number(x.year) <= hi)
+    .sort((a, b) => Number(a.year) - Number(b.year));
+}
+function yearListLabel(items) {
+  const years = (Array.isArray(items) ? items : [])
+    .map(x => Number(x?.year ?? x))
+    .filter(Boolean)
+    .sort((a, b) => a - b);
+  if (!years.length) return 'yıl yok';
+  if (years.length <= 6) return years.join(', ');
+  return `${years[0]}-${years.at(-1)} (${years.length} yıl)`;
+}
+function showDailyPlanNotice(message) {
+  const host = $('dsaPlanF645');
+  if (host) host.innerHTML = `<div class="aa-note">${esc(message)}</div>`;
+}
 async function deleteAnnualYear(year) {
   const db = await openAnnualDb(); if (!db || !db.objectStoreNames.contains(ANNUAL_RACES)) return false;
   return new Promise(resolve => {
@@ -512,11 +535,16 @@ function setAnnualButtons(disabled) {
 async function renderAnnualYearTable() {
   const host = $('aaYearTableF645');
   if (!host) return;
-  const metaMap = new Map((await annualMetaAll()).filter(x => Number(x.year)).map(x => [Number(x.year), x]));
+  const metas = await annualMetaAll();
+  const metaMap = new Map(metas.filter(x => Number(x.year)).map(x => [Number(x.year), x]));
   const queue = loadQueue();
   const selected = yearRange($('aaBatchFromF645')?.value, $('aaBatchToF645')?.value);
   const years = queue?.years?.length && queue.index < queue.years.length ? queue.years : selected;
-  host.innerHTML = `<div class="aa-year-table-f645">
+  const complete = annualCompleteMetasInRange(metas, selected[0], selected.at(-1));
+  const hint = complete.length
+    ? `Hazır yıllar: ${yearListLabel(complete)}. 2/3 yerel katalog taraması yalnız bu hazır yılları kullanır.`
+    : `${selected[0]}-${selected.at(-1)} yıllık arşiv telefonda hazır değil. Önce "Seçili Yılları Sırayla İndir" düğmesine basın; yıllar Hazır olduktan sonra 2/3 çalışır.`;
+  host.innerHTML = `<div class="aa-year-hint-f645">${esc(hint)}</div><div class="aa-year-table-f645">
     <div class="aa-year-head-f645"><b>Yıl</b><b>Durum</b><b>Yarış</b><b>İşlem</b></div>
     ${years.map(year => {
       const meta = metaMap.get(Number(year));
@@ -834,8 +862,22 @@ async function scanDailyPlan() {
   if (!targets.length) throw new Error('Seçilen koşu programda bulunamadı.');
   const from = Number($('dsaYearFromF645')?.value || 2019);
   const to = Number($('dsaYearToF645')?.value || CURRENT_YEAR);
-  setDailyStatus('2/3 Yerel yıllık katalog taranıyor. TJK isteği yapılmıyor...', 0);
+  const metas = await annualMetaAll();
+  const complete = annualCompleteMetasInRange(metas, from, to);
+  if (!complete.length) {
+    const message = `${from}-${to} yıllık arşiv telefonda hazır değil. Üstte 1. Yıllık Arşiv Yönetimi bölümünden "Seçili Yılları Sırayla İndir" ile yılları indir; durum Hazır olduktan sonra 2/3 çalışır.`;
+    showDailyPlanNotice(message);
+    setDailyStatus(message, 0);
+    throw new Error(message);
+  }
+  setDailyStatus(`2/3 Yerel yıllık katalog taranıyor. TJK isteği yapılmıyor. Hazır yıllar: ${yearListLabel(complete)}...`, 0);
   const rows = await annualRowsForRange(from, to);
+  if (!rows.length) {
+    const message = `${from}-${to} aralığında Hazır yıl kaydı var ama yarış satırı okunamadı. İlgili yılı Sil deyip yeniden indir; sonra 2/3 Yerel Katalogu Say düğmesine tekrar bas.`;
+    showDailyPlanNotice(message);
+    setDailyStatus(message, 0);
+    throw new Error(message);
+  }
   const plan = scanReferences(ctx, rows, targets, from, to);
   plan.ctxKey = `${ctx.date}|${fold(ctx.city)}|${clean($('dsaRaceScopeF645')?.value || 'all')}`;
   plan.date = ctx.date;
