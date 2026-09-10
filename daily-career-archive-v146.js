@@ -21,6 +21,39 @@ const finiteA = v => (v === null || v === undefined || v === '' || !Number.isFin
 let dbPromiseA = null;
 let bypassArchiveOnceA = false;
 
+function setupStoreA(db, tx) {
+  const store = db.objectStoreNames.contains(STORE)
+    ? tx.objectStore(STORE)
+    : db.createObjectStore(STORE, { keyPath:'key' });
+  if (!store.indexNames.contains('date')) store.createIndex('date', 'date', { unique:false });
+  if (!store.indexNames.contains('kind')) store.createIndex('kind', 'kind', { unique:false });
+}
+
+function needsRepairA(db) {
+  try {
+    if (!db.objectStoreNames.contains(STORE)) return true;
+    const store = db.transaction(STORE, 'readonly').objectStore(STORE);
+    return !store.indexNames.contains('date') || !store.indexNames.contains('kind');
+  } catch {
+    return true;
+  }
+}
+
+function repairArchiveDbA(version) {
+  return new Promise(resolve => {
+    let req;
+    try { req = indexedDB.open(DB_NAME, Math.max(2, Number(version || 1) + 1)); } catch { return resolve(null); }
+    req.onupgradeneeded = () => {
+      try { setupStoreA(req.result, req.transaction); } catch {}
+    };
+    req.onsuccess = () => {
+      try { req.result.onversionchange = () => { try { req.result.close(); } catch {} }; } catch {}
+      resolve(req.result);
+    };
+    req.onerror = req.onblocked = () => resolve(null);
+  });
+}
+
 function openArchiveDbA() {
   if (dbPromiseA) return dbPromiseA;
   dbPromiseA = new Promise(resolve => {
@@ -28,15 +61,23 @@ function openArchiveDbA() {
     let req;
     try { req = indexedDB.open(DB_NAME, 1); } catch { return resolve(null); }
     req.onupgradeneeded = () => {
-      const db = req.result;
-      const store = db.objectStoreNames.contains(STORE)
-        ? req.transaction.objectStore(STORE)
-        : db.createObjectStore(STORE, { keyPath:'key' });
-      if (!store.indexNames.contains('date')) store.createIndex('date', 'date', { unique:false });
-      if (!store.indexNames.contains('kind')) store.createIndex('kind', 'kind', { unique:false });
+      try { setupStoreA(req.result, req.transaction); } catch {}
     };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => resolve(null);
+    req.onsuccess = async () => {
+      const db = req.result;
+      try { db.onversionchange = () => { try { db.close(); } catch {} }; } catch {}
+      if (needsRepairA(db)) {
+        const nextVersion = db.version;
+        try { db.close(); } catch {}
+        const repaired = await repairArchiveDbA(nextVersion);
+        if (repaired) return resolve(repaired);
+        dbPromiseA = null;
+        return resolve(null);
+      }
+      resolve(db);
+    };
+    req.onerror = () => { dbPromiseA = null; resolve(null); };
+    req.onblocked = () => { dbPromiseA = null; resolve(null); };
   });
   return dbPromiseA;
 }
@@ -87,11 +128,16 @@ async function listDateA(date) {
     try {
       const tx = db.transaction(STORE, 'readonly');
       const store = tx.objectStore(STORE);
-      const index = store.index('date');
-      const req = index.openCursor(IDBKeyRange.only(String(date || '')));
+      const req = store.indexNames.contains('date')
+        ? store.index('date').openCursor(IDBKeyRange.only(String(date || '')))
+        : store.openCursor();
       req.onsuccess = () => {
         const c = req.result;
         if (!c) return;
+        if (!store.indexNames.contains('date') && cleanA(c.value?.date) !== cleanA(date)) {
+          c.continue();
+          return;
+        }
         out.push(c.value);
         c.continue();
       };
