@@ -8,7 +8,7 @@
 if(window.__AT_COUPON_DAILY_ARCHIVE_SOURCE_V1691__) return;
 window.__AT_COUPON_DAILY_ARCHIVE_SOURCE_V1691__=true;
 
-const VERSION='COUPON-DAILY-ARCHIVE-SOURCE-V16.9.1';
+const VERSION='COUPON-DAILY-ARCHIVE-SOURCE-V16.9.1+F60.49-EVIDENCE-SAFE-HYDRATE';
 const DB_NAME='at_ai_daily_career_archive_v146';
 const STORE='entries';
 const MODEL_SESSION='at_ai_five_model_compact_v1687';
@@ -67,7 +67,33 @@ function modelSessionLoad(){try{const x=JSON.parse(sessionStorage.getItem(MODEL_
 function modelSessionSave(x){try{sessionStorage.setItem(MODEL_SESSION,JSON.stringify(x));return true;}catch{return false;}}
 function modelSessionKey(raceNo){return [dateNow(),fold(cityName()),Number(raceNo)||0].join('|');}
 function validModel(d){return !!d&&Number(d?.no)>0&&Array.isArray(d?.horses)&&d.horses.length>0;}
+function finiteScore(v){return v===null||v===undefined||v===''||!Number.isFinite(Number(v))?null:Number(v);}
+function itemCareerScore(item){
+  const sim=item?.galibiyetBenzerligi||{};
+  const candidates=[
+    sim?.rankingRawScore,
+    sim?.score,
+    sim?.evidenceScore,
+    sim?.finalScore,
+    sim?.displayScore,
+    sim?.strongest?.rankingRawScore,
+    sim?.strongest?.score
+  ];
+  for(const value of candidates){
+    const n=finiteScore(value);
+    if(n!==null)return n;
+  }
+  return null;
+}
+function hasCareerEvidence(record){
+  const quality=record?.scoreQuality||record?.meta?.scoreQuality;
+  const qualityCount=finiteScore(quality?.scoredHorseCount);
+  if(qualityCount!==null&&qualityCount>0)return true;
+  const horses=Array.isArray(record?.race?.horses)?record.race.horses:[];
+  return horses.some(item=>itemCareerScore(item)!==null);
+}
 function restoreCareer(records){
+  if(!Array.isArray(records)||!records.length)return 0;
   const current=window.state?.analyses?.career;
   const map=new Map();
   if(clean(current?.date)===dateNow()&&Array.isArray(current?.races))for(const r of current.races)map.set(String(r?.no),r);
@@ -90,10 +116,12 @@ async function hydrateCurrent(){
     if(!date||!program.length)return{careerLoaded:0,modelLoaded:0,careerMissing:program.map(r=>r.no),modelMissing:program.map(r=>r.no)};
     const rows=(await listDate(date)).filter(sameCity);
     const careerRecords=[],modelRecords=[];
+    let ignoredCareerRecords=0;
     for(const race of program){
       const no=String(race?.no);
       const cr=rows.find(x=>x?.kind==='race'&&String(x?.raceNo)===no&&recordMatchesRace(x,race));
-      if(cr)careerRecords.push(cr);
+      if(cr&&hasCareerEvidence(cr))careerRecords.push(cr);
+      else if(cr)ignoredCareerRecords++;
       const mr=rows.find(x=>x?.kind==='model'&&String(x?.raceNo)===no&&recordMatchesRace(x,race)&&validModel(x?.data));
       if(mr)modelRecords.push(mr);
     }
@@ -106,7 +134,7 @@ async function hydrateCurrent(){
       try{await window.ATFiveModelSharedCacheV1685?.hydrateCurrent?.();}catch(e){console.warn('[AT AI] Kupon arşiv 5 Model hydrate uyarısı:',e);}
     }
     const careerSet=new Set(careerRecords.map(x=>String(x.raceNo))),modelSet=new Set(modelRecords.map(x=>String(x.raceNo)));
-    const result={version:VERSION,date,city:cityName(),careerLoaded,modelLoaded,careerMissing:program.filter(r=>!careerSet.has(String(r.no))).map(r=>Number(r.no)),modelMissing:program.filter(r=>!modelSet.has(String(r.no))).map(r=>Number(r.no)),archiveRows:rows.length};
+    const result={version:VERSION,date,city:cityName(),careerLoaded,modelLoaded,careerMissing:program.filter(r=>!careerSet.has(String(r.no))).map(r=>Number(r.no)),modelMissing:program.filter(r=>!modelSet.has(String(r.no))).map(r=>Number(r.no)),archiveRows:rows.length,ignoredCareerRecords};
     window.__AT_COUPON_ARCHIVE_LAST_V1691__=result;
     console.info('[AT AI]',VERSION,result);
     return result;
