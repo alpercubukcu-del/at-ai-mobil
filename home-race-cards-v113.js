@@ -9,7 +9,6 @@
 
 const HOME_RACE_CARDS_VERSION = 'HOME-RACE-CARDS-V11.4-AGFV2';
 const LIVE_MARKET_INTERVAL_V113 = 30000;
-const LIVE_MARKET_FETCH_TIMEOUT_V113 = 12000;
 const renderProgramBaseV113 = renderProgram;
 
 const liveMarketStateV113 = {
@@ -19,47 +18,6 @@ const liveMarketStateV113 = {
   timer:null,
   agfSource:null
 };
-
-function liveMarketProgramUrlV113(force = false) {
-  const params = new URLSearchParams({
-    date: state.date,
-    scope: 'selected',
-    cityId: state.city
-  });
-  const cityName = getCityName();
-  if (cityName) params.set('cityName', cityName);
-
-  if (force) params.set('_at', String(Date.now()));
-  return `/api/tjk-program?${params.toString()}`;
-}
-
-async function liveMarketJsonV113(url) {
-  const controller = new AbortController();
-  const timer = setTimeout(
-    () => controller.abort(),
-    LIVE_MARKET_FETCH_TIMEOUT_V113
-  );
-
-  try {
-    const res = await fetch(url, {
-      cache:'default',
-      headers:{ accept:'application/json' },
-      signal:controller.signal
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || data?.ok === false) {
-      throw new Error(data?.error || `API ${res.status}`);
-    }
-    return data || {};
-  } catch (e) {
-    if (e?.name === 'AbortError') {
-      throw new Error('Canlı veri 12 saniyede cevap vermedi');
-    }
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 function finiteMarketV113(v) {
   const n = Number(v);
@@ -299,10 +257,18 @@ async function refreshLiveMarketV113(force = false) {
   try {
     const cityName = getCityName();
     const [programResult, agfResult] = await Promise.allSettled([
-      liveMarketJsonV113(liveMarketProgramUrlV113(force)),
-      liveMarketJsonV113(
-        `/api/tjk-bet-starts-v11?date=${encodeURIComponent(state.date)}&cityId=${encodeURIComponent(state.city)}&cityName=${encodeURIComponent(cityName)}${force ? `&_at=${Date.now()}` : ''}`
-      )
+      fetch(`/api/tjk-program?date=${encodeURIComponent(state.date)}&t=${Date.now()}`, {
+        cache:'no-store', headers:{ accept:'application/json' }
+      }).then(async res => {
+        if (!res.ok) throw new Error(`Program API ${res.status}`);
+        return res.json();
+      }),
+      fetch(`/api/tjk-bet-starts-v11?date=${encodeURIComponent(state.date)}&cityId=${encodeURIComponent(state.city)}&cityName=${encodeURIComponent(cityName)}&t=${Date.now()}`, {
+        cache:'no-store', headers:{ accept:'application/json' }
+      }).then(async res => {
+        if (!res.ok) throw new Error(`AGF API ${res.status}`);
+        return res.json();
+      })
     ]);
 
     let success = false;
@@ -353,5 +319,6 @@ document.addEventListener('visibilitychange', () => {
 
 renderProgram();
 startLiveMarketV113();
+setTimeout(() => refreshLiveMarketV113(false), 400);
 
 console.info('[AT AI]', HOME_RACE_CARDS_VERSION, 'aktif');

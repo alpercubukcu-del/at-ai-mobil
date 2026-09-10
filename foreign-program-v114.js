@@ -5,54 +5,11 @@
 */
 
 const FOREIGN_PROGRAM_VERSION_V114 = 'FOREIGN-PROGRAM-V11.4';
-const FOREIGN_PROGRAM_FETCH_TIMEOUT_V114 = 12000;
 const loadProgramBaseV114 = loadProgram;
 const changeCityBaseV114 = changeCity;
 
 function totalHorseCountV114(races) {
   return (Array.isArray(races) ? races : []).reduce((sum, r) => sum + (Array.isArray(r?.horses) ? r.horses.length : 0), 0);
-}
-
-function foreignNormV114(v = '') {
-  return String(v || '').toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/İ/g, 'I');
-}
-
-function isForeignCenterV114(cityName = '') {
-  return /\b(ABD|FRANSA|KANADA|BIRLESIK|IRLANDA|ALMANYA|INGILTERE|GULFSTREAM|HORSESHOE|RIPON|WINDSOR|WOODBINE|SARATOGA|KENTUCKY|DEL MAR|SAINT CLOUD|KARMA)\b/.test(foreignNormV114(cityName));
-}
-
-function needsAtIdIndependentV114(cityName = '') {
-  if (!Array.isArray(state?.races) || !state.races.length) return false;
-  if (isForeignCenterV114(cityName)) return true;
-  return totalHorseCountV114(state.races) === 0;
-}
-
-async function fetchJsonWithTimeoutV114(url) {
-  const controller = new AbortController();
-  const timer = setTimeout(
-    () => controller.abort(),
-    FOREIGN_PROGRAM_FETCH_TIMEOUT_V114
-  );
-
-  try {
-    const res = await fetch(url, {
-      cache:'default',
-      headers:{ accept:'application/json' },
-      signal:controller.signal
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || data?.ok === false) {
-      throw new Error(data?.error || `Program doğrulama API ${res.status}`);
-    }
-    return data || {};
-  } catch (e) {
-    if (e?.name === 'AbortError') {
-      throw new Error('Program doğrulama 12 saniyede cevap vermedi');
-    }
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 function mergeFallbackRacesV114(baseRaces, fallbackRaces) {
@@ -94,15 +51,17 @@ async function enrichAtIdIndependentV114() {
   if (!state?.date || !state?.city) return false;
   const cityName = getCityName();
   if (!cityName) return false;
-  if (!needsAtIdIndependentV114(cityName)) return false;
 
   try {
     const before = totalHorseCountV114(state.races);
     status(`${cityName} at listesi resmi tabloyla doğrulanıyor…`);
 
-    const data = await fetchJsonWithTimeoutV114(
-      `/api/tjk-race-meta?date=${encodeURIComponent(state.date)}&cityId=${encodeURIComponent(state.city)}&cityName=${encodeURIComponent(cityName)}`
+    const res = await fetch(
+      `/api/tjk-race-meta?date=${encodeURIComponent(state.date)}&cityId=${encodeURIComponent(state.city)}&cityName=${encodeURIComponent(cityName)}&t=${Date.now()}`,
+      { cache:'no-store', headers:{ accept:'application/json' } }
     );
+    if (!res.ok) throw new Error(`Program doğrulama API ${res.status}`);
+    const data = await res.json();
     if (!data?.ok || !Array.isArray(data.races) || !data.races.length) {
       throw new Error(data?.error || 'AtId bağımsız yarış tablosu bulunamadı.');
     }
@@ -147,4 +106,5 @@ changeCity = async function(cityId) {
 if ($('loadProgramBtn')) $('loadProgramBtn').onclick = loadProgram;
 if ($('citySelect')) $('citySelect').onchange = e => changeCity(e.target.value);
 
+setTimeout(() => enrichAtIdIndependentV114(), 700);
 console.info('[AT AI]', FOREIGN_PROGRAM_VERSION_V114, 'aktif');

@@ -228,19 +228,11 @@ document.addEventListener('click', event => {
   repairFromState('archive-button').catch(error => console.warn('[AT AI]', VERSION, 'button repair failed', error));
 }, true);
 
-function careerBridgeViewOpen() {
-  const dialog = document.getElementById('analysisDialog');
-  return Boolean(dialog?.open && dialog.dataset?.view === 'career');
-}
-
-window.addEventListener('pageshow', () => {
-  if (careerBridgeViewOpen()) setTimeout(() => repairFromState('pageshow'), 350);
-}, { passive:true });
+window.addEventListener('pageshow', () => setTimeout(() => repairFromState('pageshow'), 350), { passive:true });
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && careerBridgeViewOpen()) {
-    setTimeout(() => repairFromState('visible'), 350);
-  }
+  if (document.visibilityState === 'visible') setTimeout(() => repairFromState('visible'), 350);
 }, { passive:true });
+setTimeout(() => repairFromState('startup'), 800);
 
 window.ATCareerDailyArchiveBridgeV1691F32 = {
   version:VERSION,
@@ -250,3 +242,4 @@ window.ATCareerDailyArchiveBridgeV1691F32 = {
 };
 console.info('[AT AI]', VERSION, 'active - F31 Career results are persisted to daily archive for PDF.');
 })();
+

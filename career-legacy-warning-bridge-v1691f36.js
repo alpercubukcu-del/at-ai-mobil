@@ -225,13 +225,7 @@ if (typeof runCareerAnalysis === 'function') {
   };
 }
 
-function careerViewOpen() {
-  const dialog = document.getElementById('analysisDialog');
-  return Boolean(dialog?.open && dialog.dataset?.view === 'career');
-}
-
 setTimeout(() => {
-  if (!careerViewOpen()) return;
   try {
     const st = currentState();
     if (markCareerCurrent(st?.analyses?.career) && typeof save === 'function') save();

@@ -9,8 +9,9 @@
 if (window.__AT_AUTO_RESUME_V128__) return;
 window.__AT_AUTO_RESUME_V128__ = true;
 
-const VERSION = 'AUTO-RESUME-NETWORK-V12.8.1';
+const VERSION = 'AUTO-RESUME-NETWORK-V12.8';
 const AUTO_DELAY_MS = 2500;
+const BOOT_DELAY_MS = 3500;
 const CLICK_COOLDOWN_MS = 15000;
 let timer = null;
 let lastAutoClickAt = 0;
@@ -61,9 +62,15 @@ window.addEventListener('offline', () => {
 });
 
 window.addEventListener('online', () => {
-  if (document.visibilityState === 'hidden') return;
   scheduleAutoResume(AUTO_DELAY_MS, 'reconnect');
 });
 
-console.info('[AT AI]', VERSION, 'aktif — sayfa acilisinda otomatik devam yok, yalniz yeniden baglantida devam');
+// Sayfa yenilenip internet geri gelmis durumdaysa V12.7 yarim oturumu yukledikten sonra otomatik devam et.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => scheduleAutoResume(BOOT_DELAY_MS, 'page-reload'), { once:true });
+} else {
+  scheduleAutoResume(BOOT_DELAY_MS, 'page-reload');
+}
+
+console.info('[AT AI]', VERSION, 'aktif — baglanti gelince otomatik eksikten devam');
 })();

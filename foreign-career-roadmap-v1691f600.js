@@ -9,7 +9,6 @@ if (window.__AT_FOREIGN_CAREER_ROADMAP_V1691F600__) return;
 window.__AT_FOREIGN_CAREER_ROADMAP_V1691F600__ = true;
 
 const VERSION = 'FOREIGN-CAREER-ROADMAP-V16.9.1F60';
-const FOREIGN_ID_TIMEOUT_MS_F60 = 12000;
 const clean = v => String(v ?? '').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim();
 const fold = v => clean(v).toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/İ/g,'I').replace(/[^A-Z0-9]+/g,'');
 let enrichPromise = null;
@@ -31,30 +30,6 @@ function negativeId(v) {
   const n = Number(v);
   return Number.isFinite(n) && n < 0 ? n : null;
 }
-function isForeignCenterF60(city = '') {
-  return /\b(ABD|FRANSA|KANADA|BIRLESIK|IRLANDA|ALMANYA|INGILTERE|GULFSTREAM|HORSESHOE|RIPON|WINDSOR|WOODBINE|SARATOGA|KENTUCKY|DEL MAR|SAINT CLOUD|KARMA)\b/.test(
-    clean(city).toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/İ/g,'I')
-  );
-}
-async function fetchForeignIdJsonF60(url) {
-  const controller = new AbortController();
-  const timer = setTimeout(()=>controller.abort(), FOREIGN_ID_TIMEOUT_MS_F60);
-  try {
-    const response = await fetch(url, {
-      cache:'default',
-      headers:{ accept:'application/json' },
-      signal:controller.signal
-    });
-    const data = await response.json().catch(()=>null);
-    if (!response.ok || !data?.ok) throw new Error(data?.error || `API ${response.status}`);
-    return data;
-  } catch (e) {
-    if (e?.name === 'AbortError') throw new Error('Yabancı AtId tamamlaması 12 saniyede cevap vermedi');
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 async function enrichForeignHorseIdsF60({ quiet = false } = {}) {
   const s = stateRef();
@@ -66,11 +41,12 @@ async function enrichForeignHorseIdsF60({ quiet = false } = {}) {
   enrichPromise = (async () => {
     const city = cityName();
     if (!city) return 0;
-    if (!isForeignCenterF60(city)) return 0;
-    const url = `/api/tjk-foreign-horse-ids-v1?date=${encodeURIComponent(s.date)}&cityId=${encodeURIComponent(s.city)}&cityName=${encodeURIComponent(city)}`;
+    const url = `/api/tjk-foreign-horse-ids-v1?date=${encodeURIComponent(s.date)}&cityId=${encodeURIComponent(s.city)}&cityName=${encodeURIComponent(city)}&t=${Date.now()}`;
     let data;
     try {
-      data = await fetchForeignIdJsonF60(url);
+      const response = await fetch(url, { cache:'no-store', headers:{ accept:'application/json' } });
+      data = await response.json();
+      if (!response.ok || !data?.ok) throw new Error(data?.error || `API ${response.status}`);
     } catch (e) {
       if (!quiet) console.warn('[AT AI]', VERSION, 'yabanci AtId tamamlamasi:', e?.message || e);
       return 0;
@@ -198,6 +174,7 @@ if (typeof changeCity === 'function') {
   if (sel) sel.onchange = e => changeCity(e.target.value);
 }
 
+setTimeout(()=>void enrichForeignHorseIdsF60({ quiet:true }), 900);
 window.ATForeignCareerRoadmapV1691F60 = { version:VERSION, enrich:enrichForeignHorseIdsF60, fetchCareer:fetchForeignCareerF60 };
 console.info('[AT AI]', VERSION, 'aktif — negatif AtId + AtKosuBilgileri_Y kariyer yolu.');
 })();

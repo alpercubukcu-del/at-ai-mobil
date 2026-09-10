@@ -1,14 +1,12 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-PARSER-V15-SELECTIVE-ID-ENRICH';
+const VERSION = 'TJK-PARSER-V11-TABLE-LOCK';
 const TJK_ROOT =
   'https://www.tjk.org/TR/YarisSever/Info/Page/GunlukYarisProgrami';
 const TJK_CITY =
   'https://www.tjk.org/TR/YarisSever/Info/Sehir/GunlukYarisProgrami';
 const TJK_CDN =
   'https://medya-cdn.tjk.org/raporftp/TJKPDF';
-const FETCH_TIMEOUT_MS = 28000;
-const ID_ENRICH_TIMEOUT_MS = 15000;
 
 const HEADERS = {
   'User-Agent':
@@ -46,54 +44,6 @@ function key(v = '') {
   return norm(v).replace(/[^A-Z0-9]/g, '');
 }
 
-function cityProgramUrl(isoDate, cityName, cityId) {
-  return `${TJK_CITY}?Era=today` +
-    `&QueryParameter_Tarih=${encodeURIComponent(
-      isoDate.split('-').reverse().join('/')
-    )}` +
-    `&SehirAdi=${encodeURIComponent(cityName)}` +
-    `&SehirId=${encodeURIComponent(cityId)}`;
-}
-
-function directCityFromRequest(isoDate, cityId = '', cityName = '') {
-  const requestedId = String(cityId || '').trim();
-  const requestedName = oneLine(cityName);
-
-  if (!requestedId || !requestedName) return null;
-
-  return {
-    id: String(requestedId),
-    name: requestedName,
-    label: requestedName,
-    url: cityProgramUrl(isoDate, requestedName, requestedId)
-  };
-}
-
-function pickDefaultCity(cities = []) {
-  return cities.find(
-    c =>
-      /İstanbul|İzmir|Ankara|Bursa|Kocaeli|Adana|Antalya|Elazığ|Şanlıurfa|Diyarbakır/i.test(
-        c?.name || ''
-      )
-  ) || cities[0] || null;
-}
-
-function pickRequestedCity(cities = [], cityId = '', cityName = '') {
-  const id = String(cityId || '').trim();
-  if (id) {
-    const match = cities.find(c => String(c.id) === id);
-    if (match) return match;
-  }
-
-  const nameKey = key(cityName);
-  if (nameKey) {
-    const match = cities.find(c => key(c.name) === nameKey);
-    if (match) return match;
-  }
-
-  return pickDefaultCity(cities);
-}
-
 function toIsoDate(v) {
   const s = String(v || '').trim();
 
@@ -119,25 +69,12 @@ function dateParts(iso) {
 
 function parseNumber(v) {
   if (v === null || v === undefined) return null;
-  let s = String(v).trim();
-  if (!s || /^[-–—]$/.test(s)) return null;
+  const s = String(v).trim();
+  if (!s || s === '-') return null;
 
-  s = s
-    .replace(/\([^)]*\)/g, '')
-    .replace(/%/g, '')
-    .trim();
-
-  const match = s.match(/-?\d+(?:[.,]\d+)?/);
-  if (!match) return null;
-
-  let token = match[0];
-  if (token.includes(',')) {
-    token = token.replace(/\./g, '').replace(',', '.');
-  } else if (/^\d{1,3}(?:\.\d{3})+$/.test(token)) {
-    token = token.replace(/\./g, '');
-  }
-
-  const n = Number(token);
+  const n = Number(
+    s.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '')
+  );
 
   return Number.isFinite(n) ? n : null;
 }
@@ -167,34 +104,15 @@ function extractQueryNumber(href, names = []) {
   return null;
 }
 
-async function fetchResponse(url, accept = '*/*', timeoutMs = FETCH_TIMEOUT_MS) {
-  const controller = new AbortController();
-  const timer = setTimeout(
-    () => controller.abort(),
-    timeoutMs
-  );
-
-  let res;
-  try {
-    res = await fetch(url, {
-      headers: {
-        ...HEADERS,
-        Accept: accept
-      },
-      redirect: 'follow',
-      cache: 'no-store',
-      signal: controller.signal
-    });
-  } catch (e) {
-    if (e?.name === 'AbortError') {
-      throw new Error(
-        `TJK yanıt süresi aşıldı (${Math.round(timeoutMs / 1000)} sn)`
-      );
-    }
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
+async function fetchResponse(url, accept = '*/*') {
+  const res = await fetch(url, {
+    headers: {
+      ...HEADERS,
+      Accept: accept
+    },
+    redirect: 'follow',
+    cache: 'no-store'
+  });
 
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} ${res.statusText}`);
@@ -203,11 +121,10 @@ async function fetchResponse(url, accept = '*/*', timeoutMs = FETCH_TIMEOUT_MS) 
   return res;
 }
 
-async function fetchText(url, timeoutMs = FETCH_TIMEOUT_MS) {
+async function fetchText(url) {
   const res = await fetchResponse(
     url,
-    'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    timeoutMs
+    'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
   );
   return await res.text();
 }
@@ -279,7 +196,12 @@ function extractCities(rootHtml, isoDate) {
     if (!cityId || !city) return;
 
     const cityUrl =
-      cityProgramUrl(isoDate, city, cityId);
+      `${TJK_CITY}?Era=today` +
+      `&QueryParameter_Tarih=${encodeURIComponent(
+        isoDate.split('-').reverse().join('/')
+      )}` +
+      `&SehirAdi=${encodeURIComponent(city)}` +
+      `&SehirId=${encodeURIComponent(cityId)}`;
 
     out.set(String(cityId), {
       id: String(cityId),
@@ -570,8 +492,6 @@ function valueByAliases(obj, aliases = []) {
     if (!k) continue;
 
     for (const [hk, v] of map.entries()) {
-      if (!hk) continue;
-      if (hk.length < 2 || k.length < 2) continue;
       if (hk.includes(k) || k.includes(hk)) return v;
     }
   }
@@ -597,7 +517,7 @@ function splitRaceConditionText(raw) {
 
   for (const p of parts) {
     if (!distance) {
-      const m = p.match(/\b(\d{3,4})\s*m?\s*(Çim|Kum|Sentetik)\b/i);
+      const m = p.match(/\b(\d{3,4})\s*(Çim|Kum|Sentetik)\b/i);
       if (m) {
         distance = m[1];
         track = m[2];
@@ -673,7 +593,7 @@ function parseHtmlRaceMeta(html) {
 
     if (!currentRace) continue;
 
-    if (/\d{3,4}\s*m?\s*(?:Çim|Kum|Sentetik)\b/i.test(t)) {
+    if (/\d{3,4}\s*(?:Çim|Kum|Sentetik)\b/i.test(t)) {
       const meta = splitRaceConditionText(t);
       byRace[currentRace] = {
         ...byRace[currentRace],
@@ -693,7 +613,6 @@ function parseHtmlHorseIds(html) {
   $('a[href*="QueryParameter_AtId="],a[href*="AtKosuBilgileri"]').each(
     (_, a) => {
       const name = oneLine($(a).text());
-      const cleanName = cleanHorseNameFromLink($, a);
       const href = $(a).attr('href') || '';
       const id = extractQueryNumber(
         href,
@@ -702,291 +621,20 @@ function parseHtmlHorseIds(html) {
 
       if (!name || !id) return;
 
-      addHorseIdLookupKeys(byName, name, id);
-      addHorseIdLookupKeys(byName, cleanName, id);
+      byName[norm(name)] = id;
     }
   );
 
   return byName;
 }
 
-function decodeHtmlEntities(value = '') {
-  return String(value)
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&#(\d+);/g, (_, code) =>
-      String.fromCodePoint(Number(code))
-    );
-}
-
-function stripHtmlTags(value = '') {
-  return decodeHtmlEntities(
-    String(value).replace(/<[^>]*>/g, ' ')
-  );
-}
-
-function parseHtmlHorseIdsFast(html) {
-  const byName = {};
-  const source = String(html || '');
-  const anchorRe =
-    /<a\b[^>]*(?:QueryParameter_AtId|AtKosuBilgileri)[^>]*>[\s\S]*?<\/a>/gi;
-  let match;
-
-  while ((match = anchorRe.exec(source))) {
-    const anchor = match[0];
-    const id = extractQueryNumber(
-      anchor,
-      ['QueryParameter_AtId', 'AtId']
-    );
-    if (!id) continue;
-
-    const inner = (
-      anchor.match(/<a\b[^>]*>([\s\S]*?)<\/a>/i) || []
-    )[1] || '';
-    const name = oneLine(stripHtmlTags(inner));
-    if (!name) continue;
-
-    addHorseIdLookupKeys(byName, name, id);
-  }
-
-  return byName;
-}
-
-function horseLookupKeys(name = '') {
-  const base = norm(name);
-  const noParen = base
-    .replace(/\s*\(\d+\)\s*$/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const stripped = base
-    .replace(/\s*\(\d+\)\s*$/g, '')
-    .replace(/\b(?:KG|SKG|SK|DB|KUL|GKR|SGKR|GKG|YP|AP|DS|K)\b/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  return [...new Set([base, noParen, stripped].filter(Boolean))];
-}
-
-function addHorseIdLookupKeys(target, name, id) {
-  if (!target || !name || !id) return;
-  for (const lookupKey of horseLookupKeys(name)) {
-    target[lookupKey] = id;
-  }
-}
-
-function lookupHorseId(horseIdByName = {}, name = '') {
-  for (const lookupKey of horseLookupKeys(name)) {
-    const id = horseIdByName[lookupKey];
-    if (id) return id;
-  }
-  return null;
-}
-
-function isCsvBetStartMarker(name = '') {
-  const k = key(name);
-
-  return (
-    /BUKOSUDANBASLAR/.test(k) ||
-    /CIFTE/.test(k) ||
-    /GANYAN/.test(k) ||
-    /PLASE/.test(k) ||
-    /BAHIS/.test(k)
-  );
-}
-
-function horseCountForRaces(races = []) {
-  return races.reduce(
-    (sum, race) =>
-      sum + (Array.isArray(race.horses)
-        ? race.horses.length
-        : 0),
-    0
-  );
-}
-
-function horseIdCountForRaces(races = []) {
-  return races.reduce(
-    (sum, race) =>
-      sum + (Array.isArray(race.horses)
-        ? race.horses.filter(h => h?.id).length
-        : 0),
-    0
-  );
-}
-
-function filterRacesByNo(races = [], raceNo = null) {
-  if (!raceNo) return races;
-
-  return races.filter(
-    race => Number(race?.no || race?.raceNo || 0) === Number(raceNo)
-  );
-}
-
-function applyHorseIdsToRaces(races = [], horseIdByName = {}) {
-  let added = 0;
-  const nextRaces = races.map(race => ({
-    ...race,
-    horses: Array.isArray(race.horses)
-      ? race.horses.map(horse => {
-          if (horse?.id) return horse;
-          const id = lookupHorseId(
-            horseIdByName,
-            horse?.name || horse?.atadi || ''
-          );
-          if (!id) return horse;
-          added += 1;
-          return {
-            ...horse,
-            id
-          };
-        })
-      : []
-  }));
-
-  return {
-    races: nextRaces,
-    added
-  };
-}
-
-async function enrichHorseIdsFromCityHtml(city, races = []) {
-  const before = horseIdCountForRaces(races);
-  const total = horseCountForRaces(races);
-
-  if (!races.length || before >= total) {
-    return {
-      races,
-      audit: {
-        idEnrichmentAttempted: false,
-        horseIdCountBefore: before,
-        horseIdCountAfter: before,
-        horseIdMissingCount: Math.max(0, total - before)
-      }
-    };
-  }
-
-  try {
-    const html = await fetchText(city.url, ID_ENRICH_TIMEOUT_MS);
-    const horseIdByName = parseHtmlHorseIdsFast(html);
-    const applied = applyHorseIdsToRaces(races, horseIdByName);
-    const after = horseIdCountForRaces(applied.races);
-
-    return {
-      races: applied.races,
-      audit: {
-        idEnrichmentAttempted: true,
-        idEnrichmentSource: 'TJK_CITY_HTML_AT_LINKS',
-        idEnrichmentKeyCount: Object.keys(horseIdByName).length,
-        idEnrichmentAdded: applied.added,
-        horseIdCountBefore: before,
-        horseIdCountAfter: after,
-        horseIdMissingCount: Math.max(0, total - after)
-      }
-    };
-  } catch (e) {
-    return {
-      races,
-      audit: {
-        idEnrichmentAttempted: true,
-        idEnrichmentSource: 'TJK_CITY_HTML_AT_LINKS',
-        idEnrichmentError: String(e?.message || e),
-        horseIdCountBefore: before,
-        horseIdCountAfter: before,
-        horseIdMissingCount: Math.max(0, total - before)
-      }
-    };
-  }
-}
-
 /* ---------------------------------------------------------
    CSV -> KOŞULAR
 --------------------------------------------------------- */
 
-function csvRaceHeader(row) {
-  const head = oneLine(
-    [row[0], row[1], row.join(' ')].filter(Boolean).join(' ')
-  );
-  const m = head.match(
-    /(?:^|\s)(\d{1,2})\.\s*(?:Koşu|Kosu)\s*:?\s*(\d{1,2}[.:]\d{2})?/i
-  );
-
-  if (!m) return null;
-
-  return {
-    no: Number(m[1]),
-    time: (m[2] || '').replace('.', ':')
-  };
-}
-
-function isRaceClassCell(value) {
-  const k = key(value);
-  return /SARTLI|MAIDEN|HANDIKAP|KV|KISAVADELI|SATIS|LISTED|GRUP|^G[1-3]$/.test(k);
-}
-
-function trackFromCsvCell(value) {
-  const k = key(value);
-  if (k === 'CIM') return 'Çim';
-  if (k === 'KUM') return 'Kum';
-  if (k === 'SENTETIK') return 'Sentetik';
-  return '';
-}
-
-function distanceFromCsvCell(value) {
-  const m = oneLine(value).match(/\b(\d{3,4})\s*m?\b/i);
-  return m ? m[1] : '';
-}
-
-function csvRaceMetaFromRow(row) {
-  const cells = row.map(oneLine).filter(Boolean);
-  const header = csvRaceHeader(cells);
-  if (!header) return null;
-
-  const raceClass =
-    cells.find((cell, idx) => idx > 0 && isRaceClassCell(cell)) ||
-    '';
-  const ageGroup =
-    cells.map(ageGroupFromText).find(Boolean) ||
-    '';
-  const condition =
-    cells.find((cell, idx) => idx > 0 && /\b(?:kg|kilo)\b/i.test(cell)) ||
-    '';
-  const distance =
-    cells.map(distanceFromCsvCell).find(Boolean) ||
-    '';
-  const track =
-    cells.map(trackFromCsvCell).find(Boolean) ||
-    '';
-  const fallback =
-    splitRaceConditionText(cells.join(', '));
-
-  return {
-    no: header.no,
-    time: header.time || '',
-
-    class: raceClass || fallback.class || '',
-    yaradi1: raceClass || fallback.yaradi1 || fallback.class || '',
-
-    ageGroup: ageGroup || fallback.ageGroup || '',
-    yaradi2: ageGroup || fallback.yaradi2 || fallback.ageGroup || '',
-
-    condition: condition || fallback.condition || '',
-    yaradi3: condition || fallback.yaradi3 || fallback.condition || '',
-
-    distance: distance || fallback.distance || '',
-    mesafe: distance || fallback.mesafe || fallback.distance || '',
-
-    track: track || fallback.track || '',
-    pist: track || fallback.pist || fallback.track || ''
-  };
-}
-
 function parseProgramCsv(csvText, htmlMeta, horseIdByName, city) {
   /*
-    V12:
+    V9:
     TJK CSV'sinde "Koşu No" sütunu yok.
     Gerçek yapı bloklar halinde ilerliyor:
       koşu başlığı / boş satır / at başlık satırı / atlar / sonraki blok.
@@ -1009,7 +657,11 @@ function parseProgramCsv(csvText, htmlMeta, horseIdByName, city) {
   };
 
   const looksLikeRaceMeta = row => {
-    return Boolean(csvRaceMetaFromRow(row));
+    const t = oneLine(row.join(' '));
+    return (
+      /\b(?:ŞARTLI|Maiden|Handikap|KV-|KISA VADELİ|SATIŞ|SATIS|Listed|Grup|G[1-3])\b/i.test(t) &&
+      /\b\d{3,4}\s*(?:Çim|Kum|Sentetik)\b/i.test(t)
+    );
   };
 
   const finalize = () => {
@@ -1035,13 +687,15 @@ function parseProgramCsv(csvText, htmlMeta, horseIdByName, city) {
     if (looksLikeRaceMeta(row)) {
       finalize();
 
-      const csvMeta = csvRaceMetaFromRow(row);
-      currentRaceNo = csvMeta?.no || (currentRaceNo + 1);
+      currentRaceNo += 1;
+
+      const metaText = oneLine(row.join(' '));
+      const csvMeta = splitRaceConditionText(metaText);
       const hmeta = htmlMeta[currentRaceNo] || {};
 
       race = {
         no: currentRaceNo,
-        time: hmeta.time || csvMeta.time || '',
+        time: hmeta.time || '',
 
         class:
           csvMeta.class ||
@@ -1138,10 +792,6 @@ function parseProgramCsv(csvText, htmlMeta, horseIdByName, city) {
       continue;
     }
 
-    if (isCsvBetStartMarker(horseName)) {
-      continue;
-    }
-
     const horseIdCsv = parseInteger(
       valueByAliases(obj, [
         'At Id','At ID','AtId','Web At Id','web_at_id'
@@ -1150,7 +800,7 @@ function parseProgramCsv(csvText, htmlMeta, horseIdByName, city) {
 
     const horseId =
       horseIdCsv ||
-      lookupHorseId(horseIdByName, horseName) ||
+      horseIdByName[norm(horseName)] ||
       null;
 
     const age = oneLine(
@@ -1245,46 +895,6 @@ function parseProgramCsv(csvText, htmlMeta, horseIdByName, city) {
       .filter(r => (r.horses || []).length)
       .sort((a, b) => a.no - b.no),
     headers: auditHeaders
-  };
-}
-
-async function loadCityProgramFromCsv(
-  city,
-  isoDate,
-  htmlMeta = {},
-  horseIdByName = {},
-  htmlError = null
-) {
-  const csvUrl = buildCsvUrl(isoDate, city.name);
-  const csvText = await fetchCsvText(csvUrl);
-  const parsed = parseProgramCsv(
-    csvText,
-    htmlMeta,
-    horseIdByName,
-    {
-      ...city,
-      url: csvUrl
-    }
-  );
-  const horseCount = parsed.races.reduce(
-    (sum, race) =>
-      sum + (Array.isArray(race.horses)
-        ? race.horses.length
-        : 0),
-    0
-  );
-
-  return {
-    races: parsed.races,
-    audit: {
-      csvFallbackAttempted: true,
-      csvFallbackUsed: parsed.races.length > 0,
-      csvUrl,
-      csvRaceCount: parsed.races.length,
-      csvHorseCount: horseCount,
-      csvHeaders: parsed.headers,
-      htmlError
-    }
   };
 }
 
@@ -2013,24 +1623,19 @@ function parseHtmlRaceBlocks(html, city) {
    TEK ŞEHİR
 --------------------------------------------------------- */
 
-async function loadCityProgram(city, isoDate, options = {}) {
+async function loadCityProgram(city, isoDate) {
   /*
-    V12:
+    V10:
     Ana veri kaynağı canlı TJK HTML DOM'dur.
-    TJK HTML 503/boş dönerse resmi CSV yedeği kullanılır.
+    CSV at listesi için kullanılmaz.
+    Şehir + koşu numarası V7 mantığıyla korunur.
   */
 
-  const forceCsv = options?.forceCsv === true;
-  const enrichHorseIds = options?.enrichHorseIds === true;
   let html = '';
   let htmlError = null;
 
   try {
-    if (forceCsv) {
-      htmlError = 'HTML atlandı: CSV yedeği zorlandı';
-    } else {
-      html = await fetchText(city.url);
-    }
+    html = await fetchText(city.url);
   } catch (e) {
     htmlError = String(e?.message || e);
   }
@@ -2059,9 +1664,6 @@ async function loadCityProgram(city, isoDate, options = {}) {
         city
       )
     : [];
-  const htmlHorseIds = html
-    ? parseHtmlHorseIds(html)
-    : {};
 
   /*
     DOM yarışında meta eksikse skeleton meta'sını koru;
@@ -2145,88 +1747,9 @@ async function loadCityProgram(city, isoDate, options = {}) {
         race.horses.length > 0
     };
   });
-  let finalRaces = races;
-  const domHorseCount = domRaces.reduce(
-    (sum, race) =>
-      sum + (race.horses?.length || 0),
-    0
-  );
-  let csvAudit = {
-    csvFallbackAttempted: false,
-    csvFallbackUsed: false
-  };
-
-  if (
-    forceCsv ||
-    htmlError ||
-    !finalRaces.length ||
-    !domHorseCount
-  ) {
-    try {
-      const csvLoaded = await loadCityProgramFromCsv(
-        city,
-        isoDate,
-        htmlMeta,
-        htmlHorseIds,
-        htmlError
-      );
-      const csvHorseCount = csvLoaded.races.reduce(
-        (sum, race) =>
-          sum + (Array.isArray(race.horses)
-            ? race.horses.length
-            : 0),
-        0
-      );
-
-      if (csvLoaded.races.length && csvHorseCount) {
-        finalRaces = finalRaces.length
-          ? mergeRaceDetails(finalRaces, csvLoaded.races)
-          : csvLoaded.races;
-        csvAudit = {
-          ...csvLoaded.audit,
-          csvFallbackUsed: true
-        };
-      } else {
-        csvAudit = {
-          ...csvLoaded.audit,
-          csvFallbackUsed: false,
-          csvFallbackReason: 'CSV program boş geldi.'
-        };
-      }
-    } catch (e) {
-      csvAudit = {
-        csvFallbackAttempted: true,
-        csvFallbackUsed: false,
-        csvError: String(e?.message || e)
-      };
-    }
-  }
-
-  let idEnrichmentAudit = {
-    idEnrichmentAttempted: false,
-    horseIdCountBefore: horseIdCountForRaces(finalRaces),
-    horseIdCountAfter: horseIdCountForRaces(finalRaces),
-    horseIdMissingCount: Math.max(
-      0,
-      horseCountForRaces(finalRaces) - horseIdCountForRaces(finalRaces)
-    )
-  };
-
-  if (
-    enrichHorseIds &&
-    (forceCsv || csvAudit.csvFallbackUsed) &&
-    horseIdCountForRaces(finalRaces) < horseCountForRaces(finalRaces)
-  ) {
-    const enriched = await enrichHorseIdsFromCityHtml(
-      city,
-      finalRaces
-    );
-    finalRaces = enriched.races;
-    idEnrichmentAudit = enriched.audit;
-  }
 
   return {
-    races: finalRaces,
+    races,
     audit: {
       cityPageFetched: Boolean(html),
       htmlError,
@@ -2240,7 +1763,12 @@ async function loadCityProgram(city, isoDate, options = {}) {
       domRaceCount:
         domRaces.length,
 
-      domHorseCount,
+      domHorseCount:
+        domRaces.reduce(
+          (sum, race) =>
+            sum + (race.horses?.length || 0),
+          0
+        ),
 
       domHorseWithIdCount:
         domRaces.reduce(
@@ -2250,19 +1778,7 @@ async function loadCityProgram(city, isoDate, options = {}) {
         ),
 
       domAgeGroupMissingRaceCount:
-        finalRaces.filter(r => !r.ageGroup).length,
-
-      horseIdCount:
-        horseIdCountForRaces(finalRaces),
-
-      horseIdMissingCount:
-        Math.max(
-          0,
-          horseCountForRaces(finalRaces) - horseIdCountForRaces(finalRaces)
-        ),
-
-      ...idEnrichmentAudit,
-      ...csvAudit
+        races.filter(r => !r.ageGroup).length
     }
   };
 }
@@ -2273,10 +1789,7 @@ async function loadCityProgram(city, isoDate, options = {}) {
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader(
-    'Cache-Control',
-    'public, max-age=0, s-maxage=300, stale-while-revalidate=900'
-  );
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
 
   if (req.method !== 'GET') {
     return res.status(405).json({
@@ -2295,147 +1808,9 @@ export default async function handler(req, res) {
       isoDate.split('-').reverse().join('/')
     );
 
-  const cityScope =
-    String(req.query?.scope || '').toLowerCase() === 'selected' ||
-    String(req.query?.cityOnly || '') === '1' ||
-    Boolean(req.query?.cityId || req.query?.cityName);
-  const citiesOnly =
-    String(req.query?.scope || '').toLowerCase() === 'cities' ||
-    String(req.query?.citiesOnly || '') === '1';
-  const requestedCityId = req.query?.cityId || req.query?.city || '';
-  const requestedCityName = req.query?.cityName || '';
-  const hasRequestedCity =
-    Boolean(requestedCityId || requestedCityName);
-  const forceCsvFallback =
-    String(req.query?.forceCsvFallback || '') === '1';
-  const enrichHorseIds =
-    String(req.query?.enrichIds || req.query?.enrichHorseIds || '') === '1';
-  const requestedRaceNo = parseInteger(
-    req.query?.raceNo || req.query?.selectedRace || ''
-  );
-  const selectedCsvMode =
-    cityScope && !citiesOnly;
-
   try {
-    const directCity = cityScope
-      ? directCityFromRequest(
-          isoDate,
-          requestedCityId,
-          requestedCityName
-        )
-      : null;
-
-    if (directCity) {
-      const selectedCity = directCity;
-
-      const racesByCity = {};
-      const programs = {};
-      const errors = [];
-      const parserAudit = {};
-
-      try {
-        const loaded = await loadCityProgram(
-          selectedCity,
-          isoDate,
-          {
-            forceCsv: forceCsvFallback || selectedCsvMode,
-            enrichHorseIds
-          }
-        );
-        const selectedRaces = filterRacesByNo(
-          loaded.races || [],
-          requestedRaceNo
-        );
-
-        racesByCity[String(selectedCity.id)] =
-          selectedRaces;
-        programs[String(selectedCity.id)] =
-          selectedRaces;
-        parserAudit[String(selectedCity.id)] = {
-          ...loaded.audit,
-          requestedRaceNo: requestedRaceNo || null
-        };
-      } catch (e) {
-        errors.push({
-          city: selectedCity.name,
-          cityId: selectedCity.id,
-          error: String(e?.message || e)
-        });
-        racesByCity[String(selectedCity.id)] = [];
-        programs[String(selectedCity.id)] = [];
-      }
-
-      const loadedRaces =
-        racesByCity[String(selectedCity.id)] || [];
-      const horseCount = loadedRaces.reduce(
-        (sum, race) =>
-          sum + (Array.isArray(race.horses)
-            ? race.horses.length
-            : 0),
-        0
-      );
-
-      return res.status(200).json({
-        ok: true,
-        parserVersion: VERSION,
-        version: VERSION,
-        date: isoDate,
-
-        cityCount: 1,
-        raceCount: loadedRaces.length,
-        horseCount,
-
-        cities: [selectedCity],
-        selectedCityId: String(selectedCity.id),
-        racesByCity,
-        programs,
-
-        audit: {
-          sourceMode: 'TJK_TABLE_LOCK_EXACT_RACE_HORSES',
-          selectedCityOnly: true,
-          directCityRequest: true,
-          directCityFallback: false,
-          schemaBasis:
-            'Tek şehir hızlı mod: şehir id/adı istemciden geldiği için root şehir listesi beklenmez',
-          careerRequirement:
-            'At ID CSV varsa doğrudan, yoksa resmi TJK at linkinden eşleştirilir',
-          failedCityCount: errors.length,
-          errors,
-          parserAudit
-        },
-
-        source: 'TJK Resmi CSV Günlük Yarış Programı',
-        sourceUrl: selectedCity.url
-      });
-    }
-
     const rootHtml = await fetchText(rootUrl);
     const cities = extractCities(rootHtml, isoDate);
-
-    if (citiesOnly || (cityScope && !hasRequestedCity)) {
-      return res.status(200).json({
-        ok: true,
-        parserVersion: VERSION,
-        version: VERSION,
-        date: isoDate,
-        cityCount: cities.length,
-        raceCount: 0,
-        horseCount: 0,
-        cities,
-        selectedCityId: '',
-        racesByCity: {},
-        programs: {},
-        audit: {
-          sourceMode: 'TJK_CITY_LIST_ONLY',
-          selectedCityOnly: false,
-          citiesOnly: true,
-          schemaBasis:
-            'İlk açılışta yalnız TJK resmi şehir listesi alınır; yarışlar seçilen şehirle ayrı tek-şehir isteğinde yüklenir'
-        },
-        source: 'TJK Günlük Yarış Programı',
-        sourceUrl: rootUrl
-      });
-    }
 
     if (!cities.length) {
       return res.status(200).json({
@@ -2463,110 +1838,6 @@ export default async function handler(req, res) {
     const errors = [];
     const parserAudit = {};
 
-    if (cityScope) {
-      const selectedCity = pickRequestedCity(
-        cities,
-        requestedCityId,
-        requestedCityName
-      );
-
-      if (!selectedCity) {
-        return res.status(200).json({
-          ok: true,
-          parserVersion: VERSION,
-          version: VERSION,
-          date: isoDate,
-          cityCount: cities.length,
-          raceCount: 0,
-          horseCount: 0,
-          cities,
-          selectedCityId: '',
-          racesByCity: {},
-          programs: {},
-          audit: {
-            sourceMode: 'TJK_TABLE_LOCK_EXACT_RACE_HORSES',
-            selectedCityOnly: true,
-            error: 'Seçili şehir bulunamadı.'
-          },
-          source: 'TJK Resmi CSV Günlük Yarış Programı',
-          sourceUrl: rootUrl
-        });
-      }
-
-      try {
-        const loaded = await loadCityProgram(
-          selectedCity,
-          isoDate,
-          {
-            forceCsv: forceCsvFallback || selectedCsvMode,
-            enrichHorseIds
-          }
-        );
-        const selectedRaces = filterRacesByNo(
-          loaded.races || [],
-          requestedRaceNo
-        );
-
-        racesByCity[String(selectedCity.id)] =
-          selectedRaces;
-        programs[String(selectedCity.id)] =
-          selectedRaces;
-        parserAudit[String(selectedCity.id)] = {
-          ...loaded.audit,
-          requestedRaceNo: requestedRaceNo || null
-        };
-      } catch (e) {
-        errors.push({
-          city: selectedCity.name,
-          cityId: selectedCity.id,
-          error: String(e?.message || e)
-        });
-        racesByCity[String(selectedCity.id)] = [];
-        programs[String(selectedCity.id)] = [];
-      }
-
-      const loadedRaces =
-        racesByCity[String(selectedCity.id)] || [];
-      const horseCount = loadedRaces.reduce(
-        (sum, race) =>
-          sum + (Array.isArray(race.horses)
-            ? race.horses.length
-            : 0),
-        0
-      );
-
-      return res.status(200).json({
-        ok: true,
-        parserVersion: VERSION,
-        version: VERSION,
-        date: isoDate,
-
-        cityCount: cities.length,
-        raceCount: loadedRaces.length,
-        horseCount,
-
-        cities,
-        selectedCityId: String(selectedCity.id),
-        racesByCity,
-        programs,
-
-        audit: {
-          sourceMode: 'TJK_TABLE_LOCK_EXACT_RACE_HORSES',
-          selectedCityOnly: true,
-          schemaBasis:
-            'Tek şehir hızlı mod: şehir listesi root programdan, yarışlar yalnız seçili şehirden alınır',
-          careerRequirement:
-            'At ID CSV varsa doğrudan, yoksa resmi TJK at linkinden eşleştirilir',
-          failedCityCount: errors.length,
-          errors,
-          parserAudit
-        },
-
-        source: 'TJK Resmi CSV Günlük Yarış Programı',
-        sourceUrl: rootUrl
-      });
-    }
-
     /*
       CDN ve TJK'yı gereksiz yüklememek için şehirleri sıralı alıyoruz.
       Türkiye'de aynı gün şehir sayısı düşüktür.
@@ -2575,10 +1846,7 @@ export default async function handler(req, res) {
       try {
         const loaded = await loadCityProgram(
           city,
-          isoDate,
-          {
-            forceCsv: forceCsvFallback || selectedCsvMode
-          }
+          isoDate
         );
 
         /*

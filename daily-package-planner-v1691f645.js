@@ -558,7 +558,7 @@ function installAnnualManager() {
     <h3>1 · Yıllık Arşiv Yönetimi</h3>
     <div class="aa-note">Yıllar bağımsız saklanır. Bir yılı silmek diğer yılları ve günlük paketleri bozmaz.</div>
     <div class="aa-grid two">
-      <label>Başlangıç yılı<select id="aaBatchFromF645">${yearOptions(2019)}</select></label>
+      <label>Başlangıç yılı<select id="aaBatchFromF645">${yearOptions(2015)}</select></label>
       <label>Bitiş yılı<select id="aaBatchToF645">${yearOptions(CURRENT_YEAR)}</select></label>
     </div>
     <div class="aa-actions">
@@ -1153,17 +1153,17 @@ function ensureAll() {
   applyProcessMenu();
 }
 
-window.addEventListener('at-ai:annual-archive-open', () => setTimeout(ensureAll, 0));
-for (const name of ['at-ai:annual-archive-created','at-ai:annual-archive-render','at-ai:annual-archive-ready']) {
-  window.addEventListener(name, () => setTimeout(applyProcessMenu, 0));
+for (const name of ['at-ai:annual-archive-created','at-ai:annual-archive-open','at-ai:annual-archive-render','at-ai:annual-archive-ready']) {
+  window.addEventListener(name, () => setTimeout(ensureAll, 0));
 }
 document.addEventListener('click', e => {
-  if (e.target?.closest?.('#annualArchiveBtn')) setTimeout(ensureAll, 40);
-  else if (e.target?.closest?.('#menuBtn')) setTimeout(applyProcessMenu, 40);
+  if (e.target?.closest?.('#annualArchiveBtn,#menuBtn')) setTimeout(ensureAll, 40);
 }, true);
-try { new MutationObserver(() => applyProcessMenu()).observe($('drawer') || document.documentElement, { childList: true, subtree: true, characterData: true }); } catch {}
-setTimeout(applyProcessMenu, 100);
-setTimeout(applyProcessMenu, 600);
+// Menu reconciliation runs only on app lifecycle events and menu opens; an observer here
+// re-fired during drawer updates on mobile and kept the main thread busy.
+
+setTimeout(ensureAll, 100);
+setTimeout(ensureAll, 600);
 
 const previous = window.ATDailySourceArchiveV642 || {};
 window.ATDailySourceArchiveV642 = {
