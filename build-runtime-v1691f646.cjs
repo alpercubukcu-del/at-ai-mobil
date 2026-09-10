@@ -2,7 +2,7 @@ const fs=require('fs');
 const path=require('path');
 const {execFileSync}=require('child_process');
 const ROOT=__dirname,BASE=path.join(ROOT,'build-runtime-v1691f644.cjs'),EXTRA=path.join(ROOT,'daily-model-matrix-v1691f646.js'),ARCHIVE_AUTOSAVE=path.join(ROOT,'career-archive-render-autosave-v1691f647.js'),APP=path.join(ROOT,'public','at-ai-app-v142.js'),INDEX=path.join(ROOT,'public','index.html');
-if(!fs.existsSync(BASE)||!fs.existsSync(EXTRA)||!fs.existsSync(ARCHIVE_AUTOSAVE))throw new Error('[F60.48] Missing selected-package base, model matrix, or archive autosave module.');
+if(!fs.existsSync(BASE)||!fs.existsSync(EXTRA)||!fs.existsSync(ARCHIVE_AUTOSAVE))throw new Error('[F60.49] Missing selected-package base, model matrix, or archive autosave module.');
 execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
 let app=fs.readFileSync(APP,'utf8');
 // The matrix must run before the legacy calibration/coupon modules initialize.
@@ -11,12 +11,12 @@ const oldIds="const MODEL_IDS=['composite','exact','twin','family','career','win
 const newIds="const MODEL_IDS=[...(window.ATModelMatrixV646?.ids||['composite','exact','twin','family','career']),'winner'];";
 const oldLabels="const MODEL_LABELS={composite:'Bileşik',exact:'Tam',twin:'İkiz',family:'Aile',career:'Kariyer',winner:'Kazanan Yolu'};";
 const newLabels="const MODEL_LABELS={...(window.ATModelMatrixV646?.labels||{composite:'Bileşik',exact:'Tam',twin:'İkiz',family:'Aile',career:'Kariyer'}),winner:'Kazanan Yolu'};";
-if(!app.includes(oldIds)||!app.includes(oldLabels))throw new Error('[F60.48] Winner calibration model declarations not found.');
+if(!app.includes(oldIds)||!app.includes(oldLabels))throw new Error('[F60.49] Winner calibration model declarations not found.');
 app=app.replace(oldIds,newIds).replace(oldLabels,newLabels);
 app+='\n\n'+fs.readFileSync(ARCHIVE_AUTOSAVE,'utf8').trim()+'\n';
-for(const token of['SELECTED-PACKAGE-20-MODEL-MATRIX-V16.9.1F60.46','PROCESS-FLOW-PLANNER-V16.9.1F60.45','TJK-ANNUAL-ARCHIVE-V14.2-SCHEMA-REPAIR','Seçilen Benzer Yarışları İndir','yıllık arşiv telefonda hazır değil','CAREER-ARCHIVE-RENDER-AUTOSAVE-V16.9.1F60.48','DAILY-FIVE-MODEL-ARCHIVE-PREP-V16.9.1F3+F60.48-CONFIRMED-STORAGE','CAREER-ARCHIVE-SCORE-GUARD-V16.9.1F33+F60.48-KEEP-MOBILE-ROWS'])if(!app.includes(token))throw new Error('[F60.48] Verification failed: '+token);
+for(const token of['SELECTED-PACKAGE-20-MODEL-MATRIX-V16.9.1F60.46','PROCESS-FLOW-PLANNER-V16.9.1F60.45','TJK-ANNUAL-ARCHIVE-V14.2-SCHEMA-REPAIR','Seçilen Benzer Yarışları İndir','yıllık arşiv telefonda hazır değil','CAREER-ARCHIVE-RENDER-AUTOSAVE-V16.9.1F60.48','DAILY-FIVE-MODEL-ARCHIVE-PREP-V16.9.1F3+F60.48-CONFIRMED-STORAGE','CAREER-ARCHIVE-SCORE-GUARD-V16.9.1F33+F60.48-KEEP-MOBILE-ROWS','COUPON-DAILY-ARCHIVE-SOURCE-V16.9.1+F60.49-EVIDENCE-SAFE-HYDRATE'])if(!app.includes(token))throw new Error('[F60.49] Verification failed: '+token);
 new Function(app);fs.writeFileSync(APP,app,'utf8');
-let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169249');
+let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169250');
 fs.writeFileSync(INDEX,html,'utf8');
-if(!html.includes('/at-ai-app-v142.js?v=169249'))throw new Error('[F60.48] Cache bust failed.');
-console.log('[AT AI] V16.9.1F60.48 build complete: selected package defaults + 20 model calibration matrix + annual-empty guard + confirmed Career/5 Model IndexedDB archive writes.');
+if(!html.includes('/at-ai-app-v142.js?v=169250'))throw new Error('[F60.49] Cache bust failed.');
+console.log('[AT AI] V16.9.1F60.49 build complete: selected package defaults + 20 model calibration matrix + annual-empty guard + evidence-safe Career archive hydrate.');
