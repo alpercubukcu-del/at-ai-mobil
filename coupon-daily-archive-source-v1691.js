@@ -8,7 +8,7 @@
 if(window.__AT_COUPON_DAILY_ARCHIVE_SOURCE_V1691__) return;
 window.__AT_COUPON_DAILY_ARCHIVE_SOURCE_V1691__=true;
 
-const VERSION='COUPON-DAILY-ARCHIVE-SOURCE-V16.9.1+F60.49-EVIDENCE-SAFE-HYDRATE';
+const VERSION='COUPON-DAILY-ARCHIVE-SOURCE-V16.9.1+F60.51-EVIDENCE-ONLY';
 const DB_NAME='at_ai_daily_career_archive_v146';
 const STORE='entries';
 const MODEL_SESSION='at_ai_five_model_compact_v1687';

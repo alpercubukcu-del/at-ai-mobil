@@ -475,7 +475,7 @@ async function updateArchiveToolbarA() {
   if (holder) holder.style.display = careerOpen ? 'flex' : 'none';
   if (!careerOpen) return;
   const date = cleanA(state?.date), city = cleanA(state?.city);
-  const rows = (await listDateA(date)).filter(r => r.kind === 'race' && cleanA(r.city) === city);
+  const rows = (await listDateA(date)).filter(r => r.kind === 'race' && cleanA(r.city) === city && recordHasCareerEvidenceA(r));
   const count = $a('careerArchiveCountV146');
   if (count) count.textContent = rows.length ? `(${rows.length})` : '';
 }
@@ -504,7 +504,7 @@ async function renderArchiveDialogA() {
   if (!list) return;
   if (storage) storage.textContent = await storageTextA();
   const all = await listDateA(date);
-  const races = all.filter(r => r.kind === 'race').sort((a,b) => cleanA(a.cityName).localeCompare(cleanA(b.cityName),'tr') || Number(a.raceNo)-Number(b.raceNo));
+  const races = all.filter(r => r.kind === 'race' && recordHasCareerEvidenceA(r)).sort((a,b) => cleanA(a.cityName).localeCompare(cleanA(b.cityName),'tr') || Number(a.raceNo)-Number(b.raceNo));
   if (!races.length) {
     list.innerHTML = `<div class="career-archive-empty-v146"><b>${escA(date || 'Seçili gün')}</b> için kayıtlı kariyer analizi yok.<br>Bir koşuyu hesapladığınızda otomatik kaydedilecek.</div>`;
     return;
@@ -569,7 +569,7 @@ function careerRowsOfA(item = {}) {
 function rankingRowsA(race = {}) {
   return (Array.isArray(race.horses) ? race.horses : []).map(item => ({
     no: item?.horse?.no ?? '', name: cleanA(item?.horse?.name),
-    score: finiteA(item?.galibiyetBenzerligi?.score),
+    score: itemCareerScoreA(item),
     mode: cleanA(item?.career?.analysisMode || item?.galibiyetBenzerligi?.analysisMode),
     careerCount: careerRowsOfA(item).length,
     item
