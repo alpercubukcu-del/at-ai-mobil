@@ -13,9 +13,9 @@ const oldLabels="const MODEL_LABELS={composite:'Bileşik',exact:'Tam',twin:'İki
 const newLabels="const MODEL_LABELS={...(window.ATModelMatrixV646?.labels||{composite:'Bileşik',exact:'Tam',twin:'İkiz',family:'Aile',career:'Kariyer'}),winner:'Kazanan Yolu'};";
 if(!app.includes(oldIds)||!app.includes(oldLabels))throw new Error('[F60.51] Winner calibration model declarations not found.');
 app=app.replace(oldIds,newIds).replace(oldLabels,newLabels);
-for(const token of['SELECTED-PACKAGE-20-MODEL-MATRIX-V16.9.1F60.46','PROCESS-FLOW-PLANNER-V16.9.1F60.45','TJK-ANNUAL-ARCHIVE-V14.2-SCHEMA-REPAIR','Seçilen Benzer Yarışları İndir','yıllık arşiv telefonda hazır değil','CAREER-ARCHIVE-SCORE-GUARD-V16.9.1F33+F60.51-EVIDENCE-ONLY','COUPON-DAILY-ARCHIVE-SOURCE-V16.9.1+F60.51-EVIDENCE-ONLY'])if(!app.includes(token))throw new Error('[F60.51] Verification failed: '+token);
+for(const token of['SELECTED-PACKAGE-20-MODEL-MATRIX-V16.9.1F60.46','PROCESS-FLOW-PLANNER-V16.9.1F60.45','TJK-ANNUAL-ARCHIVE-V14.2-SCHEMA-REPAIR','Seçilen Benzer Yarışları İndir','yıllık arşiv telefonda hazır değil','CAREER-ARCHIVE-SCORE-GUARD-V16.9.1F33+F60.52-CALC-FIRST-EVIDENCE-ONLY','COUPON-DAILY-ARCHIVE-SOURCE-V16.9.1+F60.51-EVIDENCE-ONLY'])if(!app.includes(token))throw new Error('[F60.52] Verification failed: '+token);
 new Function(app);fs.writeFileSync(APP,app,'utf8');
-let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169252');
+let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169253');
 fs.writeFileSync(INDEX,html,'utf8');
-if(!html.includes('/at-ai-app-v142.js?v=169252'))throw new Error('[F60.51] Cache bust failed.');
-console.log('[AT AI] V16.9.1F60.51 build complete: 2026-09-07 Career calculation path restored; evidence-only daily Career archive kept.');
+if(!html.includes('/at-ai-app-v142.js?v=169253'))throw new Error('[F60.52] Cache bust failed.');
+console.log('[AT AI] V16.9.1F60.52 build complete: Career calculation runs before archive guard; evidence-only daily Career archive kept.');
