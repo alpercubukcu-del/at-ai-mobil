@@ -9,7 +9,7 @@
 if (window.__AT_CAREER_ARCHIVE_SCORE_GUARD_V1691F33__) return;
 window.__AT_CAREER_ARCHIVE_SCORE_GUARD_V1691F33__ = true;
 
-const VERSION = 'CAREER-ARCHIVE-SCORE-GUARD-V16.9.1F33+F60.51-EVIDENCE-ONLY';
+const VERSION = 'CAREER-ARCHIVE-SCORE-GUARD-V16.9.1F33+F60.52-CALC-FIRST-EVIDENCE-ONLY';
 const DB_NAME = 'at_ai_daily_career_archive_v146';
 const STORE = 'entries';
 const ENGINE = typeof CAREER_UI_VERSION !== 'undefined' ? CAREER_UI_VERSION : 'CAREER-UI';
@@ -487,8 +487,6 @@ if (typeof runCareerAnalysis === 'function') {
 if (typeof runAnalysis === 'function') {
   const baseRunAnalysisF33 = runAnalysis;
   runAnalysis = async function(...args) {
-    try { await prepareArchiveAction('runAnalysis-before-restore'); }
-    catch (error) { console.warn('[AT AI]', VERSION, 'pre-run archive guard failed', error); }
     return baseRunAnalysisF33.apply(this, args);
   };
   try {
@@ -520,11 +518,18 @@ document.addEventListener('click', event => {
   });
 }, true);
 
-window.addEventListener('pageshow', () => setTimeout(() => prepareArchiveAction('pageshow'), 350), { passive:true });
+function refreshArchiveCountOnly() {
+  try {
+    const st = currentState();
+    updateVisibleArchiveCount(clean(st?.date), clean(st?.city));
+  } catch {}
+}
+
+window.addEventListener('pageshow', () => setTimeout(refreshArchiveCountOnly, 350), { passive:true });
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') setTimeout(() => prepareArchiveAction('visible'), 350);
+  if (document.visibilityState === 'visible') setTimeout(refreshArchiveCountOnly, 350);
 }, { passive:true });
-setTimeout(() => prepareArchiveAction('startup'), 800);
+setTimeout(refreshArchiveCountOnly, 800);
 
 window.ATCareerArchiveScoreGuardV1691F33 = {
   version:VERSION,
