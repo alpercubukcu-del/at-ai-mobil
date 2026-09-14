@@ -20,6 +20,12 @@ for(const token of[
   'filterCareerPayload',
   'Takvim ve Çoklu Filtre ile Eşleşmeleri Seç'
 ])if(!currentSource.includes(token))throw new Error('[F60.63] Current filter invariant missing: '+token);
+for(const token of[
+  'COMPACT-FILTER-DROPDOWN-V16.9.1F60.63',
+  'Tümünü Seç',
+  'f6063-summary-chip',
+  'grid-template-columns:1fr'
+])if(!compactSource.includes(token))throw new Error('[F60.63] Select-style UI invariant missing: '+token);
 if(currentSource.includes('deleteDatabase('))throw new Error('[F60.63] Archive deletion is forbidden.');
 const strictFilter="out[name]=arr.filter(row=>{const n=careerRow(row);return n.date&&C.rowPasses(n,cfg.filters)&&(cfg.refs?.length?cfg.refs.some(ref=>refMatch(n,ref)):true);});";
 const selectedRefFirst="out[name]=arr.filter(row=>{const n=careerRow(row);if(!n.date)return false;return cfg.refs?.length?cfg.refs.some(ref=>refMatch(n,ref)):C.rowPasses(n,cfg.filters);});";
@@ -42,7 +48,7 @@ for(const token of[
 ])if(!app.includes(token))throw new Error('[F60.63] Verification failed: '+token);
 new Function(app);
 fs.writeFileSync(APP,app,'utf8');
-let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169266');
+let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169267');
 fs.writeFileSync(INDEX,html,'utf8');
-if(!html.includes('/at-ai-app-v142.js?v=169266'))throw new Error('[F60.63] Cache bust failed.');
-console.log('[AT AI] V16.9.1F60.63 build complete: Güncel Analiz first-open calendar/multifilter + archive DB v3 option loading + compact dropdowns + selected-reference career filtering + sparse career metadata tolerance.');
+if(!html.includes('/at-ai-app-v142.js?v=169267'))throw new Error('[F60.63] Cache bust failed.');
+console.log('[AT AI] V16.9.1F60.63 build complete: Güncel Analiz first-open filters + DB v3 + white-page-style single-column multi-select dropdowns + selected chips + Tümünü Seç + sparse career metadata tolerance.');
