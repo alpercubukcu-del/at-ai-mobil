@@ -11,7 +11,7 @@ if(!fs.existsSync(BASE))throw new Error('[F60.74] F60.70 base builder missing');
 for(const file of[SAFETY,POSTPONED])if(!fs.existsSync(file))throw new Error('[F60.74] runtime missing: '+path.basename(file));
 const safety=fs.readFileSync(SAFETY,'utf8'),post=fs.readFileSync(POSTPONED,'utf8');
 for(const token of['NO_GLOBAL_MUTATION_OBSERVER_F6072','MIN_SAFE_SCORE=90'])if(!safety.includes(token))throw new Error('[F60.74] safety invariant missing: '+token);
-for(const token of['POSTPONED-RACE-REPAIR-V16.9.1F60.74','DATE_DRIVEN_REPAIR_F6072','POSTPONED_CONFIRMED_SAME_NO_F6073','ARCHIVE_RACE_NO_RECOVERY_F6074','Bu Tarihte Bul ve Eşleştir','Yerel arşiv koşu no hatası','DATE_ENTERED_ARCHIVE_RACE_NO_RECOVERED','candidate:null'])if(!post.includes(token))throw new Error('[F60.74] repair invariant missing: '+token);
+for(const token of['POSTPONED-RACE-REPAIR-V16.9.1F60.74','DATE_DRIVEN_REPAIR_F6072','POSTPONED_CONFIRMED_SAME_NO_F6073','ARCHIVE_RACE_NO_RECOVERY_F6074','Bu Tarihte Bul ve Eşleştir','yerel arşiv koşu no hatası','DATE_ENTERED_ARCHIVE_RACE_NO_RECOVERED','candidate:null'])if(!post.includes(token))throw new Error('[F60.74] repair invariant missing: '+token);
 if(safety.includes('new MutationObserver'))throw new Error('[F60.74] safety global MutationObserver must be removed');
 if(post.includes('new MutationObserver'))throw new Error('[F60.74] postponed global MutationObserver must be removed');
 new Function(safety);new Function(post);
