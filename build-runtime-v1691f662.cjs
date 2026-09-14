@@ -14,6 +14,15 @@ if(!fs.existsSync(BASE))throw new Error('[F60.62] Missing F60.61 baseline builde
 for(const file of EXTRAS)if(!fs.existsSync(file))throw new Error('[F60.62] Missing module: '+path.basename(file));
 if(!fs.existsSync(TEST))throw new Error('[F60.62] Missing regression test.');
 execFileSync(process.execPath,[TEST],{cwd:ROOT,stdio:'inherit'});
+const uiSource=fs.readFileSync(EXTRAS[1],'utf8');
+for(const token of[
+  "existing?.status==='complete'",
+  'r.date<ctx.date',
+  "repairStatus:'CANCELLED'",
+  "source:'REPAIRED_RESULT_ALIAS'",
+  'IDBKeyRange.bound(start,end)'
+])if(!uiSource.includes(token))throw new Error('[F60.62] Safety invariant missing: '+token);
+if(uiSource.includes('deleteDatabase('))throw new Error('[F60.62] Existing archive deletion is forbidden.');
 execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
 let app=fs.readFileSync(APP,'utf8');
 for(const file of EXTRAS)app+='\n\n'+fs.readFileSync(file,'utf8').trim()+'\n';
