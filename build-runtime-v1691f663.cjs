@@ -11,15 +11,24 @@ const APP=path.join(ROOT,'public','at-ai-app-v142.js');
 const INDEX=path.join(ROOT,'public','index.html');
 if(!fs.existsSync(BASE))throw new Error('[F60.63] Missing F60.62 baseline builder.');
 for(const file of EXTRAS)if(!fs.existsSync(file))throw new Error('[F60.63] Missing runtime: '+path.basename(file));
-let currentSource=fs.readFileSync(EXTRAS[0],'utf8');
+const currentSource=fs.readFileSync(EXTRAS[0],'utf8');
 const compactSource=fs.readFileSync(EXTRAS[1],'utf8');
+const selectedRefFirst="out[name]=arr.filter(row=>{const n=careerRow(row);if(!n.date)return false;return cfg.refs?.length?cfg.refs.some(ref=>refMatch(n,ref)):C.rowPasses(n,cfg.filters);});";
 for(const token of[
   'CURRENT-ANALYSIS-MULTIFILTER-BRIDGE-V16.9.1F60.63',
-  'indexedDB.open(DB_NAME, DB_VERSION)',
+  'indexedDB.open(DB_NAME,DB_VERSION)',
   "d.dataset.view==='current'",
   'filterCareerPayload',
-  'Takvim ve Çoklu Filtre ile Eşleşmeleri Seç'
-])if(!currentSource.includes(token))throw new Error('[F60.63] Current filter invariant missing: '+token);
+  'Standart',
+  'Özel',
+  'Sonuçlar',
+  'Analiz Parametreleri',
+  'Koşu Sayısı Limiti',
+  'Sıfırla',
+  'Hesapla',
+  'calculateCustom',
+  selectedRefFirst
+])if(!currentSource.includes(token))throw new Error('[F60.63] Current Analysis menu invariant missing: '+token);
 for(const token of[
   'COMPACT-FILTER-DROPDOWN-V16.9.1F60.63',
   'Tümünü Seç',
@@ -28,11 +37,6 @@ for(const token of[
   'display:block!important'
 ])if(!compactSource.includes(token))throw new Error('[F60.63] Select-style UI invariant missing: '+token);
 if(currentSource.includes('deleteDatabase('))throw new Error('[F60.63] Archive deletion is forbidden.');
-const strictFilter="out[name]=arr.filter(row=>{const n=careerRow(row);return n.date&&C.rowPasses(n,cfg.filters)&&(cfg.refs?.length?cfg.refs.some(ref=>refMatch(n,ref)):true);});";
-const selectedRefFirst="out[name]=arr.filter(row=>{const n=careerRow(row);if(!n.date)return false;return cfg.refs?.length?cfg.refs.some(ref=>refMatch(n,ref)):C.rowPasses(n,cfg.filters);});";
-if(!currentSource.includes(strictFilter))throw new Error('[F60.63] Selected-reference filter patch target missing.');
-currentSource=currentSource.replace(strictFilter,selectedRefFirst);
-if(!currentSource.includes(selectedRefFirst)||currentSource.includes(strictFilter))throw new Error('[F60.63] Selected-reference sparse-metadata patch failed.');
 new Function(currentSource);
 new Function(compactSource);
 execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
@@ -45,11 +49,13 @@ for(const token of[
   'COMPACT-FILTER-DROPDOWN-V16.9.1F60.63',
   'PERFORMANCE-SAFE-V16.9.1F60.61',
   'const CAREER_CONCURRENCY = 4;',
+  'Analiz Parametreleri',
+  'data-f63-mode="custom"',
   selectedRefFirst
 ])if(!app.includes(token))throw new Error('[F60.63] Verification failed: '+token);
 new Function(app);
 fs.writeFileSync(APP,app,'utf8');
-let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169268');
+let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=169269');
 fs.writeFileSync(INDEX,html,'utf8');
-if(!html.includes('/at-ai-app-v142.js?v=169268'))throw new Error('[F60.63] Cache bust failed.');
-console.log('[AT AI] V16.9.1F60.63 build complete: Güncel Analiz first-open filters + DB v3 + white-page-style single-column multi-select dropdowns + selected chips + Tümünü Seç + sparse career metadata tolerance.');
+if(!html.includes('/at-ai-app-v142.js?v=169269'))throw new Error('[F60.63] Cache bust failed.');
+console.log('[AT AI] V16.9.1F60.63 build complete: Current Analysis rebuilt from reference video — Standart/Özel/Sonuçlar, inline Analiz Parametreleri, date range, white multi-selects, race limit, reset/calculate; F60.61 calculation stack preserved.');
