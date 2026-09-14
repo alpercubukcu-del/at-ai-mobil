@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION='TJK-RESULT-INDEX-V1-F60.75';
+const VERSION='TJK-RESULT-INDEX-V1-F60.75.1';
 const TJK='https://www.tjk.org';
 const DATA_URL=`${TJK}/TR/YarisSever/Query/Data/KosuSorgulama`;
 const ROWS_URL=`${TJK}/TR/YarisSever/Query/DataRows/KosuSorgulama`;
@@ -30,20 +30,21 @@ async function postForm(url,form){
   }finally{clearTimeout(t)}
 }
 function parse(html=''){
-  const $=cheerio.load(html),out=[];
+  const $=cheerio.load(html),out=[];let sourceRowCount=0;
   $('table').each((_,table)=>{
     const heads=$(table).find('thead th').map((__,th)=>clean($(th).text())).get();
     const ix=re=>heads.findIndex(x=>re.test(clean(x)));
     const dateIx=ix(/^Tarih$/i),cityIx=ix(/^Şehir$|^Sehir$/i),raceIx=ix(/^Koşu$|^Kosu$/i),ageIx=ix(/^Grup$/i),classIx=ix(/Koşu Cinsi|Kosu Cinsi/i),distanceIx=ix(/^Mesafe$/i),trackIx=ix(/^Pist$/i);
     if([dateIx,cityIx,raceIx].some(x=>x<0))return;
     $(table).find('tbody tr').each((__,tr)=>{
-      const cells=$(tr).find('td').map((___,td)=>clean($(td).text())).get(),date=iso(cells[dateIx]),city=clean(cells[cityIx]);
+      const cells=$(tr).find('td').map((___,td)=>clean($(td).text())).get();if(!cells.length)return;sourceRowCount++;
+      const date=iso(cells[dateIx]),city=clean(cells[cityIx]);
       if(!date||!city||!DOMESTIC.has(fold(city)))return;
       const raceNo=Number(String(cells[raceIx]||'').match(/\d+/)?.[0]||0);if(!raceNo)return;
       out.push({date,year:Number(date.slice(0,4)),city,raceNo,ageGroup:ageIx>=0?clean(cells[ageIx]):'',class:classIx>=0?clean(cells[classIx]):'',distance:distanceIx>=0?Number(String(cells[distanceIx]||'').match(/\d{3,4}/)?.[0]||0):0,track:trackIx>=0?clean(cells[trackIx]):''});
     });
   });
-  return out;
+  return{rows:out,sourceRowCount};
 }
 export default async function handler(req,res){
   res.setHeader('Access-Control-Allow-Origin','*');
@@ -53,8 +54,11 @@ export default async function handler(req,res){
   if(!start||!end)return res.status(400).json({ok:false,error:'start ve end tarihleri YYYY-MM-DD olmalı'});
   const form={QueryParameter_BaslangicTarihi:trDate(start),QueryParameter_BitisTarihi:trDate(end),QueryParameter_SehirId:-1,QueryParameter_KosuCinsiId:-1,QueryParameter_GrupId:-1,QueryParameter_PistId:-1,QueryParameter_Mesafe:'',Sort:SORT,Page:page};
   try{
-    const html=await postForm(page===1?DATA_URL:ROWS_URL,form);if(!html)return res.status(200).json({ok:true,version:VERSION,start,end,page,rows:[],hasMore:false});
-    const rows=parse(html),hasMore=rows.length>0&&(/data-page\s*=\s*["']?\d+/i.test(html)||/Sonraki|Next|pagination/i.test(html));
-    return res.status(200).json({ok:true,version:VERSION,start,end,page,rows,hasMore,rowCount:rows.length});
+    const html=await postForm(page===1?DATA_URL:ROWS_URL,form);if(!html)return res.status(200).json({ok:true,version:VERSION,start,end,page,rows:[],sourceRowCount:0,hasMore:false});
+    const parsed=parse(html),pagination=/data-page\s*=\s*["']?\d+/i.test(html)||/Sonraki|Next|pagination/i.test(html);
+    // Koşu Sorgulama bazı sayfalarda yalnız yabancı satırlar döndürebilir. Yerli satır sayısı 0 olsa bile
+    // kaynak tablo doluysa bir sonraki sayfa denenir. Son sayfada gereksiz en fazla bir boş istek yapılması güvenlidir.
+    const hasMore=Boolean(parsed.sourceRowCount>0&&(pagination||parsed.sourceRowCount>=5));
+    return res.status(200).json({ok:true,version:VERSION,start,end,page,rows:parsed.rows,sourceRowCount:parsed.sourceRowCount,hasMore,rowCount:parsed.rows.length});
   }catch(e){return res.status(502).json({ok:false,version:VERSION,error:e?.name==='AbortError'?'TJK sorgusu zaman aşımına uğradı':(e?.message||String(e))});}
 }
