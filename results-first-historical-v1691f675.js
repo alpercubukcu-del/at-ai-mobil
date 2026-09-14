@@ -114,8 +114,6 @@ async function updateRange(start,end){
     const unique=[...new Map(groups.map(g=>[g.key,g])).values()],total=unique.length;
     if(!total){status('Seçilen aralıkta TJK Koşu Sorgulama kaynağında gerçekleşmiş yerli yarış bulunamadı. Eski arşiv değiştirilmedi.');return}
 
-    // Kritik F60.75.1: seçilen aralıkta eski yıllık-program satırlarının tamamını silip yalnız
-    // telefonda gerçekten bulunan sonuçlardan ayna kur. Böylece tamamen ertelenmiş/iptal edilmiş günler kalamaz.
     status('Eski program arşivi geçmiş analizlerden temizleniyor; sonuç arşivi aynası hazırlanıyor…');
     await rebuildMirrorRange(start,end);
 
@@ -156,7 +154,16 @@ function schedule(){setTimeout(reviseUi,60);setTimeout(reviseUi,300)}
 
 document.addEventListener('click',e=>{
   const update=e.target.closest?.('#f62rUpdate');
-  if(update){e.preventDefault();e.stopImmediatePropagation();const{start,end}=normalizeRange();if(!start||!end){status('Başlangıç ve bitiş tarihini girin.');return}void updateRange(start,end).catch(err=>{running=false;button('Eksik Sonuçları Güncelle',false);status(err?.name==='AbortError'?'TJK yanıtı zaman aşımına uğradı. Tekrar deneyin.':(err?.message||String(err))});return}
+  if(update){
+    e.preventDefault();e.stopImmediatePropagation();
+    const{start,end}=normalizeRange();
+    if(!start||!end){status('Başlangıç ve bitiş tarihini girin.');return}
+    void updateRange(start,end).catch(err=>{
+      running=false;button('Eksik Sonuçları Güncelle',false);
+      status(err?.name==='AbortError'?'TJK yanıtı zaman aşımına uğradı. Tekrar deneyin.':(err?.message||String(err)));
+    });
+    return;
+  }
   const oldUpdate=e.target.closest?.('#aaUpdateYear');
   if(oldUpdate){e.preventDefault();e.stopImmediatePropagation();reviseUi();return}
   if(e.target.closest?.('#tjkAnnualArchiveButton,#annualArchiveButton,[data-view="annual-archive"],[data-view="career"],[data-view="calibration"],#f62rResults'))schedule();
