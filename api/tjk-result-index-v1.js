@@ -30,7 +30,7 @@ async function postForm(url,form){
   }finally{clearTimeout(t)}
 }
 function parse(html=''){
-  const $=cheerio.load(html),out=[];let sourceRowCount=0;
+  const $=cheerio.load(html),out=[],sourceParts=[];let sourceRowCount=0;
   $('table').each((_,table)=>{
     const heads=$(table).find('thead th').map((__,th)=>clean($(th).text())).get();
     const ix=re=>heads.findIndex(x=>re.test(clean(x)));
@@ -38,13 +38,13 @@ function parse(html=''){
     if([dateIx,cityIx,raceIx].some(x=>x<0))return;
     $(table).find('tbody tr').each((__,tr)=>{
       const cells=$(tr).find('td').map((___,td)=>clean($(td).text())).get();if(!cells.length)return;sourceRowCount++;
-      const date=iso(cells[dateIx]),city=clean(cells[cityIx]);
-      if(!date||!city||!DOMESTIC.has(fold(city)))return;
-      const raceNo=Number(String(cells[raceIx]||'').match(/\d+/)?.[0]||0);if(!raceNo)return;
+      const date=iso(cells[dateIx]),city=clean(cells[cityIx]),raceNo=Number(String(cells[raceIx]||'').match(/\d+/)?.[0]||0);
+      sourceParts.push(`${date}|${fold(city)}|${raceNo}`);
+      if(!date||!city||!DOMESTIC.has(fold(city))||!raceNo)return;
       out.push({date,year:Number(date.slice(0,4)),city,raceNo,ageGroup:ageIx>=0?clean(cells[ageIx]):'',class:classIx>=0?clean(cells[classIx]):'',distance:distanceIx>=0?Number(String(cells[distanceIx]||'').match(/\d{3,4}/)?.[0]||0):0,track:trackIx>=0?clean(cells[trackIx]):''});
     });
   });
-  return{rows:out,sourceRowCount};
+  return{rows:out,sourceRowCount,sourceSignature:sourceParts.join(';')};
 }
 export default async function handler(req,res){
   res.setHeader('Access-Control-Allow-Origin','*');
@@ -54,13 +54,11 @@ export default async function handler(req,res){
   if(!start||!end)return res.status(400).json({ok:false,error:'start ve end tarihleri YYYY-MM-DD olmalı'});
   const form={QueryParameter_BaslangicTarihi:trDate(start),QueryParameter_BitisTarihi:trDate(end),QueryParameter_SehirId:-1,QueryParameter_KosuCinsiId:-1,QueryParameter_GrupId:-1,QueryParameter_PistId:-1,QueryParameter_Mesafe:'',Sort:SORT,Page:page,PageNumber:page};
   try{
-    const html=await postForm(page===1?DATA_URL:ROWS_URL,form);if(!html)return res.status(200).json({ok:true,version:VERSION,start,end,page,rows:[],sourceRowCount:0,hasMore:false});
+    const html=await postForm(page===1?DATA_URL:ROWS_URL,form);if(!html)return res.status(200).json({ok:true,version:VERSION,start,end,page,rows:[],sourceRowCount:0,sourceSignature:'',hasMore:false});
     const parsed=parse(html);
     // Koşu Sorgulama DataRows cevabı çoğu zaman pagination işaretini taşımaz.
     // Bu yüzden istemci boş kaynak sayfası gelene kadar sonraki sayfayı denemelidir.
     const hasMore=parsed.sourceRowCount>0;
-    const first=parsed.rows[0],last=parsed.rows.at(-1);
-    const signature=parsed.sourceRowCount?`${page}|${parsed.sourceRowCount}|${first?.date||''}|${first?.city||''}|${first?.raceNo||''}|${last?.date||''}|${last?.city||''}|${last?.raceNo||''}`:`${page}|0`;
-    return res.status(200).json({ok:true,version:VERSION,start,end,page,rows:parsed.rows,sourceRowCount:parsed.sourceRowCount,hasMore,rowCount:parsed.rows.length,signature});
+    return res.status(200).json({ok:true,version:VERSION,start,end,page,rows:parsed.rows,sourceRowCount:parsed.sourceRowCount,sourceSignature:parsed.sourceSignature,hasMore,rowCount:parsed.rows.length});
   }catch(e){return res.status(502).json({ok:false,version:VERSION,error:e?.name==='AbortError'?'TJK sorgusu zaman aşımına uğradı':(e?.message||String(e))});}
 }
