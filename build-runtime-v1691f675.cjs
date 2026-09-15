@@ -12,7 +12,7 @@ if(!fs.existsSync(EXTRA))throw new Error('[F60.75.1] results-first runtime missi
 if(!fs.existsSync(INDEX_API))throw new Error('[F60.75.1] result index API missing');
 const src=fs.readFileSync(EXTRA,'utf8'),api=fs.readFileSync(INDEX_API,'utf8');
 for(const token of['RESULTS-FIRST-HISTORICAL-V16.9.1F60.75.1','/api/tjk-result-index-v1','ANNUAL_RESULTS_SOURCE_OF_TRUTH','window.ATF6062.readProgramRange=readHistoricalRange','rebuildMirrorDate','rebuildMirrorRange','deleteMirrorRange','Eksik Sonuçları Güncelle','f62rRepair','aaUpdateYear'])if(!src.includes(token))throw new Error('[F60.75.1] runtime invariant missing: '+token);
-for(const token of['TJK-RESULT-INDEX-V1-F60.75.1','sourceRowCount','QueryParameter_BaslangicTarihi','KosuSorgulama'])if(!api.includes(token))throw new Error('[F60.75.1] result-index invariant missing: '+token);
+for(const token of['TJK-RESULT-INDEX-V1-F60.76','sourceRowCount','sourceSignature','QueryParameter_BaslangicTarihi','KosuSorgulama'])if(!api.includes(token))throw new Error('[F60.75.1] result-index invariant missing: '+token);
 new Function(src);
 execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
 let app=fs.readFileSync(APP,'utf8');
