@@ -1,0 +1,4 @@
+AT AI Mobil production release marker
+Version: F60.81
+Commit base: a0927b14f075f6dafe07b97121d84c36e6641802
+Purpose: trigger GitHub-linked Vercel production build after promoting F60.81 to main.
