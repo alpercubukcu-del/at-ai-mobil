@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio';
 
 const TJK='https://www.tjk.org';
-const VERSION='TJK-DAY-RESULTS-V1.0';
+const VERSION='TJK-DAY-RESULTS-V1.1';
 const TIMEOUT_MS=22000;
 const HEADERS={
   'user-agent':'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/150 Safari/537.36',
@@ -20,9 +20,10 @@ function integer(v=''){const n=decimal(v);return Number.isFinite(n)?Math.trunc(n
 function normalizeTrack(v=''){const t=upper(v);if(t.includes('CIM'))return'Çim';if(t.includes('KUM'))return'Kum';if(t.includes('SENTETIK'))return'Sentetik';return''}
 function marginLengths(raw=''){const t=upper(raw).replace(/,/g,'.').replace(/\s+/g,' ').trim();if(!t)return null;if(t.includes('ATBASI')||t.includes('AT BASI'))return 0;if(t.includes('BURUN'))return.05;if(/\bBAS\b/.test(t))return.10;if(t.includes('BOYUN'))return.25;if(t.includes('YARIM'))return.50;if(/\b1\s*\/\s*2\s*BOY\b/.test(t))return.50;if(/\b3\s*\/\s*4\s*BOY\b/.test(t))return.75;const mixed=t.match(/(\d+)\s+(1\s*\/\s*2)\s*BOY/);if(mixed)return Number(mixed[1])+.5;const m=t.match(/(\d+(?:\.\d+)?)\s*BOY/);if(!m)return null;const n=Number(m[1]);return Number.isFinite(n)?n:null}
 function closeLabel(gap){if(!Number.isFinite(gap))return null;if(gap<=.10)return'ÇOK YAKIN';if(gap<=.50)return'YAKIN';if(gap<=1)return'YAKIN MÜCADELE';if(gap<=2)return'TEMASLI';return'AÇIK FARK'}
+function resultNotFound(message){const e=new Error(message);e.code='TJK_RESULT_NOT_FOUND';return e}
 
 async function fetchHtml(url){const c=new AbortController(),t=setTimeout(()=>c.abort(),TIMEOUT_MS);try{const r=await fetch(url,{headers:HEADERS,redirect:'follow',signal:c.signal});if(!r.ok)throw new Error(`TJK HTTP ${r.status}`);const text=await r.text();if(!text||text.length<200)throw new Error('TJK sonuç sayfası boş döndü.');return text}finally{clearTimeout(t)}}
-async function findCityResultUrl(dateIso,cityName){const d=isoToDisplay(dateIso);if(!d)throw new Error('Geçersiz tarih.');const html=await fetchHtml(`${TJK}/TR/YarisSever/Info/Page/GunlukYarisSonuclari?QueryParameter_Tarih=${encodeURIComponent(d)}`),$=cheerio.load(html),target=upper(cityName);let found='';$('a').each((_,a)=>{if(found)return;const text=upper($(a).text()),href=String($(a).attr('href')||'');if(href.includes('GunlukYarisSonuclari')&&text.startsWith(target))found=new URL(href,TJK).toString()});if(!found)throw new Error(`${cityName} için ${dateIso} tarihli TJK yarış sonucu bulunamadı.`);return found}
+async function findCityResultUrl(dateIso,cityName){const d=isoToDisplay(dateIso);if(!d)throw new Error('Geçersiz tarih.');const html=await fetchHtml(`${TJK}/TR/YarisSever/Info/Page/GunlukYarisSonuclari?QueryParameter_Tarih=${encodeURIComponent(d)}`),$=cheerio.load(html),target=upper(cityName);let found='';$('a').each((_,a)=>{if(found)return;const text=upper($(a).text()),href=String($(a).attr('href')||'');if(href.includes('GunlukYarisSonuclari')&&text.startsWith(target))found=new URL(href,TJK).toString()});if(!found)throw resultNotFound(`${cityName} için ${dateIso} tarihli TJK yarış sonucu bulunamadı.`);return found}
 function headers($,table){let h=$(table).find('thead th').map((_,x)=>clean($(x).text())).get();if(!h.length)h=$(table).find('tr').first().find('th,td').map((_,x)=>clean($(x).text())).get();return h}
 function headerIndex(h,aliases){const hs=h.map(key);for(const alias of aliases){const a=key(alias);let i=hs.findIndex(x=>x===a);if(i>=0)return i;i=hs.findIndex(x=>x.includes(a)||a.includes(x));if(i>=0)return i}return-1}
 function parseCondition(value=''){const text=clean(value),parts=text.split(',').map(clean).filter(Boolean),dm=text.match(/\b(\d{3,4})\s+(?:Çim|Kum|Sentetik)\b/i);return{class:parts[0]||'',ageGroup:parts[1]||'',distance:dm?Number(dm[1]):null,track:normalizeTrack(text),raw:text}}
@@ -77,12 +78,15 @@ export default async function handler(req,res){
     if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return res.status(400).json({ok:false,version:VERSION,error:'date YYYY-MM-DD biçiminde gerekli.'});
     if(!city)return res.status(400).json({ok:false,version:VERSION,error:'city gerekli.'});
     const resultUrl=await findCityResultUrl(date,city),html=await fetchHtml(resultUrl),races=parseDay(html);
-    if(!races.length)return res.status(404).json({ok:false,version:VERSION,date,city,error:'TJK sonuç sayfasında yarış ayrıştırılamadı.',resultUrl});
+    if(!races.length)return res.status(404).json({ok:false,version:VERSION,date,city,notFound:true,error:'TJK sonuç sayfasında yarış ayrıştırılamadı.',resultUrl});
     const horseCount=races.reduce((sum,r)=>sum+(r.rows?.length||0),0);
     res.setHeader('Cache-Control','public, max-age=0, s-maxage=21600, stale-while-revalidate=86400');
     return res.status(200).json({ok:true,version:VERSION,date,city,raceCount:races.length,horseCount,races,source:'TJK_GUNLUK_YARIS_SONUCLARI_DAY_ARCHIVE',resultUrl});
   }catch(e){
-    console.error('tjk-day-results-v1:',e);
-    return res.status(e?.name==='AbortError'?504:502).json({ok:false,version:VERSION,error:e?.name==='AbortError'?'TJK sonuç sayfası zaman aşımına uğradı.':(e?.message||'Günlük sonuçlar alınamadı.')});
+    const notFound=e?.code==='TJK_RESULT_NOT_FOUND';
+    if(!notFound)console.error('tjk-day-results-v1:',e);
+    const status=e?.name==='AbortError'?504:notFound?404:502;
+    const error=e?.name==='AbortError'?'TJK sonuç sayfası zaman aşımına uğradı.':(e?.message||'Günlük sonuçlar alınamadı.');
+    return res.status(status).json({ok:false,version:VERSION,notFound,error});
   }
 }
