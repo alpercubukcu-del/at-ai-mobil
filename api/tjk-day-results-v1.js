@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio';
 
 const TJK='https://www.tjk.org';
-const VERSION='TJK-DAY-RESULTS-V1.3-WEIGHT';
+const VERSION='TJK-DAY-RESULTS-V1.4-TRACK-CONTEXT';
 const TIMEOUT_MS=22000;
 const HEADERS={
   'user-agent':'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/150 Safari/537.36',
@@ -25,6 +25,7 @@ function weightInfo(raw=''){
   return{weightText:text,baseWeight:Number.isFinite(base)?base:null,extraWeight:extra,actualWeight:Number.isFinite(base)?Number((base+extra).toFixed(2)):null};
 }
 function normalizeTrack(v=''){const t=upper(v);if(t.includes('CIM'))return'Çim';if(t.includes('KUM'))return'Kum';if(t.includes('SENTETIK'))return'Sentetik';return''}
+function normalizeTrackStatus(v=''){const t=upper(v);for(const [needle,label] of [['COK ISLAK','Çok Islak'],['ISLAK','Islak'],['NEMLI','Nemli'],['AGIR','Ağır'],['YUMUSAK','Yumuşak'],['SULU','Sulu'],['KURU','Kuru'],['HIZLI','Hızlı'],['NORMAL','Normal']])if(t.includes(needle))return label;return clean(v)}
 function marginLengths(raw=''){const t=upper(raw).replace(/,/g,'.').replace(/\s+/g,' ').trim();if(!t)return null;if(t.includes('ATBASI')||t.includes('AT BASI'))return 0;if(t.includes('BURUN'))return.05;if(/\bBAS\b/.test(t))return.10;if(t.includes('BOYUN'))return.25;if(t.includes('YARIM'))return.50;if(/\b1\s*\/\s*2\s*BOY\b/.test(t))return.50;if(/\b3\s*\/\s*4\s*BOY\b/.test(t))return.75;const mixed=t.match(/(\d+)\s+(1\s*\/\s*2)\s*BOY/);if(mixed)return Number(mixed[1])+.5;const m=t.match(/(\d+(?:\.\d+)?)\s*BOY/);if(!m)return null;const n=Number(m[1]);return Number.isFinite(n)?n:null}
 function closeLabel(gap){if(!Number.isFinite(gap))return null;if(gap<=.10)return'ÇOK YAKIN';if(gap<=.50)return'YAKIN';if(gap<=1)return'YAKIN MÜCADELE';if(gap<=2)return'TEMASLI';return'AÇIK FARK'}
 function resultNotFound(message){const e=new Error(message);e.code='TJK_RESULT_NOT_FOUND';return e}
@@ -34,10 +35,20 @@ async function findCityResultUrl(dateIso,cityName){const d=isoToDisplay(dateIso)
 function headers($,table){let h=$(table).find('thead th').map((_,x)=>clean($(x).text())).get();if(!h.length)h=$(table).find('tr').first().find('th,td').map((_,x)=>clean($(x).text())).get();return h}
 function headerIndex(h,aliases){const hs=h.map(key);for(const alias of aliases){const a=key(alias);let i=hs.findIndex(x=>x===a);if(i>=0)return i;i=hs.findIndex(x=>x.includes(a)||a.includes(x));if(i>=0)return i}return-1}
 function parseCondition(value=''){const text=clean(value),parts=text.split(',').map(clean).filter(Boolean),dm=text.match(/\b(\d{3,4})\s+(?:Çim|Kum|Sentetik)\b/i);return{class:parts[0]||'',ageGroup:parts[1]||'',distance:dm?Number(dm[1]):null,track:normalizeTrack(text),raw:text}}
+function parseDayContext(html){
+  const $=cheerio.load(html),text=clean($('body').text()),tracks={};
+  for(const surface of ['Çim','Kum','Sentetik']){
+    const re=new RegExp(`${surface}\\s*:\\s*([^:]{0,55}?)(?=\\s+(?:Çim|Kum|Sentetik|Hava)\\s*:|\\s+(?:PDF|Özet PDF|CSV|Komiser|Kronometrik)\\b|$)`,'i');
+    const m=text.match(re);if(!m)continue;const raw=clean(m[1]),status=normalizeTrackStatus(raw),measureMatch=raw.replace(',','.').match(/(?:NORMAL|ISLAK|NEMLI|AĞIR|AGIR|YUMUŞAK|YUMUSAK|SULU|KURU|HIZLI|ÇOK ISLAK|COK ISLAK)\s*(\d+(?:\.\d+)?)/i);tracks[surface]={status,measure:measureMatch?Number(measureMatch[1]):null,raw};
+  }
+  const hm=text.match(/Hava\s*:\s*([^|]{0,120}?)(?=\s+(?:PDF|Özet PDF|CSV|Komiser|Kronometrik)\b|$)/i),weatherRaw=clean(hm?.[1]||'');
+  const tempMatch=weatherRaw.match(/(-?\d+(?:[.,]\d+)?)\s*°?\s*C\b/i),humMatch=weatherRaw.match(/NEM\s*%?\s*(\d+(?:[.,]\d+)?)/i);
+  return{tracks,weather:{raw:weatherRaw,temperature:tempMatch?Number(tempMatch[1].replace(',','.')):null,humidity:humMatch?Number(humMatch[1].replace(',','.')):null}};
+}
 function parseHorseCell($,cell){const first=$(cell).find('a').first(),linkText=clean(first.text()),text=clean($(cell).text()),horseText=linkText||text,pm=horseText.match(/\((\d+)\)/);let name=horseText.replace(/\(\d+\).*$/,'').trim();if(!linkText)name=name.replace(/\s+(KG|K|DB|SK|SKG|YP|ÖG|GKR|BB).*$/i,'').trim();let horseId='';$(cell).find('a').each((_,a)=>{if(horseId)return;const m=String($(a).attr('href')||'').match(/QueryParameter_AtId=(-?\d+)/i);if(m)horseId=String(m[1]).replace(/\D/g,'')});return{id:horseId,name,programNo:pm?Number(pm[1]):null}}
 function addWinnerGaps(rows){const ordered=[...rows].sort((a,b)=>a.finish-b.finish);for(const row of ordered){if(row.finish===1){row.winnerGapApprox=0;row.winnerGapChain='0'}else{const prev=ordered.filter(x=>x.finish<row.finish),nums=prev.map(x=>x.marginToNextApprox),chain=prev.map(x=>x.marginRaw).filter(Boolean);row.winnerGapApprox=nums.length===row.finish-1&&nums.every(Number.isFinite)?nums.reduce((a,b)=>a+b,0):null;row.winnerGapChain=chain.join(' + ')||null}row.closeFinish=Number.isFinite(row.winnerGapApprox)?row.winnerGapApprox<=1:null;row.closeFinishLabel=closeLabel(row.winnerGapApprox)}return ordered}
 function parseDay(html){
-  const $=cheerio.load(html);let activeRaceNo=null,activeCondition='',activeTime='',out=[];
+  const $=cheerio.load(html),dayContext=parseDayContext(html);let activeRaceNo=null,activeCondition='',activeTime='',out=[];
   $('h3, table').each((_,el)=>{
     const tag=String(el.tagName||el.name||'').toLowerCase();
     if(tag==='h3'){
@@ -59,11 +70,11 @@ function parseDay(html){
       rows.push({finish,horseId:horse.id,horseName:horse.name,programNo:horse.programNo,age:get(ixAge),origin:get(ixOrigin),weight:wi.actualWeight,baseWeight:wi.baseWeight,extraWeight:wi.extraWeight,actualWeight:wi.actualWeight,weightText:wi.weightText,jockey:get(ixJockey),owner:get(ixOwner),trainer:get(ixTrainer),degree:get(ixDegree),gny:decimal(get(ixGny)),odds:decimal(get(ixGny)),agf:decimal(get(ixAgf)),hp:integer(get(ixHp)),st:integer(get(ixSt)),kgs:integer(get(ixKgs)),s20:decimal(get(ixS20)),margin:marginRaw,marginRaw,marginToNextApprox:marginLengths(marginRaw)});
     });
     if(!rows.length)return;
-    const condition=parseCondition(activeCondition),full=addWinnerGaps(rows),winner=full.find(x=>x.finish===1)||null;
-    const race={no:activeRaceNo,time:activeTime,class:condition.class,yaradi1:condition.class,ageGroup:condition.ageGroup,yaradi2:condition.ageGroup,distance:condition.distance,mesafe:condition.distance,track:condition.track,pist:condition.track,conditionRaw:condition.raw,rows:full,top3:full.filter(x=>x.finish<=3),top5:full.filter(x=>x.finish<=5),winner,horses:full.map(x=>({no:x.programNo,id:x.horseId?Number(x.horseId):null,name:x.horseName,age:x.age,origin:x.origin,weight:x.actualWeight,baseWeight:x.baseWeight,extraWeight:x.extraWeight,actualWeight:x.actualWeight,weightText:x.weightText,jockey:x.jockey,owner:x.owner,trainer:x.trainer,st:x.st,hp:x.hp,kgs:x.kgs,s20:x.s20,best:'',odds:x.odds,gny:x.gny,agf:x.agf,finish:x.finish,degree:x.degree,marginRaw:x.marginRaw,winnerGapApprox:x.winnerGapApprox}))};
+    const condition=parseCondition(activeCondition),trackCtx=dayContext.tracks[condition.track]||null,full=addWinnerGaps(rows),winner=full.find(x=>x.finish===1)||null;
+    const race={no:activeRaceNo,time:activeTime,class:condition.class,yaradi1:condition.class,ageGroup:condition.ageGroup,yaradi2:condition.ageGroup,distance:condition.distance,mesafe:condition.distance,track:condition.track,pist:condition.track,trackCondition:trackCtx?.status||'',trackMeasure:trackCtx?.measure??null,trackConditionRaw:trackCtx?.raw||'',weather:dayContext.weather,conditionRaw:condition.raw,rows:full,top3:full.filter(x=>x.finish<=3),top5:full.filter(x=>x.finish<=5),winner,horses:full.map(x=>({no:x.programNo,id:x.horseId?Number(x.horseId):null,name:x.horseName,age:x.age,origin:x.origin,weight:x.actualWeight,baseWeight:x.baseWeight,extraWeight:x.extraWeight,actualWeight:x.actualWeight,weightText:x.weightText,jockey:x.jockey,owner:x.owner,trainer:x.trainer,st:x.st,hp:x.hp,kgs:x.kgs,s20:x.s20,best:'',odds:x.odds,gny:x.gny,agf:x.agf,finish:x.finish,degree:x.degree,marginRaw:x.marginRaw,winnerGapApprox:x.winnerGapApprox}))};
     const existing=out.findIndex(r=>r.no===race.no);if(existing<0||race.rows.length>out[existing].rows.length){if(existing>=0)out[existing]=race;else out.push(race)}
   });
-  return out.sort((a,b)=>a.no-b.no);
+  return{races:out.sort((a,b)=>a.no-b.no),dayContext};
 }
 export default async function handler(req,res){
   res.setHeader('Access-Control-Allow-Origin','*');
@@ -71,11 +82,11 @@ export default async function handler(req,res){
     const date=clean(req.query?.date||''),city=clean(req.query?.city||''),provided=clean(req.query?.resultUrl||'');
     if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return res.status(400).json({ok:false,version:VERSION,error:'date YYYY-MM-DD biçiminde gerekli.'});
     if(!city)return res.status(400).json({ok:false,version:VERSION,error:'city gerekli.'});
-    const resultUrl=provided?exactResultUrl(provided):await findCityResultUrl(date,city),html=await fetchHtml(resultUrl),races=parseDay(html);
+    const resultUrl=provided?exactResultUrl(provided):await findCityResultUrl(date,city),html=await fetchHtml(resultUrl),parsed=parseDay(html),races=parsed.races;
     if(!races.length)return res.status(404).json({ok:false,version:VERSION,date,city,notFound:true,error:'TJK sonuç sayfasında yarış ayrıştırılamadı.',resultUrl});
     const horseCount=races.reduce((sum,r)=>sum+(r.rows?.length||0),0);
     res.setHeader('Cache-Control','public, max-age=0, s-maxage=21600, stale-while-revalidate=86400');
-    return res.status(200).json({ok:true,version:VERSION,date,city,raceCount:races.length,horseCount,races,source:provided?'TJK_EXACT_GUNLUK_YARIS_SONUCLARI':'TJK_GUNLUK_YARIS_SONUCLARI_DAY_ARCHIVE',resultUrl});
+    return res.status(200).json({ok:true,version:VERSION,date,city,raceCount:races.length,horseCount,races,dayContext:parsed.dayContext,source:provided?'TJK_EXACT_GUNLUK_YARIS_SONUCLARI':'TJK_GUNLUK_YARIS_SONUCLARI_DAY_ARCHIVE',resultUrl});
   }catch(e){
     const notFound=e?.code==='TJK_RESULT_NOT_FOUND';if(!notFound)console.error('tjk-day-results-v1:',e);
     const status=e?.name==='AbortError'?504:notFound?404:502,error=e?.name==='AbortError'?'TJK sonuç sayfası zaman aşımına uğradı.':(e?.message||'Günlük sonuçlar alınamadı.');
