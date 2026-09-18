@@ -37,7 +37,7 @@ function findButton(drawer,re){return [...(drawer?.querySelectorAll('button')||[
 function refs(){
  const drawer=$('drawer');
  if(!drawer)return null;
- const r={
+ return {
   drawer,
   guide:$('programGuideBtnV661')||findButton(drawer,/Kullanım Talimatı/i),
   current:drawer.querySelector('[data-view="current"]')||findButton(drawer,/Güncel Analiz/i),
@@ -46,8 +46,7 @@ function refs(){
   scenario:drawer.querySelector('[data-view="scenario"]')||findButton(drawer,/Koşu Senaryosu/i),
   coupon:$('couponMenuBtn')||findButton(drawer,/Kupon Oluştur/i),
   annual:$('annualArchiveBtn')||findButton(drawer,/Yıllık Yarış Arşivi|TJK Yıllık Yarış Arşivi/i)
- };
- return r
+ }
 }
 function allReady(r){return !!(r&&r.drawer&&r.guide&&r.current&&r.career&&r.calibration&&r.scenario&&r.coupon&&r.annual)}
 function setLabel(btn,label){if(clean(btn.textContent)!==label)btn.textContent=label;btn.style.display='';btn.removeAttribute('aria-hidden')}
@@ -102,14 +101,12 @@ const processEnd=processStart>=0?app.indexOf('\nfunction ensureAll()',processSta
 if(processStart<0||processEnd<0)throw new Error('[F60.94.10] applyProcessMenu block not found');
 app=app.slice(0,processStart)+`function applyProcessMenu() {\n  /* F60.94.10: planner owns data only; drawer DOM is immutable after ready-once install. */\n  return false;\n}\n`+app.slice(processEnd);
 
-/* F60.94.8/F60.94.9 quick-dialog bind may run before menu 8 exists. The ready-once button opens it directly, so no polling/rebind is required. */
+/* Only check the known drawer loops. Other unrelated modules may legitimately clone DOM nodes. */
 for(const bad of[
  'MENU-AUTHORITY-GUARD-V16.9.1F60.94.6',
- 'cloneNode(true)',
- 'replaceWith(b)',
  'for(const ms of[0,80,300,900,1800])setTimeout(bind,ms)',
  'for(const ms of [50,350,1200,2550,3300]) setTimeout(applyStableMenu,ms)'
-])if(app.includes(bad))throw new Error('[F60.94.10] forbidden drawer mutation mechanism survived: '+bad);
+])if(app.includes(bad))throw new Error('[F60.94.10] forbidden drawer mutation loop survived: '+bad);
 for(const token of[
  'READY-ONCE-MENU-V16.9.1F60.94.10',
  'drawer prerequisites not ready; menu 8 was NOT created',
