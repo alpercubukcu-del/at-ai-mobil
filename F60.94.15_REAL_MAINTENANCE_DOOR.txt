@@ -1,0 +1,4 @@
+F60.94.15 real maintenance archive door deploy trigger
+branch: fix/f60-94-10-menu-ready-once
+time: 2026-09-18T20:05:10.904Z
+build: build-runtime-v1691f706.cjs
