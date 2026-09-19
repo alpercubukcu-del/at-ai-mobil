@@ -3,7 +3,7 @@
 if (window.__AT_CAREER_DAILY_ARCHIVE_PER_RACE_V1691F657__) return;
 window.__AT_CAREER_DAILY_ARCHIVE_PER_RACE_V1691F657__ = true;
 
-const VERSION = 'CAREER-DAILY-ARCHIVE-PER-RACE-V16.9.1F60.57';
+const VERSION = 'CAREER-DAILY-ARCHIVE-PER-RACE-V16.9.1F60.58';
 const DB_NAME = 'at_ai_daily_career_archive_v146';
 const STORE = 'entries';
 const clean = v => String(v ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
@@ -239,6 +239,29 @@ try {
   }
 } catch (error) {
   console.warn('[AT AI]', VERSION, 'runCareerAnalysis hook kurulamadı:', error);
+}
+
+/* `runAnalysis`, bellekten tamamlanmış sonucu doğrudan ekrana basabilir ve
+   `runCareerAnalysis` çağrısını atlar. Bu durumda da IndexedDB arşivini güncelle. */
+try {
+  if (typeof runAnalysis === 'function') {
+    const baseRunAnalysisV657 = runAnalysis;
+    runAnalysis = async function(...args) {
+      const out = await baseRunAnalysisV657.apply(this, args);
+      try {
+        const st = appState();
+        const raceValue = clean(document.getElementById('analysisRace')?.value || 'all') || 'all';
+        await savePerRace(st?.analyses?.career, [], raceValue);
+      } catch (error) {
+        console.warn('[AT AI]', VERSION, 'Görünen Kariyer sonucu Günlük Arşive kaydedilemedi:', error);
+      }
+      return out;
+    };
+    const button = document.getElementById('runAnalysis');
+    if (button) button.onclick = runAnalysis;
+  }
+} catch (error) {
+  console.warn('[AT AI]', VERSION, 'runAnalysis hook kurulamadı:', error);
 }
 
 window.ATCareerDailyArchivePerRaceV657 = { savePerRace, version:VERSION };
