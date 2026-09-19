@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "node build-runtime-v1691f721.cjs",
+  "buildCommand": "node build-runtime-v1691f722.cjs",
   "outputDirectory":"public",
   "rewrites": [
     {"source":"/api/tjk-margin-enrich-v122","destination":"/api/tjk-history"},
@@ -13,6 +13,7 @@
     {"source":"/api/tjk-career-fallback-v1113","headers":[{"key":"Cache-Control","value":"public, max-age=0, s-maxage=21600, stale-while-revalidate=86400"},{"key":"Vercel-CDN-Cache-Control","value":"public, max-age=21600, stale-while-revalidate=86400"},{"key":"CDN-Cache-Control","value":"public, max-age=21600, stale-while-revalidate=86400"}]},
     {"source":"/api/tjk-model-roadmap-v11","headers":[{"key":"Cache-Control","value":"public, max-age=0, s-maxage=21600, stale-while-revalidate=86400"},{"key":"Vercel-CDN-Cache-Control","value":"public, max-age=21600, stale-while-revalidate=86400"},{"key":"CDN-Cache-Control","value":"public, max-age=21600, stale-while-revalidate=86400"}]},
     {"source":"/api/tjk-fog-horse-v1","headers":[{"key":"Cache-Control","value":"no-store, max-age=0"},{"key":"Vercel-CDN-Cache-Control","value":"no-store"}]},
+    {"source":"/api/tjk-fog-horse-v12","headers":[{"key":"Cache-Control","value":"no-store, max-age=0"},{"key":"Vercel-CDN-Cache-Control","value":"no-store"}]},
     {"source":"/api/tjk-adaptive-roadmap-v10","headers":[{"key":"Cache-Control","value":"no-store, max-age=0"}]},
     {"source":"/api/tjk-adaptive-roadmap-v102","headers":[{"key":"Cache-Control","value":"no-store, max-age=0"}]},
     {"source":"/(.*)","headers":[{"key":"X-Content-Type-Options","value":"nosniff"},{"key":"Referrer-Policy","value":"strict-origin-when-cross-origin"}]}
