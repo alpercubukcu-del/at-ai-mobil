@@ -11,7 +11,8 @@ execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
 let app=fs.readFileSync(APP,'utf8');
 let mod=fs.readFileSync(MOD,'utf8');
 mod=mod.replace('if(complete.length>0){setStatus', 'if(complete.length>=100){setStatus');
-for(const t of['ARCHIVE-ACTUAL-AUTOCAL-V16.9.1F60.94.31.7','CURSOR_QUERY_F60.94.31.7','AUTO_REAL_RESULT_F60.94.31.7','Otomatik kalibrasyon açık','syncYearSafe'])if(!mod.includes(t))throw new Error('[F60.94.31.7] module invariant missing '+t);
+mod=mod.replace('if(local?.race?.rows?.length)return local;', 'if(local?.race&&isFinishedRace(local.race))return local;');
+for(const t of['ARCHIVE-ACTUAL-AUTOCAL-V16.9.1F60.94.31.7','CURSOR_QUERY_F60.94.31.7','AUTO_REAL_RESULT_F60.94.31.7','Otomatik kalibrasyon açık','syncYearSafe','complete.length>=100','isFinishedRace(local.race)'])if(!mod.includes(t))throw new Error('[F60.94.31.7] module invariant missing '+t);
 for(const bad of['new MutationObserver','setInterval(','document.addEventListener(\'touchend\'','document.addEventListener(\'pointerup\''])if(mod.includes(bad))throw new Error('[F60.94.31.7] forbidden global loop '+bad);
 new Function(mod);
 const degreeSig='async function resultRace(date,city,no){';
@@ -23,7 +24,7 @@ const fogHook="async function actualRace(date,city,no){if(window.ATArchiveActual
 if((app.split(fogSig).length-1)!==1)throw new Error('[F60.94.31.7] FOGD actualRace signature count mismatch');
 app=app.replace(fogSig,fogHook);
 app+='\n\n'+mod.trim()+'\n';
-for(const t of['ATArchiveActualAutoCalF6094317.getRace(date,city,no)','ARCHIVE-ACTUAL-AUTOCAL-V16.9.1F60.94.31.7','complete.length>=100','CURSOR_QUERY_F60.94.31.7'])if(!app.includes(t))throw new Error('[F60.94.31.7] bundle invariant missing '+t);
+for(const t of['ATArchiveActualAutoCalF6094317.getRace(date,city,no)','ARCHIVE-ACTUAL-AUTOCAL-V16.9.1F60.94.31.7','complete.length>=100','CURSOR_QUERY_F60.94.31.7','isFinishedRace(local.race)'])if(!app.includes(t))throw new Error('[F60.94.31.7] bundle invariant missing '+t);
 new Function(app);
 fs.writeFileSync(APP,app,'utf8');
 let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1692977');
