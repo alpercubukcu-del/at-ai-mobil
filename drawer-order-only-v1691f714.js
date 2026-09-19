@@ -22,7 +22,7 @@ function refs(){
   calibration:drawer.querySelector('[data-view="calibration"]')||findButton(drawer,/Model Kalibrasyonu/i),
   scenario:drawer.querySelector('[data-view="scenario"]')||findButton(drawer,/Koşu Senaryosu/i),
   coupon:$('couponMenuBtn')||findButton(drawer,/Kupon Oluştur/i),
-  annual:$('annualArchiveBtn')||findButton(drawer,/Yıllık Yarış Arşivi|TJK Yıllık Yarış Arşivi/i),
+  annual:$('annualArchiveBtn')||findButton(drawer,/Tarihsel Sonuç Arşivi|Yıllık Yarış Arşivi|TJK Yıllık Yarış Arşivi/i),
   maintenance:$('trackMaintenanceMenuBtnF60944')||findButton(drawer,/Gerçek Yarış Arşivi\s*\+\s*Pist\s*\/\s*Bakım\s*\/\s*Hava|Pist\s*\/\s*Bakım\s*\/\s*Hava\s*Arşivi/i),
   note:drawer.querySelector('.drawer-note')
  };
@@ -56,46 +56,27 @@ function apply(reason='manual'){
  if(!ready(r))return false;
  applying=true;
  try{
-  /* Preserve every existing button object and its click handlers. Only labels/order move. */
   label(r.guide,'1. Kullanım Talimatı');
   label(r.current,'2. Güncel Analiz');
   label(r.career,'3. Kariyer Yol Haritası');
   label(r.calibration,'4. Model Kalibrasyonu');
   label(r.scenario,'5. Koşu Senaryosu');
   label(r.coupon,'6. Kupon Oluştur');
-  label(r.annual,'7. Yıllık Yarış Arşivi');
+  label(r.annual,'7. Tarihsel Sonuç Arşivi');
   label(r.maintenance,'8. Gerçek Yarış Arşivi + Pist / Bakım / Hava');
   const ordered=[r.guide,r.current,r.career,r.calibration,r.scenario,r.coupon,r.annual,r.maintenance];
   ordered.forEach((node,i)=>node.style.setProperty('order',String(i+1),'important'));
-  /* Use the proven F60.94.14 DOM order idea, but do not replace/create nodes. */
   const anchor=r.note||null;
-  for(const node of ordered){
-   if(anchor)r.drawer.insertBefore(node,anchor);else r.drawer.appendChild(node);
-  }
+  for(const node of ordered){if(anchor)r.drawer.insertBefore(node,anchor);else r.drawer.appendChild(node)}
   if(r.note)r.note.style.setProperty('order','9','important');
   r.drawer.dataset.orderOnlyVersion=VERSION;
   r.drawer.dataset.orderOnlyReason=reason;
   return true;
  }finally{applying=false}
 }
-function bindMenu(){
- const menu=$('menuBtn');
- if(!menu||menu.dataset.orderOnlyBound==='1')return;
- menu.dataset.orderOnlyBound='1';
- menu.addEventListener('click',()=>{
-  apply('menu-click-0');
-  setTimeout(()=>apply('menu-click-40'),40);
-  setTimeout(()=>apply('menu-click-140'),140);
- },false);
-}
-function boot(){
- installStyle();
- bindMenu();
- if(apply('boot-'+attempts))return;
- attempts+=1;
- if(attempts<80)setTimeout(boot,100);
-}
+function bindMenu(){const menu=$('menuBtn');if(!menu||menu.dataset.orderOnlyBound==='1')return;menu.dataset.orderOnlyBound='1';menu.addEventListener('click',()=>{apply('menu-click-0');setTimeout(()=>apply('menu-click-40'),40);setTimeout(()=>apply('menu-click-140'),140)},false)}
+function boot(){installStyle();bindMenu();if(apply('boot-'+attempts))return;attempts+=1;if(attempts<80)setTimeout(boot,100)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 window.ATDrawerOrderOnlyF609424={version:VERSION,apply};
-console.info('[AT AI]',VERSION,'active - order only; existing menu buttons/click handlers preserved.');
+console.info('[AT AI]',VERSION,'active - fixed 1-8 order; menu 7 is the historical real-result archive.');
 })();
