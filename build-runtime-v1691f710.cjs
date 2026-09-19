@@ -1,0 +1,34 @@
+const fs=require('fs');
+const path=require('path');
+const {execFileSync}=require('child_process');
+const ROOT=__dirname;
+const BASE=path.join(ROOT,'build-runtime-v1691f709.cjs');
+const FIX=path.join(ROOT,'drawer-one-shot-v1691f710.js');
+const APP=path.join(ROOT,'public','at-ai-app-v142.js');
+const INDEX=path.join(ROOT,'public','index.html');
+if(!fs.existsSync(BASE))throw new Error('[F60.94.19] F60.94.18 base builder missing');
+if(!fs.existsSync(FIX))throw new Error('[F60.94.19] one-shot drawer runtime missing');
+const fix=fs.readFileSync(FIX,'utf8');
+for(const token of['DRAWER-ONE-SHOT-V16.9.1F60.94.19','ATDrawerOneShotF609419','no drawer observer/timer/rebuild loop'])if(!fix.includes(token))throw new Error('[F60.94.19] fix invariant missing: '+token);
+new Function(fix);
+execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
+let app=fs.readFileSync(APP,'utf8');
+function stripRuntime(marker,label){
+ const start=app.indexOf(marker);if(start<0)throw new Error(`[F60.94.19] ${label} marker missing`);
+ const end=app.indexOf('\n})();',start);if(end<0)throw new Error(`[F60.94.19] ${label} terminator missing`);
+ app=app.slice(0,start)+`/* F60.94.19 removed ${label}: one-shot drawer owns ordering. */\n`+app.slice(end+'\n})();'.length);
+}
+stripRuntime('/* AT AI Mobil - V16.9.1F60.94.14 hard drawer rebuild + maintenance fallback */','F60.94.14 drawer rebuild runtime');
+const oldInstall="function install(){ensureStyle();markMenu();hideLegacyRealSection();upgradePanel();if(!observer){observer=new MutationObserver(()=>{markMenu();hideLegacyRealSection();upgradePanel()});observer.observe(document.documentElement,{childList:true,subtree:true})}for(const ms of[100,400,1000,2500])setTimeout(()=>{markMenu();hideLegacyRealSection();upgradePanel()},ms);window.addEventListener('at-ai:annual-archive-open',()=>setTimeout(hideLegacyRealSection,0))}";
+const newInstall="function install(){ensureStyle();markMenu();hideLegacyRealSection();upgradePanel();window.addEventListener('at-ai:annual-archive-open',()=>setTimeout(hideLegacyRealSection,0),{passive:true})}";
+if(!app.includes(oldInstall))throw new Error('[F60.94.19] F60.94.18 observer/timer install block missing');
+app=app.replace(oldInstall,newInstall);
+app+='\n\n'+fix.trim()+'\n';
+for(const bad of['function schedule(reason,delays=[0,60,140,320,800,1600,3000])','drawer.__AT_FINAL_DRAWER_OBSERVER_F609414__=new MutationObserver','observer.observe(document.documentElement,{childList:true,subtree:true})','for(const ms of[100,400,1000,2500])setTimeout'])if(app.includes(bad))throw new Error('[F60.94.19] drawer loop survived: '+bad);
+for(const token of['DRAWER-ONE-SHOT-V16.9.1F60.94.19','ARCHIVE-HUB-MENU8-V16.9.1F60.94.18','TRACK-MAINT-STAGE-FIX-V16.9.1F60.94.17','KOSU_SORGULAMA_REAL_ARCHIVE','DEGREE-SPEED-TOP5-V16.9.1F60.94.5'])if(!app.includes(token))throw new Error('[F60.94.19] final bundle verification failed: '+token);
+new Function(app);
+fs.writeFileSync(APP,app,'utf8');
+let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1692960');
+fs.writeFileSync(INDEX,html,'utf8');
+if(!html.includes('/at-ai-app-v142.js?v=1692960'))throw new Error('[F60.94.19] cache bust failed');
+console.log('[AT AI] V16.9.1F60.94.19 build complete: menu order is installed once; drawer observers/timers/rebuild loops removed; F60.94.18 archive hub retained.');
