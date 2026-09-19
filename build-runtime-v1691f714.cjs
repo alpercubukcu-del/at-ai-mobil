@@ -13,7 +13,7 @@ let app=fs.readFileSync(APP,'utf8');
 const order=fs.readFileSync(ORDER,'utf8');
 for(const token of[
  'DRAWER-ORDER-ONLY-V16.9.1F60.94.24',
- 'existing menu buttons/click handlers preserved',
+ "label(r.annual,'7. Tarihsel Sonuç Arşivi')",
  "label(r.maintenance,'8. Gerçek Yarış Arşivi + Pist / Bakım / Hava')"
 ])if(!order.includes(token))throw new Error('[F60.94.24] order module invariant missing: '+token);
 new Function(order);
@@ -37,4 +37,4 @@ fs.writeFileSync(APP,app,'utf8');
 let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1692964');
 fs.writeFileSync(INDEX,html,'utf8');
 if(!html.includes('/at-ai-app-v142.js?v=1692964'))throw new Error('[F60.94.24] cache bust failed');
-console.log('[AT AI] V16.9.1F60.94.24 build complete: F60.94.19 preserved; only proven 1..8 visual/DOM ordering added.');
+console.log('[AT AI] V16.9.1F60.94.24 build complete: F60.94.19 preserved; fixed 1..8 order uses Tarihsel Sonuç Arşivi at menu 7.');
