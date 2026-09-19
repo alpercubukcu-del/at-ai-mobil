@@ -11,7 +11,9 @@ if(!fs.existsSync(BASE))throw new Error('[F60.94.27] F60.94.26 base builder miss
 if(!fs.existsSync(REPAIR))throw new Error('[F60.94.27] real race repair module missing');
 if(!fs.existsSync(API))throw new Error('[F60.94.27] race query API missing');
 const api=fs.readFileSync(API,'utf8');
-for(const token of['TJK-RACE-QUERY-V1.2-F60.94.27','function raceInt(v)','PageNumber',"['KosuNo','KNo']"])if(!api.includes(token))throw new Error('[F60.94.27] API invariant missing: '+token);
+const legacyApi=['TJK-RACE-QUERY-V1.2-F60.94.27','function raceInt(v)','PageNumber',"['KosuNo','KNo']"].every(token=>api.includes(token));
+const signatureApi=['TJK-RACE-QUERY-V1.3-F60.94.29',"queryKeyVersion:'F60.94.29'","raceNoSource:'PAGE_ORDER_HINT'",'query|'].every(token=>api.includes(token));
+if(!legacyApi&&!signatureApi)throw new Error('[F60.94.27/F60.94.29] race query API invariant missing');
 if(api.includes("['KosuNo','KNo','Kosu']"))throw new Error('[F60.94.27] broad Kosu race-number matcher survived');
 execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
 let app=fs.readFileSync(APP,'utf8');
