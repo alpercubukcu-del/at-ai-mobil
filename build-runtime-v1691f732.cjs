@@ -39,7 +39,9 @@ async function syncRangeExactF60943112(start0,end0,{mode='download',label='Seçi
     await dbPut(openResultDb,RESULT_META,{...summary,key:\`range:${'${start}'}:${'${end}'}\`,source:'KOSU_SORGULAMA_REAL_ARCHIVE'});
     await dbPut(openIndexDb,INDEX_META,{key:'auto:enabled',enabled:true,updatedAt:new Date().toISOString()});
     try{await window.ATAnnualResultsArchiveV661?.refresh?.()}catch{}await refreshUi();
-    setStatus(\`${'${start}'} → ${'${end}'} tamamlandı · ${'${rows.length}'} yarış · ${'${groups.length}'} gün/şehir${'${result.skipped?` · ${result.skipped} mevcut gün atlandı`:``}'}${'${result.errors?` · ${result.errors} hata`:``}'}\`,100);
+    const skippedText=result.skipped?\` · ${'${result.skipped}'} mevcut gün atlandı\`:'';
+    const errorText=result.errors?\` · ${'${result.errors}'} hata\`:'';
+    setStatus(\`${'${start}'} → ${'${end}'} tamamlandı · ${'${rows.length}'} yarış · ${'${groups.length}'} gün/şehir${'${skippedText}'}${'${errorText}'}\`,100);
     return{start,end,races:rows.length,groups:groups.length,errors:result.errors,skipped:result.skipped,done:result.done,status};
   }finally{busy=false;toggleButtons(false)}
 }
@@ -60,7 +62,7 @@ for(const token of[
 ])if(!app.includes(token))throw new Error('[F60.94.31.12] bundle invariant missing '+token);
 new Function(app);
 fs.writeFileSync(APP,app,'utf8');
-let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\\.js\\?v=\\d+/,'/at-ai-app-v142.js?v=1692982');
+let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1692982');
 fs.writeFileSync(INDEX,html,'utf8');
 if(!html.includes('/at-ai-app-v142.js?v=1692982'))throw new Error('[F60.94.31.12] cache bust failed');
 console.log('[AT AI] V16.9.1F60.94.31.12 build complete: menu 8 uses exact inclusive date ranges for real results and track/maintenance/weather.');
