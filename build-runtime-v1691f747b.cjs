@@ -17,7 +17,10 @@ const oldYears="async function allRealYears(){const lists=await Promise.all([yea
 const newYears="async function allRealYears(){const lists=await Promise.all([yearsIn('at_ai_tjk_real_day_index_v2','days'),yearsIn(REAL_INDEX_DB,'races'),yearsIn(REAL_RESULTS_DB,'races'),yearsIn(REAL_RESULTS_DB,'days')]);return[...new Set(lists.flat())].sort((a,b)=>b-a)}";
 if(!app.includes(oldYears))throw new Error('[F60.94.31.27B] allRealYears target missing');
 app=app.replace(oldYears,newYears);
-app=app.replace('İndeks: <b>${x.indexCount}</b> · Tam sonuç: <b>${x.raceCount}</b> · Gün/şehir: <b>${x.dayCount}</b> · Bekleyen: <b>${x.pending}</b>','Gün indeksi: <b>${x.indexCount}</b> · Tam sonuç: <b>${x.raceCount}</b> · Tam gün/şehir: <b>${x.completeDayCount}</b>/${x.indexCount}</b> · Eksik gün: <b>${x.pending}</b>');
+const oldDetail='İndeks: <b>${x.indexCount}</b> · Tam sonuç: <b>${x.raceCount}</b> · Gün/şehir: <b>${x.dayCount}</b> · Bekleyen: <b>${x.pending}</b>';
+const newDetail='Gün indeksi: <b>${x.indexCount}</b> · Tam sonuç: <b>${x.raceCount}</b> · Tam gün/şehir: <b>${x.completeDayCount}</b>/<b>${x.indexCount}</b> · Eksik gün: <b>${x.pending}</b>';
+if(!app.includes(oldDetail))throw new Error('[F60.94.31.27B] inventory detail target missing');
+app=app.replace(oldDetail,newDetail);
 for(const token of['robustCountCompleteDaysF747','Gün indeksi: <b>${x.indexCount}</b>','Tam gün/şehir: <b>${x.completeDayCount}</b>','at_ai_tjk_real_day_index_v2'])if(!app.includes(token))throw new Error('[F60.94.31.27B] invariant missing '+token);
 new Function(app);
 fs.writeFileSync(APP,app,'utf8');
