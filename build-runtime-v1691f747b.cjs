@@ -1,0 +1,24 @@
+const fs=require('fs');
+const path=require('path');
+const {execFileSync}=require('child_process');
+const ROOT=__dirname,BASE=path.join(ROOT,'build-runtime-v1691f747.cjs'),APP=path.join(ROOT,'public','at-ai-app-v142.js');
+if(!fs.existsSync(BASE))throw new Error('[F60.94.31.27B] base builder missing');
+execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
+let app=fs.readFileSync(APP,'utf8');
+const INV='/* AT AI Mobil - V16.9.1F60.94.25 year-by-year archive inventory */',im=app.indexOf(INV);
+if(im<0)throw new Error('[F60.94.31.27B] inventory marker missing');
+const rs=app.indexOf('async function realYearStats(year){',im);
+const re=app.indexOf('async function trackYearStats(year){',rs);
+if(rs<0||re<0)throw new Error('[F60.94.31.27B] realYearStats target missing');
+function robustCountCompleteDaysF747(year){return (async()=>{const y=Number(year),db=await robustOpenDbF747('at_ai_tjk_annual_results_v1');if(!db||!db.objectStoreNames.contains('days')){try{db?.close?.()}catch{}return 0}return new Promise(resolve=>{let n=0,settled=false;const done=()=>{if(settled)return;settled=true;clearTimeout(t);try{db.close()}catch{}resolve(n)};const t=setTimeout(done,8000);try{const os=db.transaction('days','readonly').objectStore('days'),idx=os.indexNames.contains('year')?os.index('year'):null,q=idx?idx.openCursor(IDBKeyRange.only(y)):os.openCursor();q.onsuccess=()=>{const c=q.result;if(!c)return done();const v=c.value||{},vy=Number(v.year||String(v.date||'').slice(0,4));if((idx||vy===y)&&v.status==='complete'&&Number(v.raceCount)>0)n++;c.continue()};q.onerror=done}catch{done()}})})()}
+const statFn=robustCountCompleteDaysF747.toString()+'\n'+`async function realYearStats(year){const[indexCount,raceCount,dayCount,completeDayCount]=await Promise.all([countYear('at_ai_tjk_real_day_index_v2','days',year),countYear(REAL_RESULTS_DB,'races',year),countYear(REAL_RESULTS_DB,'days',year),robustCountCompleteDaysF747(year)]),orphan=indexCount===0&&(raceCount>0||dayCount>0);return{year,indexCount,raceCount,dayCount,completeDayCount,pending:orphan?'?':Math.max(0,indexCount-completeDayCount),orphan}}`+'\n';
+app=app.slice(0,rs)+statFn+app.slice(re);
+const oldYears="async function allRealYears(){const lists=await Promise.all([yearsIn(REAL_INDEX_DB,'races'),yearsIn(REAL_RESULTS_DB,'races'),yearsIn(REAL_RESULTS_DB,'days')]);return[...new Set(lists.flat())].sort((a,b)=>b-a)}";
+const newYears="async function allRealYears(){const lists=await Promise.all([yearsIn('at_ai_tjk_real_day_index_v2','days'),yearsIn(REAL_INDEX_DB,'races'),yearsIn(REAL_RESULTS_DB,'races'),yearsIn(REAL_RESULTS_DB,'days')]);return[...new Set(lists.flat())].sort((a,b)=>b-a)}";
+if(!app.includes(oldYears))throw new Error('[F60.94.31.27B] allRealYears target missing');
+app=app.replace(oldYears,newYears);
+app=app.replace('İndeks: <b>${x.indexCount}</b> · Tam sonuç: <b>${x.raceCount}</b> · Gün/şehir: <b>${x.dayCount}</b> · Bekleyen: <b>${x.pending}</b>','Gün indeksi: <b>${x.indexCount}</b> · Tam sonuç: <b>${x.raceCount}</b> · Tam gün/şehir: <b>${x.completeDayCount}</b>/${x.indexCount}</b> · Eksik gün: <b>${x.pending}</b>');
+for(const token of['robustCountCompleteDaysF747','Gün indeksi: <b>${x.indexCount}</b>','Tam gün/şehir: <b>${x.completeDayCount}</b>','at_ai_tjk_real_day_index_v2'])if(!app.includes(token))throw new Error('[F60.94.31.27B] invariant missing '+token);
+new Function(app);
+fs.writeFileSync(APP,app,'utf8');
+console.log('[AT AI] F60.94.31.27B inventory now reads current day index and complete-day counts.');
