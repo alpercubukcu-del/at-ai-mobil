@@ -5,14 +5,12 @@ const ROOT=__dirname;
 const BASE=path.join(ROOT,'build-runtime-v1691f755.cjs');
 const APP=path.join(ROOT,'public','at-ai-app-v142.js');
 const INDEX=path.join(ROOT,'public','index.html');
-const ANNUAL=path.join(ROOT,'public','annual-archive.js');
 
 if(!fs.existsSync(BASE))throw new Error('[F60.94.31.37] base builder missing');
 execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
 
 let app=fs.readFileSync(APP,'utf8');
 let html=fs.readFileSync(INDEX,'utf8');
-let annual=fs.readFileSync(ANNUAL,'utf8');
 
 // F60.94.31.36 yeniden global capture-click kapısı ekleyerek F60.94.31.18'in
 // çalışan annual-archive-menu-fix açılış akışıyla çakıştı. Bu sürüm F60.94.31.35'in
@@ -39,17 +37,19 @@ for(const required of[
  "b.textContent='7. Yıllık Yarış Arşivi'"
 ])if(!app.includes(required))throw new Error('[F60.94.31.37] annual archive UI/open invariant missing: '+required);
 
-// Veri kaynağı yıllık plan/program değil; F60.94.31.34 Koşu Sorgulama adaptörü kalmalı.
+// F60.94.31.34 kaynak adaptörü ana runtime'a eklenir. Yıllık plan/program yerine
+// Koşu Sorgulama gün/şehir indeksi + gerçek günlük sonuç arşivini kullanır.
 for(const required of[
- 'ANNUAL-ARCHIVE-SOURCE-V16.9.1F60.94.31.34',
- 'window.ATAnnualArchiveV13.updateYear=updateYearFromRaceQuery',
+ 'F60.94.31.34 · ANNUAL-QUERY-SOURCE',
+ '/api/tjk-race-query-v1',
+ 'TJK_KOSU_SORGULAMA',
+ '/api/tjk-day-results-v1',
+ 'EXACT_DAILY_RESULT',
  'at_ai_tjk_real_day_index_v2',
- 'at_ai_tjk_annual_results_v1',
- '/api/tjk-race-query-v1'
-])if(!annual.includes(required))throw new Error('[F60.94.31.37] Koşu Sorgulama source invariant missing: '+required);
+ 'at_ai_tjk_annual_results_v1'
+])if(!app.includes(required))throw new Error('[F60.94.31.37] Koşu Sorgulama source invariant missing: '+required);
 
 new Function(app);
-new Function(annual);
 fs.writeFileSync(APP,app,'utf8');
 fs.writeFileSync(INDEX,html,'utf8');
 
