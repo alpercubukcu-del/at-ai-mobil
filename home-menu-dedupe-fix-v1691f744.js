@@ -1,10 +1,13 @@
-/* AT AI Mobil - F60.94.31.24 analysis menu dedupe + late mutation guard */
+/* AT AI Mobil - F60.94.31.24 analysis menu dedupe + late mutation guard
+   F60.94.31.40: F18 productiondaki 7. Yıllık Yarış Arşivi metni ve davranışı korunur.
+*/
 (()=>{
 'use strict';
 if(window.__AT_HOME_MENU_DEDUPE_FIX_F60943124__)return;
 window.__AT_HOME_MENU_DEDUPE_FIX_F60943124__=true;
 const VERSION='AT_HOME_MENU_DEDUPE_FIX_F60943124';
-const TEXT7='7. Tarihsel Sonuç Arşivi · Koşu Sorgulama';
+const TEXT7='7. Yıllık Yarış Arşivi';
+const LEGACY_TEXT7='7. Tarihsel Sonuç Arşivi · Koşu Sorgulama';
 const TEXT8='8. Gerçek Yarış Arşivi + Pist / Bakım / Hava';
 const clean=v=>String(v??'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim();
 const numOf=el=>{const m=clean(el?.textContent).match(/^([1-9])\.\s*/);return m?Number(m[1]):0};
@@ -32,11 +35,12 @@ function normalize(){
   const nines=buttons().filter(b=>numOf(b)===9);
   if(!sevens.length||!eights.length||!nines.length)return false;
 
-  const seven=sevens.find(b=>b.id==='annualArchiveHistoryBtnF60943123')||sevens[0];
+  const seven=sevens.find(b=>b.id==='annualArchiveBtn')||sevens.find(b=>b.id==='annualArchiveBtnSafeF60943122')||sevens[0];
+  if(seven.id==='annualArchiveBtnSafeF60943122')seven.id='annualArchiveBtn';
   for(const b of sevens)if(b!==seven){removeDuplicate(b,seven,root);changed=true}
   if(clean(seven.textContent)!==TEXT7){seven.textContent=TEXT7;changed=true}
 
-  const eight=eights.find(b=>b.id!=='archiveHubBtnF60943123')||eights[0];
+  const eight=eights.find(b=>b.id==='archiveHubBtnF60943123')||eights[0];
   for(const b of eights)if(b!==eight){removeDuplicate(b,eight,root);changed=true}
   if(clean(eight.textContent)!==TEXT8){eight.textContent=TEXT8;changed=true}
 
@@ -72,6 +76,6 @@ function install(){
   for(const ms of[0,50,150,400,1000,2500,5000])setTimeout(()=>{if(observeRoot()&&bootObserver){bootObserver.disconnect();bootObserver=null}},ms);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-window.ATHomeMenuDedupeFixF60943124={version:VERSION,normalize,observeRoot};
-console.info('[AT AI]',VERSION,'active - duplicate menu 8 removed; late menu text/order mutations guarded.');
+window.ATHomeMenuDedupeFixF60943124={version:VERSION,normalize,observeRoot,legacyText7:LEGACY_TEXT7};
+console.info('[AT AI]',VERSION,'active - duplicate menu 8 removed; late menu mutations guarded; F18 Menu 7 preserved.');
 })();
