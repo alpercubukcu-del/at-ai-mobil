@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio';
 
 const TJK='https://www.tjk.org';
-const VERSION='TJK-DAY-RESULTS-V1.5-DIRECT-CITY-URL';
+const VERSION='TJK-DAY-RESULTS-V1.6-DIRECT-PLUS-DAY-FALLBACK';
 const TIMEOUT_MS=22000;
 const HEADERS={
   'user-agent':'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/150 Safari/537.36',
@@ -84,21 +84,32 @@ async function fetchDirectWithEraFallback(date,cityId,city,explicitEra=''){
   for(const era of eras){try{const url=directResultUrl(date,cityId,city,era),html=await fetchHtml(url),parsed=parseDay(html);if(parsed.races.length)return{url,html,parsed,era};lastError=resultNotFound(`${city} için ${date} sonuç tablosu bulunamadı (${era}).`)}catch(e){lastError=e}}
   throw lastError||resultNotFound(`${city} için ${date} tarihli TJK yarış sonucu bulunamadı.`);
 }
+async function fetchDayArchiveFallback(date,city){
+  const url=await findCityResultUrl(date,city),html=await fetchHtml(url),parsed=parseDay(html);
+  if(!parsed.races.length)throw resultNotFound(`${city} için ${date} günlük sonuç bağlantısı bulundu fakat sonuç tablosu ayrıştırılamadı.`);
+  return{url,html,parsed,era:new URL(url).searchParams.get('Era')||'',source:'TJK_DAY_ARCHIVE_FALLBACK'};
+}
 export default async function handler(req,res){
   res.setHeader('Access-Control-Allow-Origin','*');
   try{
     const date=clean(req.query?.date||''),city=clean(req.query?.city||''),cityId=clean(req.query?.cityId||''),provided=clean(req.query?.resultUrl||''),explicitEra=clean(req.query?.era||'');
     if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return res.status(400).json({ok:false,version:VERSION,error:'date YYYY-MM-DD biçiminde gerekli.'});
     if(!city)return res.status(400).json({ok:false,version:VERSION,error:'city gerekli.'});
-    let resultUrl='',html='',parsed=null,era='';
-    if(provided){resultUrl=exactResultUrl(provided);html=await fetchHtml(resultUrl);parsed=parseDay(html);era=new URL(resultUrl).searchParams.get('Era')||'';}
-    else if(cityId){const direct=await fetchDirectWithEraFallback(date,cityId,city,explicitEra);resultUrl=direct.url;html=direct.html;parsed=direct.parsed;era=direct.era;}
-    else{resultUrl=await findCityResultUrl(date,city);html=await fetchHtml(resultUrl);parsed=parseDay(html);era=new URL(resultUrl).searchParams.get('Era')||'';}
+    let resultUrl='',html='',parsed=null,era='',source='';
+    if(provided){resultUrl=exactResultUrl(provided);html=await fetchHtml(resultUrl);parsed=parseDay(html);era=new URL(resultUrl).searchParams.get('Era')||'';source='TJK_EXACT_GUNLUK_YARIS_SONUCLARI';}
+    else if(cityId){
+      try{const direct=await fetchDirectWithEraFallback(date,cityId,city,explicitEra);resultUrl=direct.url;html=direct.html;parsed=direct.parsed;era=direct.era;source='TJK_DIRECT_CITY_RESULT_URL';}
+      catch(directError){
+        console.warn('tjk-day-results-v1 direct failed; day-archive fallback:',date,city,cityId,directError?.message||directError);
+        const fallback=await fetchDayArchiveFallback(date,city);resultUrl=fallback.url;html=fallback.html;parsed=fallback.parsed;era=fallback.era;source=fallback.source;
+      }
+    }
+    else{const fallback=await fetchDayArchiveFallback(date,city);resultUrl=fallback.url;html=fallback.html;parsed=fallback.parsed;era=fallback.era;source=fallback.source;}
     const races=parsed?.races||[],dayContext=parsed?.dayContext||{};
     if(!races.length)return res.status(404).json({ok:false,version:VERSION,date,city,cityId:cityId||null,notFound:true,error:'TJK sonuç sayfasında yarış ayrıştırılamadı.',resultUrl});
     const horseCount=races.reduce((sum,r)=>sum+(r.rows?.length||0),0);
     res.setHeader('Cache-Control','public, max-age=0, s-maxage=21600, stale-while-revalidate=86400');
-    return res.status(200).json({ok:true,version:VERSION,date,city,cityId:cityId||null,era,raceCount:races.length,horseCount,races,dayContext,source:provided?'TJK_EXACT_GUNLUK_YARIS_SONUCLARI':cityId?'TJK_DIRECT_CITY_RESULT_URL':'TJK_GUNLUK_YARIS_SONUCLARI_DAY_ARCHIVE',resultUrl});
+    return res.status(200).json({ok:true,version:VERSION,date,city,cityId:cityId||null,era,raceCount:races.length,horseCount,races,dayContext,source,resultUrl});
   }catch(e){
     const notFound=e?.code==='TJK_RESULT_NOT_FOUND';if(!notFound)console.error('tjk-day-results-v1:',e);
     const status=e?.name==='AbortError'?504:notFound?404:502,error=e?.name==='AbortError'?'TJK sonuç sayfası zaman aşımına uğradı.':(e?.message||'Günlük sonuçlar alınamadı.');
