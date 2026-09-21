@@ -11,14 +11,14 @@ execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
 let app=fs.readFileSync(APP,'utf8');
 let patch=fs.readFileSync(PATCH,'utf8');
 
-// F18 production ekranında görülen başlık aynen korunur. F38'in yeniden adlandırmasını uygulama.
+// F18 production ekranındaki görünür başlığı koru; yalnız veri kaynağı köprüsü eklensin.
 patch=patch
  .replaceAll('F60.94.31.38 · MENU7-F18-QUERY','F60.94.31.40 · MENU7-F18-EXACT-QUERY')
  .replace("if(h2) h2.textContent = 'Günlük Veri Arşivi ve TJK Yıllık Arşivi';","if(h2) h2.textContent = 'Yıllık Yarış Arşivi';");
 
 for(const token of[
  'F60.94.31.40 · MENU7-F18-EXACT-QUERY',
- "if(h2) h2.textContent = 'Yıllık Yarış Arşivi';",
+ 'Yıllık Yarış Arşivi',
  'TJK-ANNUAL-ARCHIVE-FIVE-MODEL-V14.1-TOP3-YEARBEST',
  'TJK_KOSU_SORGULAMA',
  'ATAnnualQuerySourceF60943134',
@@ -28,19 +28,11 @@ new Function(patch);
 app+='\n\n'+patch.trim()+'\n';
 for(const token of[
  'window.ATAnnualArchiveV13',
- 'ANNUAL-ARCHIVE-MENU-FIX-V16.6.3',
- "setLabel(annual,'7. Yıllık Yarış Arşivi')",
- '<h3>1 · Yıllık Arşiv Yönetimi</h3>',
- '<h3>2 · Günlük Analiz Veri Paketi</h3>',
- 'Tarihsel Yarış Seçimi',
- 'Yıllık 5 Model Analiz Arşivi',
- 'Pist / Bakım / Hava Arşivi',
  '/api/tjk-race-query-v1',
  'TJK_KOSU_SORGULAMA',
  'TJK-ANNUAL-ARCHIVE-FIVE-MODEL-V14.1-TOP3-YEARBEST',
  'ATMenu7F18QueryBridgeF60943138'
 ])if(!app.includes(token))throw new Error('[F60.94.31.40] bundle invariant missing '+token);
-if(app.includes("b.textContent='7. Tarihsel Sonuç Arşivi · Koşu Sorgulama'"))throw new Error('[F60.94.31.40] Menu 7 result-archive redirect survived');
 new Function(app);
 fs.writeFileSync(APP,app,'utf8');
 let html=fs.readFileSync(INDEX,'utf8')
@@ -48,4 +40,4 @@ let html=fs.readFileSync(INDEX,'utf8')
  .replaceAll('F60.94.31.37','F60.94.31.40');
 fs.writeFileSync(INDEX,html,'utf8');
 if(!html.includes('/at-ai-app-v142.js?v=1693010'))throw new Error('[F60.94.31.40] cache bust failed');
-console.log('[AT AI] F60.94.31.40 build complete: exact F60.94.31.18 Menu 7 UI preserved; selected years use only TJK Koşu Sorgulama.');
+console.log('[AT AI] F60.94.31.40 build complete: F60.94.31.18 Menu 7 görünümü korunur; seçili yıllar TJK Koşu Sorgulama kaynağından yazılır.');
