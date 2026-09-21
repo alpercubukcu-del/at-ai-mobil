@@ -1,9 +1,13 @@
-/* AT AI Mobil - F60.94.31.23 analysis menu order + missing menu 8 fix */
+/* AT AI Mobil - F60.94.31.23 analysis menu order + missing menu 8 fix
+   F60.94.31.40: 7. menü F60.94.31.18 productiondaki Yıllık Yarış Arşivi olarak korunur.
+*/
 (()=>{
 'use strict';
 if(window.__AT_HOME_MENU_ORDER_FIX_F60943123__)return;
 window.__AT_HOME_MENU_ORDER_FIX_F60943123__=true;
 const VERSION='AT_HOME_MENU_ORDER_FIX_F60943123';
+const LEGACY_TEXT7='7. Tarihsel Sonuç Arşivi · Koşu Sorgulama';
+const LEGACY_ID7='annualArchiveHistoryBtnF60943123';
 const clean=v=>String(v??'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim();
 const numOf=el=>{const m=clean(el?.textContent).match(/^([1-9])\.\s*/);return m?Number(m[1]):0};
 function clearBehavior(el){
@@ -40,15 +44,17 @@ function makeCleanButton(source,id,text,history){
 }
 function directUnit(el,root){let u=el;while(u?.parentElement&&u.parentElement!==root)u=u.parentElement;return u||el}
 function repair(){
-  const old7=document.getElementById('annualArchiveBtnSafeF60943122')||document.getElementById('annualArchiveBtn')||[...document.querySelectorAll('button')].find(b=>numOf(b)===7&&clean(b.textContent).includes('Tarihsel Sonuç Arşivi'));
-  if(!old7)return false;
-  const root=menuRoot(old7);if(!root)return false;
+  const seven=document.getElementById('annualArchiveBtn')||document.getElementById('annualArchiveBtnSafeF60943122')||[...document.querySelectorAll('button')].find(b=>numOf(b)===7);
+  if(!seven)return false;
+  if(seven.id==='annualArchiveBtnSafeF60943122')seven.id='annualArchiveBtn';
+  seven.textContent='7. Yıllık Yarış Arşivi';
+  const root=menuRoot(seven);if(!root)return false;
   let buttons=[...root.querySelectorAll('button')].filter(b=>numOf(b));
   const byNum=new Map();for(const b of buttons)if(!byNum.has(numOf(b)))byNum.set(numOf(b),b);
   if(![1,2,3,4,5,6,7,9].every(n=>byNum.has(n)))return false;
 
-  const seven=makeCleanButton(byNum.get(7),'annualArchiveHistoryBtnF60943123','7. Tarihsel Sonuç Arşivi · Koşu Sorgulama',true);
-  byNum.get(7).replaceWith(seven);byNum.set(7,seven);
+  // 7. düğme F18'deki kendi click zinciriyle yerinde kalır. Klonlama/yeniden yönlendirme yok.
+  byNum.set(7,seven);
 
   const existing8=byNum.get(8)||[...root.querySelectorAll('button')].find(b=>clean(b.textContent).includes('Gerçek Yarış Arşivi'));
   const eightSource=existing8||byNum.get(9)||seven;
@@ -78,6 +84,6 @@ function install(){
   for(const ms of[50,150,400,900,1800,3200])setTimeout(()=>{if(repair())obs.disconnect()},ms);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-window.ATHomeMenuOrderFixF60943123={version:VERSION,repair,openArchiveHub};
-console.info('[AT AI]',VERSION,'active - menu order 1..9 restored; menu 8 restored; archive engines unchanged.');
+window.ATHomeMenuOrderFixF60943123={version:VERSION,repair,openArchiveHub,legacyText7:LEGACY_TEXT7,legacyId7:LEGACY_ID7};
+console.info('[AT AI]',VERSION,'active - menu order 1..9 restored; menu 8 restored; F18 Menu 7 preserved.');
 })();
