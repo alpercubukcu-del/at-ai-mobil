@@ -14,11 +14,11 @@ let patch=fs.readFileSync(PATCH,'utf8');
 // F18 production ekranında görülen başlık aynen korunur. F38'in yeniden adlandırmasını uygulama.
 patch=patch
  .replaceAll('F60.94.31.38 · MENU7-F18-QUERY','F60.94.31.40 · MENU7-F18-EXACT-QUERY')
- .replace("if(h2)h2.textContent = 'Günlük Veri Arşivi ve TJK Yıllık Arşivi';","if(h2)h2.textContent = 'Yıllık Yarış Arşivi';");
+ .replace("if(h2) h2.textContent = 'Günlük Veri Arşivi ve TJK Yıllık Arşivi';","if(h2) h2.textContent = 'Yıllık Yarış Arşivi';");
 
 for(const token of[
  'F60.94.31.40 · MENU7-F18-EXACT-QUERY',
- "if(h2)h2.textContent = 'Yıllık Yarış Arşivi';",
+ "if(h2) h2.textContent = 'Yıllık Yarış Arşivi';",
  'TJK-ANNUAL-ARCHIVE-FIVE-MODEL-V14.1-TOP3-YEARBEST',
  'TJK_KOSU_SORGULAMA',
  'ATAnnualQuerySourceF60943134',
