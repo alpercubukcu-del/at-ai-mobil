@@ -37,10 +37,9 @@ for(const required of[
  "b.textContent='7. Yıllık Yarış Arşivi'"
 ])if(!app.includes(required))throw new Error('[F60.94.31.37] annual archive UI/open invariant missing: '+required);
 
-// F60.94.31.34 kaynak adaptörü ana runtime'a eklenir. Yıllık plan/program yerine
-// Koşu Sorgulama gün/şehir indeksi + gerçek günlük sonuç arşivini kullanır.
+// Koşu Sorgulama kaynak adaptörü runtime içinde kalmalı. F60.94.31.35 sürüm etiketi
+// kaynak patchinin etiketini de değiştirdiği için burada işlevsel imzaları doğruluyoruz.
 for(const required of[
- 'F60.94.31.34 · ANNUAL-QUERY-SOURCE',
  '/api/tjk-race-query-v1',
  'TJK_KOSU_SORGULAMA',
  '/api/tjk-day-results-v1',
