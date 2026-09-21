@@ -1,4 +1,0 @@
-F60.94.31.38
-Menu 7: F60.94.31.18 görünümü korunur.
-Yıllık yarış kaynağı: TJK Koşu Sorgulama.
-Yıllık program sayfası Menu 7 kariyer eşleşme kaynağı olarak kullanılmaz.
