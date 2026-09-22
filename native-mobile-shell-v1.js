@@ -27,6 +27,13 @@ const css=document.createElement('style');css.id='atNativeMobileShellV1';css.tex
  dialog:not(#drawer)>[class*="head"],dialog:not(#drawer)>.dialog-head{flex:0 0 auto!important;background:#252a2e!important;color:#fff!important;position:sticky!important;top:0!important;z-index:30!important}
  dialog:not(#drawer)>[class*="head"] *,dialog:not(#drawer)>.dialog-head *{color:#fff!important}
  dialog:not(#drawer)>[class*="body"],dialog:not(#drawer)>[class*="content"],dialog:not(#drawer)>[class*="scroll"]{flex:1 1 auto!important;max-height:none!important;overflow:auto!important;-webkit-overflow-scrolling:touch;background:#f7f6f3!important;color:#111315!important}
+ /* all app dialogs become full-screen mobile pages */
+ dialog:not(#drawer){position:fixed!important;inset:0!important;width:100vw!important;max-width:none!important;height:100dvh!important;max-height:none!important;margin:0!important;border:0!important;border-radius:0!important;padding:0!important;background:#f7f6f3!important;color:#111315!important}
+ dialog:not(#drawer)[open]{display:flex!important;flex-direction:column!important}
+ dialog:not(#drawer)::backdrop{background:#252a2e!important}
+ dialog:not(#drawer)>:first-child[class*="head"],dialog:not(#drawer)>[class*="head"]:first-child{background:#252a2e!important;color:#fff!important;position:sticky!important;top:0!important;z-index:30!important}
+ dialog:not(#drawer)>:first-child[class*="head"] *,dialog:not(#drawer)>[class*="head"]:first-child *{color:#fff!important}
+ dialog:not(#drawer)>[class*="body"],dialog:not(#drawer)>[class*="content"],dialog:not(#drawer)>[class*="scroll"]{flex:1!important;max-height:none!important;overflow:auto!important;-webkit-overflow-scrolling:touch;background:#f7f6f3!important;color:#111315!important}
  dialog#analysisDialog,dialog#couponCenterDialog{position:fixed!important;inset:0!important;width:100vw!important;max-width:none!important;height:100dvh!important;max-height:none!important;margin:0!important;border:0!important;border-radius:0!important;padding:0!important;background:#f7f6f3!important;color:#111!important}
  dialog#analysisDialog[open],dialog#couponCenterDialog[open]{display:flex!important;flex-direction:column!important}
  #analysisDialog .dialog-head,.coupon-menu-head-v1681{background:#252a2e!important;color:#fff!important;padding:16px!important;position:sticky!important;top:0!important;z-index:10}
@@ -48,13 +55,17 @@ function nav(action){
  if(action==='archive'){(drawerByText(/7\.\s*Tarihsel Sonuç Arşivi/i)||drawerByText(/Tarihsel Sonuç Arşivi/i))?.click();return}
  if(action==='menu'){document.getElementById('menuBtn')?.click();return}
 }
+function normalizeDialogs(){
+ document.querySelectorAll('dialog').forEach(d=>{if(d.id==='drawer')return;d.classList.add('at-native-mobile-page')});
+}
 function install(){
  if(document.getElementById('atMobileBottomNav'))return;
  const n=document.createElement('nav');n.id='atMobileBottomNav';n.setAttribute('aria-label','Mobil ana gezinme');
  n.innerHTML='<button data-a="home" class="active"><span>⌂</span>Ana Sayfa</button><button data-a="current"><span>▥</span>Güncel</button><button data-a="coupon"><span>◆</span>Kupon</button><button data-a="archive"><span>▤</span>Arşiv</button><button data-a="menu"><span>☰</span>Menü</button>';
  n.addEventListener('click',e=>{const b=e.target.closest('button[data-a]');if(!b)return;nav(b.dataset.a);n.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b))});
- document.body.appendChild(n);
+ document.body.appendChild(n);normalizeDialogs();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-window.ATNativeMobileShellV1={version:VERSION,install,nav};console.info('[AT AI]',VERSION,'active');
+const mo=new MutationObserver(normalizeDialogs);mo.observe(document.documentElement,{childList:true,subtree:true});
+window.ATNativeMobileShellV1={version:VERSION,install,nav,normalizeDialogs};console.info('[AT AI]',VERSION,'active');
 })();
