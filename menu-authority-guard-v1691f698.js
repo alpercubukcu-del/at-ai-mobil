@@ -39,7 +39,7 @@ const LABELS=[
   ['current','2. Güncel Analiz'],
   ['career','3. Kariyer Yol Haritası'],
   ['calibration','4. Model Kalibrasyonu'],
-  ['scenario','5. Koşu Senaryosu'],
+  ['scenario','5. Günün Koşu Kalibrasyonu'],
   ['coupon','6. Kupon Oluştur'],
   ['annual','7. Yıllık Yarış Arşivi'],
   ['maintenance','8. Pist / Bakım / Hava Arşivi']
