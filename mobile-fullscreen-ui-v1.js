@@ -5,12 +5,23 @@
 'use strict';
 if(window.__AT_MOBILE_FULLSCREEN_UI_V1__)return;
 window.__AT_MOBILE_FULLSCREEN_UI_V1__=true;
-const VERSION='MOBILE-FULLSCREEN-UI-V1.2';
+const VERSION='MOBILE-FULLSCREEN-UI-V1.3';
 const style=document.createElement('style');
 style.id='atMobileFullscreenUiV1';
 style.textContent=`
 :root{--at-bg:#252a2e;--at-panel:#f7f6f3;--at-card:#fff;--at-ink:#252b31;--at-muted:#667078;--at-line:#d8dcdf;--at-red:#c53b36;--at-red-soft:#f5e5e2}
 @media(max-width:820px){
+ /* Global mobile contrast authority: legacy modules may carry dark-theme text colors. */
+ body{--at-mobile-text:#252b31;--at-mobile-muted:#667078}
+ dialog[open]:not(#drawer),[role="dialog"],.modal,.sheet{color:var(--at-mobile-text)}
+ dialog[open] .card,dialog[open] section,dialog[open] .panel,dialog[open] .box{color:var(--at-mobile-text)}
+ dialog[open] p,dialog[open] label,dialog[open] h1,dialog[open] h2,dialog[open] h3,dialog[open] h4,dialog[open] td,dialog[open] th,dialog[open] li,dialog[open] small{color:inherit}
+ dialog[open] input,dialog[open] select,dialog[open] textarea{background:#fff!important;color:#252b31!important;border-color:#d8dcdf!important}
+ dialog[open] option{background:#fff!important;color:#111!important}
+ dialog[open] button:disabled{opacity:.42!important}
+ dialog[open] [style*="color:#fff"],dialog[open] [style*="color: #fff"]{color:inherit}
+ dialog[open] button[style*="color:#fff"],dialog[open] button[style*="color: #fff"]{color:#fff!important}
+
  body{background:var(--at-bg)!important}
  dialog#tjkAnnualArchiveDialog,dialog#fogdDialogF609431,dialog#fogdHistDialogF60943111,#tmRealDoorF609416 dialog,.tmr416-panel{
   position:fixed!important;inset:0!important;width:100vw!important;max-width:none!important;height:100dvh!important;max-height:none!important;
@@ -42,6 +53,14 @@ style.textContent=`
  #fogdDialogF609431 button,#fogdHistDialogF60943111 button{color:#fff!important}
  #fogdDialogF609431 input,#fogdDialogF609431 select,#fogdHistDialogF60943111 input,#fogdHistDialogF60943111 select{color:var(--at-ink)!important;background:#fff!important}
  #fogdDialogF609431 option,#fogdHistDialogF60943111 option{color:#111!important;background:#fff!important}
+ /* Known full-screen legacy pages */
+ #tjkAnnualArchiveDialog{background:#f7f6f3!important;color:#252b31!important}
+ #tjkAnnualArchiveDialog .aa-section,#tjkAnnualArchiveDialog .card,#tjkAnnualArchiveDialog section{background:#fff!important;color:#252b31!important;border-color:#d8dcdf!important}
+ #tjkAnnualArchiveDialog .muted,#tjkAnnualArchiveDialog .hint,#tjkAnnualArchiveDialog small{color:#667078!important}
+ #tjkAnnualArchiveDialog button:not(:disabled){color:#fff}
+ #tjkAnnualArchiveDialog button:not(.primary):not([class*="danger"]){background:#394147!important;color:#fff!important}
+ #tjkAnnualArchiveDialog button:disabled{background:#eef0f1!important;color:#9aa1a6!important}
+ #tjkAnnualArchiveDialog [style*="color:#e"],#tjkAnnualArchiveDialog [style*="color: #e"]{color:#667078!important}
  button.primary,.tmr416-primary{background:var(--at-red)!important;color:#fff!important;border-color:var(--at-red)!important}
  input,select{background:#fff!important;color:var(--at-ink)!important;border-color:var(--at-line)!important}
  .fh-note,.fh-status,.fh-empty,.tmr418-note{color:var(--at-muted)!important}
