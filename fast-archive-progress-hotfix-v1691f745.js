@@ -56,19 +56,21 @@ async function scanYear(year,selected){
   return picked;
 }
 async function auditYear(year){
-  const db=await resultDb();if(!db)return[];
-  const days=await new Promise(resolve=>{const out=[];try{const os=db.transaction(RESULT_DAYS,'readonly').objectStore(RESULT_DAYS),ix=os.index('year'),q=ix.openCursor(IDBKeyRange.only(Number(year)));q.onsuccess=()=>{const x=q.result;if(!x)return;out.push(x.value);x.continue()};q.transaction.oncomplete=()=>resolve(out);q.transaction.onerror=q.transaction.onabort=()=>resolve(out)}catch{resolve(out)}});
-  const problems=[];
-  await mapLimit(days,QUERY_WORKERS,async d=>{try{
-    const q=await qpage(d.date,d.date,0),rows=(q?.rows||[]).filter(r=>fold(r.city)===fold(d.city));
-    const expectedNos=[...new Set(rows.map(r=>Number(r.raceNo)).filter(Boolean))].sort((a,b)=>a-b);
-    if(!expectedNos.length)return;
-    const actual=await new Promise(resolve=>{const out=[];try{const os=db.transaction(RESULT_RACES,'readonly').objectStore(RESULT_RACES),ix=os.index('date'),cur=ix.openCursor(IDBKeyRange.only(d.date));cur.onsuccess=()=>{const x=cur.result;if(!x)return;const v=x.value;if(fold(v.city)===fold(d.city))out.push(Number(v.raceNo));x.continue()};cur.transaction.oncomplete=()=>resolve(out);cur.transaction.onerror=cur.transaction.onabort=()=>resolve(out)}catch{resolve(out)}});
-    const have=new Set(actual.filter(Boolean)),missing=expectedNos.filter(n=>!have.has(n));
-    if(missing.length||have.size!==expectedNos.length)problems.push({date:d.date,city:d.city,cityId:d.cityId,expected:expectedNos.length,got:have.size,missing});
-  }catch(e){problems.push({date:d.date,city:d.city,cityId:d.cityId,expected:null,got:Number(d.raceCount||0),missing:[],error:e?.message||String(e)})}});
-  problems.sort((a,b)=>a.date.localeCompare(b.date)||a.city.localeCompare(b.city,'tr'));return problems;
+  const db=await resultDb(),ddb=await dayDb();if(!db||!ddb)return[];
+  const [days,indexDays,races]=await Promise.all([
+    rowsByYear(db,RESULT_DAYS,year),rowsByYear(ddb,DAY_STORE,year),rowsByYear(db,RESULT_RACES,year)
+  ]);
+  const raceMap=new Map();for(const r of races){const k=dayKey(r.date,r.city);if(!raceMap.has(k))raceMap.set(k,new Set());if(Number(r.raceNo))raceMap.get(k).add(Number(r.raceNo))}
+  const dayMap=new Map(days.map(d=>[dayKey(d.date,d.city),d])),problems=[];
+  for(const idx of indexDays){
+    const k=dayKey(idx.date,idx.city),d=dayMap.get(k),have=raceMap.get(k)||new Set();
+    const expected=Number(idx.raceCount||idx.expectedRaceCount||d?.expectedRaceCount||0),got=have.size||Number(d?.raceCount||0);
+    if(!d||d.status!=='complete'||(expected>0&&got<expected))problems.push({date:idx.date,city:idx.city,cityId:idx.cityId,expected:expected||null,got,missing:[],error:d?.error||''});
+  }
+  problems.sort((x,y)=>x.date.localeCompare(y.date)||x.city.localeCompare(y.city,'tr'));return problems;
 }
+async function rowsByYear(db,store,year){return new Promise(resolve=>{const out=[];try{const os=db.transaction(store,'readonly').objectStore(store),ix=os.indexNames.contains('year')?os.index('year'):null,q=ix?ix.openCursor(IDBKeyRange.only(Number(year))):os.openCursor();q.onsuccess=()=>{const x=q.result;if(!x)return;const v=x.value;if(ix||Number(v?.year)===Number(year))out.push(v);x.continue()};q.transaction.oncomplete=()=>resolve(out);q.transaction.onerror=q.transaction.onabort=()=>resolve(out)}catch{resolve(out)}})}
+
 function renderAudit(year,items){
   let host=$('rrFastAuditF60943143');if(!host){host=document.createElement('div');host.id='rrFastAuditF60943143';host.style.cssText='font-size:12px;margin-top:8px;line-height:1.55';const anchor=$('rrFastStatusF60943121');anchor?.parentNode?.insertBefore(host,anchor.nextSibling)}
   if(!host)return;
