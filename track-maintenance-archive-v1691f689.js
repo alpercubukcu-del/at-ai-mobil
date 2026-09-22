@@ -3,7 +3,7 @@
 if (window.__AT_TRACK_MAINT_ARCHIVE_F6089__) return;
 window.__AT_TRACK_MAINT_ARCHIVE_F6089__ = true;
 
-const VERSION='TRACK-MAINT-ARCHIVE-V16.9.1F60.94.32.23';
+const VERSION='TRACK-MAINT-ARCHIVE-V16.9.1F60.89';
 const DB_NAME='at_ai_tjk_track_maintenance_v1';
 const DB_VERSION=1;
 const STORE='reports';
@@ -135,9 +135,7 @@ async function refreshUi(){
   host.innerHTML=`<b>${all.length}</b> pist günü · <b>${cities.length}</b> hipodrom/şehir · ${years.length?`${years[0]}–${years.at(-1)}`:'arşiv boş'} · son ${esc(last)}<br><span style="opacity:.7">${esc(await storageSummary())}</span>`;
 }
 function installPanel(){
-  let dlg=$('tjkAnnualArchiveDialog');
-  if(!dlg){const candidates=[...document.querySelectorAll('dialog,.modal,.sheet,.panel,section,main')].filter(x=>x.offsetParent!==null);dlg=candidates.reverse().find(x=>/GERÇEK YARIŞ SONUÇLARI|Gerçek Yarış Arşivi\s*-\s*Koşu Sorgulama/i.test(x.textContent||''));}
-  if(!dlg||$('trackMaintenanceSectionF6089'))return false;
+  const dlg=$('tjkAnnualArchiveDialog');if(!dlg||$('trackMaintenanceSectionF6089'))return false;
   const sections=dlg.querySelectorAll('.aa-section');const anchor=sections[sections.length-1]||dlg.querySelector('form')||dlg;
   const current=new Date().getFullYear(),years=Array.from({length:Math.max(1,current-2000+1)},(_,i)=>current-i).map(y=>`<option value="${y}">${y}</option>`).join('');
   const s=document.createElement('div');s.className='aa-section';s.id='trackMaintenanceSectionF6089';s.innerHTML=`
@@ -155,7 +153,6 @@ function installPanel(){
   refreshUi();return true;
 }
 function installWhenReady(){if(installPanel())return;let n=0;const t=setInterval(()=>{n++;if(installPanel()||n>60)clearInterval(t)},500)}
-document.addEventListener('click',ev=>{const b=ev.target&&ev.target.closest&&ev.target.closest('button');if(b&&/^8\.\s*Gerçek Yarış Arşivi/i.test(String(b.textContent||'').trim()))setTimeout(()=>{installPanel();},140)},{passive:true});
 
 try{
   if(typeof loadProgram==='function'){
