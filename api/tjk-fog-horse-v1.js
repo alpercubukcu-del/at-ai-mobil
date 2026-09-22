@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION='TJK-FOG-HORSE-V1.2';
+const VERSION='TJK-FOG-HORSE-V1.3';
 const TJK='https://www.tjk.org';
 const TIMEOUT=10000;
 const HEADERS={
@@ -35,15 +35,16 @@ function parseWorkout(html,raceDate){const t=findTable(html,['ATADI','ITARIHI'])
 async function safe(url,attempts=2){let last=null;for(let i=0;i<attempts;i++){try{return{ok:true,html:await fetchHtml(url),url,attempt:i+1}}catch(e){last=e}}return{ok:false,html:'',url,error:last?.message||String(last||'TJK veri alınamadı'),attempt:attempts}}
 export default async function handler(req,res){
   res.setHeader('Cache-Control','no-store, max-age=0');
-  const atId=String(req.query.atId||'').replace(/\D/g,''),horse=clean(req.query.horse||''),sire=clean(req.query.sire||''),dam=clean(req.query.dam||''),damSire=clean(req.query.damSire||''),raceDate=clean(req.query.raceDate||'');
+  const atId=String(req.query.atId||'').replace(/\D/g,''),horse=clean(req.query.horse||''),sire=clean(req.query.sire||''),dam=clean(req.query.dam||''),damSire=clean(req.query.damSire||''),raceDate=clean(req.query.raceDate||''),manualWorkout=clean(req.query.workoutUrl||''),manualSire=clean(req.query.sireUrl||''),manualDam=clean(req.query.damUrl||''),manualDamSire=clean(req.query.damSireUrl||'');
   if(!horse||!raceDate||!/^\d{4}-\d{2}-\d{2}$/.test(raceDate))return res.status(400).json({ok:false,version:VERSION,error:'horse ve raceDate gerekli.'});
   const sireShort=sire.replace(/\s*\([^)]*\)\s*/g,' ').replace(/\s+/g,' ').trim();
+  const allow=u=>{try{const x=new URL(u);return x.protocol==='https:'&&/(^|\.)tjk\.org$/i.test(x.hostname)?x.toString():''}catch{return''}};
   const urls={
-    workout:horse?`${TJK}/TR/YarisSever/Query/Page/IdmanIstatistikleri?1=1&QueryParameter_ATADI=${encodeURIComponent(horse)}`:'',
-    sire:sire?`${TJK}/TR/YarisSever/Query/Page/AygirIstatistikleri?QueryParameter_AygirAdi=${encodeURIComponent(sire)}`:'',
+    workout:allow(manualWorkout)||(horse?`${TJK}/TR/YarisSever/Query/Page/IdmanIstatistikleri?1=1&QueryParameter_ATADI=${encodeURIComponent(horse)}`:''),
+    sire:allow(manualSire)||(sire?`${TJK}/TR/YarisSever/Query/Page/AygirIstatistikleri?QueryParameter_AygirAdi=${encodeURIComponent(sire)}`:''),
     sireAlt:sireShort&&sireShort!==sire?`${TJK}/TR/YarisSever/Query/Page/AygirIstatistikleri?QueryParameter_AygirAdi=${encodeURIComponent(sireShort)}`:'',
-    dam:dam?`${TJK}/TR/YarisSever/Query/Page/KisrakIstatistikleri?1=1&QueryParameter_KisrakAdi=${encodeURIComponent(dam)}`:'',
-    damSire:damSire?`${TJK}/TR/YarisSever/Query/Page/KisrakBabasi?QueryParameter_KisrakBabaAdi=${encodeURIComponent(damSire)}`:''
+    dam:allow(manualDam)||(dam?`${TJK}/TR/YarisSever/Query/Page/KisrakIstatistikleri?1=1&QueryParameter_KisrakAdi=${encodeURIComponent(dam)}`:''),
+    damSire:allow(manualDamSire)||(damSire?`${TJK}/TR/YarisSever/Query/Page/KisrakBabasi?QueryParameter_KisrakBabaAdi=${encodeURIComponent(damSire)}`:''
   };
   let [w,s,d,ds]=await Promise.all([urls.workout?safe(urls.workout):Promise.resolve({ok:false,html:''}),urls.sire?safe(urls.sire):Promise.resolve({ok:false,html:''}),urls.dam?safe(urls.dam):Promise.resolve({ok:false,html:''}),urls.damSire?safe(urls.damSire):Promise.resolve({ok:false,html:''})]);
   let st=s.html?findTable(s.html,['AYGIR','KOSANTAY']):null,srow=st?bestMatch(st.rows,sire,['Aygir','Aygır']):null,sireData=sireStrength(srow);
