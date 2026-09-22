@@ -3,7 +3,7 @@
 'use strict';
 if(window.__AT_FOGD_SCORE_CENTER_F609431__)return;
 window.__AT_FOGD_SCORE_CENTER_F609431__=true;
-const VERSION='FOGD-SCORE-CENTER-V16.9.1F60.94.31';
+const VERSION='FOGD-SCORE-CENTER-V16.9.1F60.94.32';
 const API='/api/tjk-fog-horse-v1';
 const CACHE_DB='at_ai_fogd_cache_v1',SCORE_DB='at_ai_fogd_scores_v1',VER=1;
 const RESULT_DB='at_ai_tjk_annual_results_v1';
@@ -30,7 +30,7 @@ function openDb(name,kind){if(kind==='cache'&&cacheDb)return cacheDb;if(kind==='
 async function dbGet(name,kind,store,key){const db=await openDb(name,kind);if(!db)return null;return new Promise(resolve=>{try{const q=db.transaction(store,'readonly').objectStore(store).get(key);q.onsuccess=()=>resolve(q.result||null);q.onerror=()=>resolve(null)}catch{resolve(null)}})}
 async function dbPut(name,kind,store,value){const db=await openDb(name,kind);if(!db)return false;return new Promise(resolve=>{try{const tx=db.transaction(store,'readwrite');tx.objectStore(store).put(value);tx.oncomplete=()=>resolve(true);tx.onerror=tx.onabort=()=>resolve(false)}catch{resolve(false)}})}
 function cacheKey(date,h){return`${date}|${h?.id||fold(h?.name)}|${fold(h?.origin||'')}`}
-async function horseContext(date,h){const key=cacheKey(date,h),old=await dbGet(CACHE_DB,'cache','items',key);if(old?.data)return old.data;const o=parseOrigin(h?.origin||''),u=new URL(API,location.origin);u.searchParams.set('horse',clean(h?.name));u.searchParams.set('raceDate',date);if(h?.id)u.searchParams.set('atId',String(h.id));if(o.sire)u.searchParams.set('sire',o.sire);if(o.dam)u.searchParams.set('dam',o.dam);if(o.damSire)u.searchParams.set('damSire',o.damSire);const r=await fetch(u.pathname+u.search,{cache:'no-store',headers:{accept:'application/json'}});const d=await r.json();if(!r.ok||d?.ok===false)throw new Error(d?.error||`FOG API ${r.status}`);await dbPut(CACHE_DB,'cache','items',{key,date,horse:h?.name||'',atId:h?.id||null,data:d,updatedAt:new Date().toISOString()});return d}
+async function horseContext(date,h){const key=cacheKey(date,h),old=await dbGet(CACHE_DB,'cache','items',key);if(old?.data&&old.data.version==='TJK-FOG-HORSE-V1.2'&&old.data.workout?.latest&&Number.isFinite(Number(old.data.origin?.score)))return old.data;const o=parseOrigin(h?.origin||''),u=new URL(API,location.origin);u.searchParams.set('horse',clean(h?.name));u.searchParams.set('raceDate',date);if(h?.id)u.searchParams.set('atId',String(h.id));if(o.sire)u.searchParams.set('sire',o.sire);if(o.dam)u.searchParams.set('dam',o.dam);if(o.damSire)u.searchParams.set('damSire',o.damSire);const r=await fetch(u.pathname+u.search,{cache:'no-store',headers:{accept:'application/json'}});const d=await r.json();if(!r.ok||d?.ok===false)throw new Error(d?.error||`FOG API ${r.status}`);await dbPut(CACHE_DB,'cache','items',{key,date,horse:h?.name||'',atId:h?.id||null,data:d,updatedAt:new Date().toISOString()});return d}
 async function mapLimit(list,limit,worker){const out=new Array(list.length);let cursor=0;async function run(){for(;;){const i=cursor++;if(i>=list.length)return;try{out[i]=await worker(list[i],i)}catch(e){out[i]={error:e?.message||String(e)}}}}await Promise.all(Array.from({length:Math.min(limit,list.length||1)},run));return out}
 function currentRaceFor(no){const c=currentResult();return(c?.races||[]).find(r=>Number(r?.no)===Number(no))||null}
 function programRaceFor(no){return programRaces().find(r=>Number(r?.no)===Number(no))||null}
