@@ -2,7 +2,7 @@
    UI/navigation layer only. Existing menu engines remain authoritative.
 */
 (()=>{'use strict';if(window.__AT_NATIVE_MOBILE_SHELL_V1__)return;window.__AT_NATIVE_MOBILE_SHELL_V1__=true;
-const VERSION='NATIVE-MOBILE-SHELL-V1.4';
+const VERSION='NATIVE-MOBILE-SHELL-V1.5';
 const css=document.createElement('style');css.id='atNativeMobileShellV1';css.textContent=`
 @media(max-width:820px){
  /* Legacy floating recovery controls are not needed in the native mobile shell.
@@ -63,11 +63,11 @@ function nav(action){
 }
 const MENU_LABELS={
   1:'1. Güncel Analiz',
-  2:'2. Benzer Koşular',
-  3:'3. Kupon Oluştur',
+  2:'2. Tarihsel Benzerlik',
+  3:'3. Koşu Senaryosu',
   4:'4. Kariyer Yol Haritası',
   5:'5. Günlük Koşu Kalibrasyonu',
-  6:'6. Araçlar',
+  6:'6. Kupon Oluştur',
   7:'7. Tarihsel Sonuç Arşivi',
   8:'8. Gerçek Yarış Arşivi',
   9:'9. FOGD Kalibrasyon'
