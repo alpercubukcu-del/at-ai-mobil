@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "node build-runtime-v1691f764.cjs",
+  "buildCommand": "node build-runtime-v1691f765.cjs",
   "outputDirectory":"public",
   "rewrites": [
     {"source":"/api/tjk-margin-enrich-v122","destination":"/api/tjk-history"},
