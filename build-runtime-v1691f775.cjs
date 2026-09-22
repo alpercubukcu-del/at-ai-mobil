@@ -1,0 +1,11 @@
+const fs=require('fs'),path=require('path'),{execFileSync}=require('child_process');
+const R=__dirname,B=path.join(R,'build-runtime-v1691f738.cjs'),M=path.join(R,'menu8-compact-f60943147.js'),F=path.join(R,'fogd-score-center-v1691f721.js'),A=path.join(R,'public','at-ai-app-v142.js'),I=path.join(R,'public','index.html');
+execFileSync(process.execPath,[B],{cwd:R,stdio:'inherit'});
+let a=fs.readFileSync(A,'utf8'),fogd=fs.readFileSync(F,'utf8'),menu=fs.readFileSync(M,'utf8');
+new Function(fogd);new Function(menu);
+const s='/* AT AI Mobil - V16.9.1F60.94.31 F/O/G/D transparent score center */',e='/* AT AI Mobil - V16.9.1F60.94.31.11 FOGD historical calibration center */',i=a.indexOf(s),j=a.indexOf(e,i);
+if(i<0||j<0)throw new Error('FOGD block not found');
+a=a.slice(0,i)+fogd+'\n'+a.slice(j)+'\n'+menu+'\n';
+new Function(a);fs.writeFileSync(A,a);
+let h=fs.readFileSync(I,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1693028');
+fs.writeFileSync(I,h);console.log('[AT AI] F60.94.31.58 Galop + Orijin archive and TJK profile origin');
