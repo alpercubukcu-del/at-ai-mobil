@@ -124,7 +124,7 @@ function applyStableMenu(){
   setLabel(current,'2. Güncel Analiz');
   setLabel(career,'3. Kariyer Yol Haritası');
   setLabel(calibration,'4. Model Kalibrasyonu');
-  setLabel(scenario,'5. Koşu Senaryosu');
+  setLabel(scenario,'5. Günün Koşu Kalibrasyonu');
   setLabel(coupon,'6. Kupon Oluştur');
   setLabel(annual,'7. Yıllık Yarış Arşivi');
   setLabel(maintenance,'8. Pist / Bakım / Hava Arşivi');
