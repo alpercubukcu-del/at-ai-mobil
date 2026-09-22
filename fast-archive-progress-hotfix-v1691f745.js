@@ -3,7 +3,7 @@
 'use strict';
 if(window.__AT_FAST_ARCHIVE_PROGRESS_HOTFIX_F60943125__)return;
 window.__AT_FAST_ARCHIVE_PROGRESS_HOTFIX_F60943125__=true;
-const VERSION='AT_FAST_ARCHIVE_PROGRESS_HOTFIX_F60943125';
+const VERSION='AT_FAST_ARCHIVE_PROGRESS_HOTFIX_F60943143';
 const QUERY_API='/api/tjk-race-query-v1',RESULT_API='/api/tjk-day-results-v17';
 const DAY_DB='at_ai_tjk_real_day_index_v2',DAY_STORE='days',DAY_META='meta';
 const RESULT_DB='at_ai_tjk_annual_results_v1',RESULT_RACES='races',RESULT_DAYS='days',RESULT_META='meta';
@@ -35,7 +35,25 @@ async function fetchResult(g){const u=new URL(RESULT_API,location.origin);u.sear
 async function mapLimit(items,limit,fn){let cursor=0;async function worker(){for(;;){if(stopRequested)return;const i=cursor++;if(i>=items.length)return;await fn(items[i],i)}}await Promise.all(Array.from({length:Math.min(limit,Math.max(1,items.length))},worker))}
 function ingestRows(map,rows){for(const r of rows||[]){const date=clean(r?.date),city=clean(r?.city),info=CM[fold(city)];if(!date||!info)continue;map.set(dayKey(date,city),{key:dayKey(date,city),date,year:Number(date.slice(0,4)),city,cityKey:info.key,cityId:info.id,source:'TJK_KOSU_SORGULAMA_FAST_F60943125',updatedAt:new Date().toISOString()})}}
 async function saveFullIndex(rows,year,total,pages){const db=await dayDb();if(!db){console.warn('[AT AI F60.94.31.25] day index db unavailable');return false}return timeout(new Promise(resolve=>{try{const tx=db.transaction([DAY_STORE,DAY_META],'readwrite'),os=tx.objectStore(DAY_STORE),ms=tx.objectStore(DAY_META);for(const v of rows)os.put(v);ms.put({key:`year:${year}:scan`,year,status:'complete',total,pages,nextPage:0,dayCount:rows.length,source:'FAST_F60943125',version:VERSION,updatedAt:new Date().toISOString()});tx.oncomplete=()=>resolve(true);tx.onerror=tx.onabort=()=>resolve(false)}catch{resolve(false)}}),8000,'Gün indeksi yazımı').catch(()=>false)}
-async function scanYear(year,selected){const start=`${year}-01-01`,end=year===currentYear()?today():`${year}-12-31`,days=new Map();status(`${year}: İndeks 1/? · Koşu Sorgulama sunucusuna bağlanıyor…`,2);const first=await qpage(start,end,0);ingestRows(days,first?.rows||[]);const total=Number(first?.total||first?.rows?.length||0),pages=Math.max(1,Math.ceil(Math.max(total,first?.rows?.length||0)/PAGE_SIZE));let done=1;const selectedCount=()=>[...days.values()].filter(x=>selected.has(x.cityKey)).length;status(`${year}: İndeks ${done}/${pages} · ${selectedCount()} seçili gün/şehir bulundu`,4+Math.round(done/pages*26));const nums=[];for(let p=1;p<pages;p++)nums.push(p);await mapLimit(nums,QUERY_WORKERS,async p=>{const d=await qpage(start,end,p);ingestRows(days,d?.rows||[]);done++;status(`${year}: İndeks ${done}/${pages} · ${selectedCount()} seçili gün/şehir · ${QUERY_WORKERS} paralel`,4+Math.round(done/pages*26))});if(stopRequested)throw new Error('Kullanıcı tarafından durduruldu');const all=[...days.values()].sort((a,b)=>a.date.localeCompare(b.date)||a.city.localeCompare(b.city,'tr'));status(`${year}: İndeks tamamlandı · ${all.length} toplam gün/şehir · yerel indekse yazılıyor…`,31);const saved=await saveFullIndex(all,year,total,pages);const picked=all.filter(x=>selected.has(x.cityKey));status(`${year}: İndeks ${pages}/${pages} tamam · ${picked.length} seçili gün/şehir${saved?'':' · yerel indeks yazımı atlandı'}`,33);return picked}
+async function scanYear(year,selected){
+  const start=`${year}-01-01`,end=year===currentYear()?today():`${year}-12-31`,days=new Map();
+  const dates=[];for(let d=new Date(start+'T12:00:00');d<=new Date(end+'T12:00:00');d.setDate(d.getDate()+1))dates.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+  let done=0,totalRows=0;
+  const selectedCount=()=>[...days.values()].filter(x=>selected.has(x.cityKey)).length;
+  status(`${year}: Koşu Sorgulama gün gün taranıyor · 0/${dates.length}`,2);
+  await mapLimit(dates,QUERY_WORKERS,async date=>{
+    const q=await qpage(date,date,0);
+    ingestRows(days,q?.rows||[]);
+    totalRows+=Number(q?.rows?.length||0);done++;
+    status(`${year}: Gün ${done}/${dates.length} · ${selectedCount()} seçili gün/şehir · ${QUERY_WORKERS} paralel`,4+Math.round(done/Math.max(1,dates.length)*26));
+  });
+  if(stopRequested)throw new Error('Kullanıcı tarafından durduruldu');
+  const all=[...days.values()].sort((a,b)=>a.date.localeCompare(b.date)||a.city.localeCompare(b.city,'tr'));
+  status(`${year}: Gün/şehir indeksi tamamlandı · ${all.length} toplantı · yerel indekse yazılıyor…`,31);
+  const saved=await saveFullIndex(all,year,totalRows,dates.length),picked=all.filter(x=>selected.has(x.cityKey));
+  status(`${year}: Gün taraması ${dates.length}/${dates.length} tamam · ${picked.length} seçili gün/şehir${saved?'':' · yerel indeks yazımı atlandı'}`,33);
+  return picked;
+}
 async function completedKeys(db,days){if(!db||!days.length)return new Set();return timeout(new Promise(resolve=>{const out=new Set();try{const tx=db.transaction(RESULT_DAYS,'readonly'),os=tx.objectStore(RESULT_DAYS);let left=days.length;for(const g of days){const key=resultDayKey(g.date,g.city),q=os.get(key);q.onsuccess=()=>{const v=q.result;if(v?.status==='complete'&&Number(v?.raceCount)>0)out.add(key);if(--left===0)resolve(out)};q.onerror=()=>{if(--left===0)resolve(out)}}tx.onabort=tx.onerror=()=>resolve(out)}catch{resolve(out)}}),6000,'Hazır sonuç kontrolü').catch(()=>new Set())}
 async function saveResultDay(db,g,data){const races=Array.isArray(data?.races)?data.races:[];if(!races.length)throw new Error('Günlük sonuçta yarış bulunamadı');return timeout(new Promise((resolve,reject)=>{try{const tx=db.transaction([RESULT_RACES,RESULT_DAYS],'readwrite'),rs=tx.objectStore(RESULT_RACES),ds=tx.objectStore(RESULT_DAYS),now=new Date().toISOString();for(const r of races){const no=Number(r?.no||r?.raceNo||0);if(no)rs.put({key:raceKey(g.date,g.city,no),year:g.year,date:g.date,city:g.city,cityId:g.cityId,raceNo:no,source:'KOSU_SORGULAMA_FAST_F60943125',version:VERSION,updatedAt:now,race:clone(r)})}ds.put({key:resultDayKey(g.date,g.city),year:g.year,date:g.date,city:g.city,cityId:g.cityId,raceCount:races.length,expectedRaceCount:races.length,status:'complete',source:'KOSU_SORGULAMA_FAST_F60943125',sourceVersion:data?.version||'',era:data?.era||data?.requestedEra||'',updatedAt:now});tx.oncomplete=()=>resolve(races.length);tx.onerror=tx.onabort=()=>reject(tx.error||new Error('Sonuç arşivi yazılamadı'))}catch(e){reject(e)}}),9000,'Sonuç arşivi yazımı')}
 async function markError(db,g,e){try{await timeout(new Promise(resolve=>{const tx=db.transaction(RESULT_DAYS,'readwrite');tx.objectStore(RESULT_DAYS).put({key:resultDayKey(g.date,g.city),year:g.year,date:g.date,city:g.city,cityId:g.cityId,raceCount:0,status:'error',source:'KOSU_SORGULAMA_FAST_F60943125',error:e?.message||String(e),updatedAt:new Date().toISOString()});tx.oncomplete=tx.onerror=tx.onabort=()=>resolve()}),3000,'Hata kaydı')}catch{}}
