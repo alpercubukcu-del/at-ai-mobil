@@ -2,10 +2,10 @@
    UI/navigation layer only. Existing menu engines remain authoritative.
 */
 (()=>{'use strict';if(window.__AT_NATIVE_MOBILE_SHELL_V1__)return;window.__AT_NATIVE_MOBILE_SHELL_V1__=true;
-const VERSION='NATIVE-MOBILE-SHELL-V1.1';
+const VERSION='NATIVE-MOBILE-SHELL-V1.2';
 const css=document.createElement('style');css.id='atNativeMobileShellV1';css.textContent=`
 @media(max-width:820px){
- body{padding-bottom:76px!important;background:#252a2e!important}
+ body{padding-bottom:92px!important;background:#252a2e!important}
  .app-shell{max-width:none!important}
  .topbar{position:sticky!important;top:0!important;z-index:80!important;background:#252a2e!important;border-bottom:1px solid #444!important;padding:14px 18px!important}
  .topbar .eyebrow{color:#cf3935!important}.topbar h1{color:#fff!important}
@@ -15,7 +15,8 @@ const css=document.createElement('style');css.id='atNativeMobileShellV1';css.tex
  main>.panel .eyebrow{color:#cf3935!important}
  main>.panel input,main>.panel select{background:#fff!important;color:#111!important}
  main>.panel button.primary{background:#cf3935!important;color:#fff!important}
- #atMobileBottomNav{position:fixed;z-index:95;left:0;right:0;bottom:0;height:72px;padding:7px 8px max(7px,env(safe-area-inset-bottom));background:#1e2225;border-top:1px solid #444;display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+ #atMobileBottomNav{position:fixed;z-index:95;left:0;right:0;bottom:0;width:100%;box-sizing:border-box;min-height:78px;padding:7px 8px calc(7px + env(safe-area-inset-bottom));background:#1e2225;border-top:1px solid #444;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;overflow:hidden}
+ #atMobileBottomNav button{min-width:0!important;width:100%!important;padding:5px 2px!important;white-space:nowrap!important;overflow:hidden!important}
  #atMobileBottomNav button{border:0;background:transparent;color:#fff!important;border-radius:12px;font-size:11px;font-weight:750;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0}
  #atMobileBottomNav button span{color:#fff!important;font-size:20px;line-height:1}
  #atMobileBottomNav button.active{background:#cf3935!important;color:#fff!important}
@@ -61,7 +62,7 @@ function normalizeDialogs(){
 function install(){
  if(document.getElementById('atMobileBottomNav'))return;
  const n=document.createElement('nav');n.id='atMobileBottomNav';n.setAttribute('aria-label','Mobil ana gezinme');
- n.innerHTML='<button data-a="home" class="active"><span>⌂</span>Ana Sayfa</button><button data-a="current"><span>▥</span>Güncel</button><button data-a="coupon"><span>◆</span>Kupon</button><button data-a="archive"><span>▤</span>Arşiv</button><button data-a="menu"><span>☰</span>Menü</button>';
+ n.innerHTML='<button data-a="home" class="active"><span>⌂</span>Ana Sayfa</button><button data-a="current"><span>▥</span>Güncel</button><button data-a="coupon"><span>◆</span>Kupon</button><button data-a="archive"><span>▤</span>Arşiv</button><button data-a="menu"><span>⚙</span>Ayarlar</button>';
  n.addEventListener('click',e=>{const b=e.target.closest('button[data-a]');if(!b)return;nav(b.dataset.a);n.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b))});
  document.body.appendChild(n);normalizeDialogs();
 }
