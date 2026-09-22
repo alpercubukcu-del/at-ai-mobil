@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION='TJK-FOG-HORSE-V1.1';
+const VERSION='TJK-FOG-HORSE-V1.2';
 const TJK='https://www.tjk.org';
 const TIMEOUT=10000;
 const HEADERS={
@@ -39,7 +39,7 @@ export default async function handler(req,res){
   if(!horse||!raceDate||!/^\d{4}-\d{2}-\d{2}$/.test(raceDate))return res.status(400).json({ok:false,version:VERSION,error:'horse ve raceDate gerekli.'});
   const sireShort=sire.replace(/\s*\([^)]*\)\s*/g,' ').replace(/\s+/g,' ').trim();
   const urls={
-    workout:atId?`${TJK}/TR/YarisSever/Query/Page/IdmanIstatistikleri?QueryParameter_AtId=${encodeURIComponent(atId)}`:'',
+    workout:`${TJK}/TR/YarisSever/Query/Page/IdmanIstatistikleri?1=1&QueryParameter_ATADI=${encodeURIComponent(horse)}`,
     sire:sire?`${TJK}/TR/YarisSever/Query/Page/AygirIstatistikleri?QueryParameter_AygirAdi=${encodeURIComponent(sire)}`:'',
     sireAlt:sireShort&&sireShort!==sire?`${TJK}/TR/YarisSever/Query/Page/AygirIstatistikleri?QueryParameter_AygirAdi=${encodeURIComponent(sireShort)}`:'',
     dam:dam?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1&QueryParameter_AnneAdi=${encodeURIComponent(dam)}&QueryParameter_AnneId=-1`:'',
