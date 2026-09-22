@@ -5,7 +5,7 @@
 'use strict';
 if(window.__AT_MOBILE_FULLSCREEN_UI_V1__)return;
 window.__AT_MOBILE_FULLSCREEN_UI_V1__=true;
-const VERSION='MOBILE-FULLSCREEN-UI-V1.1';
+const VERSION='MOBILE-FULLSCREEN-UI-V1.2';
 const style=document.createElement('style');
 style.id='atMobileFullscreenUiV1';
 style.textContent=`
@@ -36,6 +36,12 @@ style.textContent=`
  #tmRealDoorF609416 .tmr416-bar i{background:var(--at-red)!important}
  .fogd-body,.fh-body,.tmr416-body{flex:1!important;max-height:none!important;overflow:auto!important;-webkit-overflow-scrolling:touch;padding:14px!important;background:var(--at-panel)!important;color:var(--at-ink)!important}
  .fogd-card,.fh-table,.tmr418-card,.tmr416-card,.aa-section{background:var(--at-card)!important;color:var(--at-ink)!important;border:1px solid var(--at-line)!important;box-shadow:none!important}
+ #fogdDialogF609431 .fogd-body,#fogdHistDialogF60943111 .fh-body{color:var(--at-ink)!important}
+ #fogdDialogF609431 .fogd-body *:not(button):not(input):not(select):not(option),#fogdHistDialogF60943111 .fh-body *:not(button):not(input):not(select):not(option){color:var(--at-ink)!important;text-shadow:none!important}
+ #fogdDialogF609431 .fogd-card,#fogdDialogF609431 .fogd-note,#fogdDialogF609431 .fogd-status,#fogdHistDialogF60943111 .fh-note,#fogdHistDialogF60943111 .fh-status{background:#fff!important;color:var(--at-ink)!important;border-color:var(--at-line)!important}
+ #fogdDialogF609431 button,#fogdHistDialogF60943111 button{color:#fff!important}
+ #fogdDialogF609431 input,#fogdDialogF609431 select,#fogdHistDialogF60943111 input,#fogdHistDialogF60943111 select{color:var(--at-ink)!important;background:#fff!important}
+ #fogdDialogF609431 option,#fogdHistDialogF60943111 option{color:#111!important;background:#fff!important}
  button.primary,.tmr416-primary{background:var(--at-red)!important;color:#fff!important;border-color:var(--at-red)!important}
  input,select{background:#fff!important;color:var(--at-ink)!important;border-color:var(--at-line)!important}
  .fh-note,.fh-status,.fh-empty,.tmr418-note{color:var(--at-muted)!important}
