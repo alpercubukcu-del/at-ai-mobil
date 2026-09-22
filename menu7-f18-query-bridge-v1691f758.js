@@ -10,7 +10,7 @@
 if (window.__AT_MENU7_F18_QUERY_BRIDGE_F60943138__) return;
 window.__AT_MENU7_F18_QUERY_BRIDGE_F60943138__ = true;
 
-const VERSION = 'F60.94.31.38 · MENU7-F18-QUERY';
+const VERSION = 'F60.94.32.27 · MENU7-NAME-LOCK';
 const DB_NAME = 'at_ai_tjk_annual_archive_v13';
 const META_STORE = 'meta';
 const PROGRESS_KEY = 'at_ai_menu7_f18_query_progress_v1';
@@ -34,7 +34,7 @@ function findSectionByHeading(token) {
 
 function normalizeUi() {
   const b = menuButton();
-  if (b) b.textContent = '7. Yıllık Yarış Arşivi';
+  if (b) b.textContent = '7. Tarihsel Sonuç Arşivi';
   const d = dialog(); if (!d) return;
   const eye = d.querySelector('.aa-eyebrow');
   if (eye) eye.textContent = 'AT AI SYSTEM · TJK-ANNUAL-ARCHIVE-FIVE-MODEL-V14.1-TOP3-YEARBEST';
