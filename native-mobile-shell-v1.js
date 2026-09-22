@@ -2,7 +2,7 @@
    UI/navigation layer only. Existing menu engines remain authoritative.
 */
 (()=>{'use strict';if(window.__AT_NATIVE_MOBILE_SHELL_V1__)return;window.__AT_NATIVE_MOBILE_SHELL_V1__=true;
-const VERSION='NATIVE-MOBILE-SHELL-V1';
+const VERSION='NATIVE-MOBILE-SHELL-V1.1';
 const css=document.createElement('style');css.id='atNativeMobileShellV1';css.textContent=`
 @media(max-width:820px){
  body{padding-bottom:76px!important;background:#252a2e!important}
@@ -20,12 +20,23 @@ const css=document.createElement('style');css.id='atNativeMobileShellV1';css.tex
  #atMobileBottomNav button span{color:#fff!important;font-size:20px;line-height:1}
  #atMobileBottomNav button.active{background:#cf3935!important;color:#fff!important}
  .drawer{background:#252a2e!important;color:#fff!important}.drawer *{color:#fff!important}.drawer button{background:#30363b!important;color:#fff!important;border-color:#444!important}.drawer button:hover{background:#cf3935!important}
+ /* all application dialogs become native full-screen pages on phone */
+ dialog:not(#drawer){position:fixed!important;inset:0!important;width:100vw!important;max-width:none!important;height:100dvh!important;max-height:none!important;margin:0!important;border:0!important;border-radius:0!important;padding:0!important;background:#f7f6f3!important;color:#111315!important}
+ dialog:not(#drawer)[open]{display:flex!important;flex-direction:column!important}
+ dialog:not(#drawer)::backdrop{background:#252a2e!important}
+ dialog:not(#drawer)>[class*="head"],dialog:not(#drawer)>.dialog-head{flex:0 0 auto!important;background:#252a2e!important;color:#fff!important;position:sticky!important;top:0!important;z-index:30!important}
+ dialog:not(#drawer)>[class*="head"] *,dialog:not(#drawer)>.dialog-head *{color:#fff!important}
+ dialog:not(#drawer)>[class*="body"],dialog:not(#drawer)>[class*="content"],dialog:not(#drawer)>[class*="scroll"]{flex:1 1 auto!important;max-height:none!important;overflow:auto!important;-webkit-overflow-scrolling:touch;background:#f7f6f3!important;color:#111315!important}
  dialog#analysisDialog,dialog#couponCenterDialog{position:fixed!important;inset:0!important;width:100vw!important;max-width:none!important;height:100dvh!important;max-height:none!important;margin:0!important;border:0!important;border-radius:0!important;padding:0!important;background:#f7f6f3!important;color:#111!important}
  dialog#analysisDialog[open],dialog#couponCenterDialog[open]{display:flex!important;flex-direction:column!important}
  #analysisDialog .dialog-head,.coupon-menu-head-v1681{background:#252a2e!important;color:#fff!important;padding:16px!important;position:sticky!important;top:0!important;z-index:10}
  #analysisDialog .dialog-head *, .coupon-menu-head-v1681 *{color:#fff!important}
  #analysisDialog .toolbar,#analysisDialog .analysis-content,.coupon-menu-scroll-v1681{background:#f7f6f3!important;color:#111!important;padding:14px!important;max-height:none!important;overflow:auto!important}
  #analysisDialog .analysis-content *, .coupon-menu-scroll-v1681 *:not(button){color:#111!important}
+ /* non-dialog legacy overlays/panels used by menus 3-9 */
+ body>.modal,body>[role="dialog"],#tmRealDoorF609416{position:fixed!important;inset:0!important;width:100vw!important;max-width:none!important;height:100dvh!important;max-height:none!important;margin:0!important;border-radius:0!important;z-index:120!important}
+ #tmRealDoorF609416 .tmr416-panel{width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;border-radius:0!important}
+
 }
 `;document.head.appendChild(css);
 function clickSel(sel){const e=document.querySelector(sel);if(e){e.click();return true}return false}
