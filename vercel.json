@@ -2,6 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "node build-runtime-v1691f759.cjs",
   "outputDirectory":"public",
+  "build":{"env":{"AT_REDEPLOY":"F60.94.31.42R1"}},
   "rewrites": [
     {"source":"/api/tjk-margin-enrich-v122","destination":"/api/tjk-history"},
     {"source":"/api/tjk-career","destination":"/api/tjk-career-v10"}
