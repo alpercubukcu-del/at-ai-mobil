@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION='TJK-FOG-HORSE-V1.1';
+const VERSION='TJK-FOG-HORSE-V1.2';
 const TJK='https://www.tjk.org';
 const TIMEOUT=10000;
 const HEADERS={
@@ -39,10 +39,10 @@ export default async function handler(req,res){
   if(!horse||!raceDate||!/^\d{4}-\d{2}-\d{2}$/.test(raceDate))return res.status(400).json({ok:false,version:VERSION,error:'horse ve raceDate gerekli.'});
   const sireShort=sire.replace(/\s*\([^)]*\)\s*/g,' ').replace(/\s+/g,' ').trim();
   const urls={
-    workout:atId?`${TJK}/TR/YarisSever/Query/Page/IdmanIstatistikleri?QueryParameter_AtId=${encodeURIComponent(atId)}`:'',
+    workout:horse?`${TJK}/TR/YarisSever/Query/Page/IdmanIstatistikleri?1=1&QueryParameter_ATADI=${encodeURIComponent(horse)}`:'',
     sire:sire?`${TJK}/TR/YarisSever/Query/Page/AygirIstatistikleri?QueryParameter_AygirAdi=${encodeURIComponent(sire)}`:'',
     sireAlt:sireShort&&sireShort!==sire?`${TJK}/TR/YarisSever/Query/Page/AygirIstatistikleri?QueryParameter_AygirAdi=${encodeURIComponent(sireShort)}`:'',
-    dam:dam?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1&QueryParameter_AnneAdi=${encodeURIComponent(dam)}&QueryParameter_AnneId=-1`:'',
+    dam:dam?`${TJK}/TR/YarisSever/Query/Page/KisrakIstatistikleri?1=1&QueryParameter_KisrakAdi=${encodeURIComponent(dam)}`:'',
     damSire:damSire?`${TJK}/TR/YarisSever/Query/Page/KisrakBabasi?QueryParameter_KisrakBabaAdi=${encodeURIComponent(damSire)}`:''
   };
   let [w,s,d,ds]=await Promise.all([urls.workout?safe(urls.workout):Promise.resolve({ok:false,html:''}),urls.sire?safe(urls.sire):Promise.resolve({ok:false,html:''}),urls.dam?safe(urls.dam):Promise.resolve({ok:false,html:''}),urls.damSire?safe(urls.damSire):Promise.resolve({ok:false,html:''})]);
@@ -50,7 +50,7 @@ export default async function handler(req,res){
   if(!sireData&&urls.sireAlt){const alt=await safe(urls.sireAlt,1);if(alt.ok){s=alt;st=findTable(s.html,['AYGIR','KOSANTAY']);srow=st?bestMatch(st.rows,sireShort,['Aygir','Aygır']):null;sireData=sireStrength(srow)}}
   const workout=parseWorkout(w.html,raceDate);
   const dst=ds.html?findTable(ds.html,['KISRAKBABASI','KOSU']):null,dsrow=dst?bestMatch(dst.rows,damSire,['Kısrak Babası','Kisrak Babasi']):null,damSireData=damSireStrength(dsrow);
-  const dt=d.html?findTable(d.html,['ATISMI','ANNE']):null,damRows=dt?dt.rows.filter(r=>fold(val(r,['Anne'])).startsWith(fold(dam))):[],damFamily=damFamilyStrength(damRows,horse);
+  const dt=d.html?findTable(d.html,['ATISMI']):null,damRows=dt?dt.rows:[],damFamily=damFamilyStrength(damRows,horse);
   const originScore=weighted([{value:sireData?.score,weight:.5},{value:damSireData?.score,weight:.3},{value:damFamily?.score,weight:.2}]);
   const errors={workout:w.ok?null:w.error||'AtId yok',sire:sireData?null:(s.error||'Baba istatistiği bulunamadı'),dam:d.ok?null:d.error||'Anne yok',damSire:ds.ok?null:ds.error||'Kısrak babası yok'};
   const complete=!Object.values(errors).some(Boolean);
