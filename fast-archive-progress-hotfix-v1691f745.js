@@ -3,7 +3,7 @@
 'use strict';
 if(window.__AT_FAST_ARCHIVE_PROGRESS_HOTFIX_F60943125__)return;
 window.__AT_FAST_ARCHIVE_PROGRESS_HOTFIX_F60943125__=true;
-const VERSION='AT_FAST_ARCHIVE_PROGRESS_HOTFIX_F60943143';
+const VERSION='AT_FAST_ARCHIVE_PROGRESS_HOTFIX_F60943125';
 const QUERY_API='/api/tjk-race-query-v1',RESULT_API='/api/tjk-day-results-v17';
 const DAY_DB='at_ai_tjk_real_day_index_v2',DAY_STORE='days',DAY_META='meta';
 const RESULT_DB='at_ai_tjk_annual_results_v1',RESULT_RACES='races',RESULT_DAYS='days',RESULT_META='meta';
