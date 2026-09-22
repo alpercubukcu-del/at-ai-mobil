@@ -34,10 +34,10 @@ function findSectionByHeading(token) {
 
 function normalizeUi() {
   const b = menuButton();
-  if (b) b.textContent = '7. Yıllık Yarış Arşivi';
+  if (b && b.textContent !== '7. Yıllık Yarış Arşivi') b.textContent = '7. Yıllık Yarış Arşivi';
   const d = dialog(); if (!d) return;
   const eye = d.querySelector('.aa-eyebrow');
-  if (eye) eye.textContent = 'AT AI SYSTEM · TJK-ANNUAL-ARCHIVE-FIVE-MODEL-V14.1-TOP3-YEARBEST';
+  if (eye && eye.textContent !== 'AT AI SYSTEM · TJK-ANNUAL-ARCHIVE-FIVE-MODEL-V14.1-TOP3-YEARBEST') eye.textContent = 'AT AI SYSTEM · TJK-ANNUAL-ARCHIVE-FIVE-MODEL-V14.1-TOP3-YEARBEST';
   const h2 = d.querySelector('.aa-head h2, h2');
   if (h2) h2.textContent = 'Günlük Veri Arşivi ve TJK Yıllık Arşivi';
 }

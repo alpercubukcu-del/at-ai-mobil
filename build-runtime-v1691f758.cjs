@@ -14,7 +14,7 @@ let patch=fs.readFileSync(PATCH,'utf8');
 // F18 production ekranındaki görünür başlığı koru; yalnız veri kaynağı köprüsü eklensin.
 patch=patch
  .replaceAll('F60.94.31.38 · MENU7-F18-QUERY','F60.94.31.40 · MENU7-F18-EXACT-QUERY')
- .replace("if(h2) h2.textContent = 'Günlük Veri Arşivi ve TJK Yıllık Arşivi';","if(h2) h2.textContent = 'Yıllık Yarış Arşivi';");
+ .replace("if (h2) h2.textContent = 'Günlük Veri Arşivi ve TJK Yıllık Arşivi';","if (h2 && h2.textContent !== 'Yıllık Yarış Arşivi') h2.textContent = 'Yıllık Yarış Arşivi';");
 
 for(const token of[
  'F60.94.31.40 · MENU7-F18-EXACT-QUERY',

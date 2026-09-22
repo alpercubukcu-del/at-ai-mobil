@@ -22,7 +22,8 @@ if(app.includes('REAL-ARCHIVE-FAST-MULTI-V16.9.1F60.94.31.21C'))throw new Error(
 app+='\n\n'+fast.trim()+'\n\n'+safe.trim()+'\n';
 app=app.replaceAll('F60.94.31.20','F60.94.31.21');
 app=app.replace('F60.94.31.21 · LOCAL-FIRST + 4-ERA','F60.94.31.21 · FAST-MULTI + 4-ERA');
-for(const token of['REAL-ARCHIVE-FAST-MULTI-V16.9.1F60.94.31.21C','rrFastCitiesF60943121','rrFastRunF60943121','KOSU_SORGULAMA_FAST_MULTI','TJK_KOSU_SORGULAMA_FAST_FULL_INDEX','Eski Plan/Katalog Arşivi · Aktif Tarih Kaynağı Değil','AT_FAST_ARCHIVE_RESUME_SAFETY_741B'])if(!app.includes(token))throw new Error('[F60.94.31.21] final bundle invariant missing '+token);
+for(const token of['REAL-ARCHIVE-FAST-MULTI-V16.9.1F60.94.31.21C','rrFastCitiesF60943121','rrFastRunF60943121','KOSU_SORGULAMA_FAST_MULTI','TJK_KOSU_SORGULAMA_FAST_FULL_INDEX','AT_FAST_ARCHIVE_RESUME_SAFETY_741B'])if(!app.includes(token))throw new Error('[F60.94.31.21] final bundle invariant missing '+token);
+if(fast.includes('actualGuard741c')||fast.includes("$('annualArchiveBtn')"))throw new Error('[F60.94.31.42] fast archive must not take over Menu 7');
 new Function(app);
 fs.writeFileSync(APP,app,'utf8');
 let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1692991').replaceAll('F60.94.31.20','F60.94.31.21');

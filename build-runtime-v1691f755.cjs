@@ -17,7 +17,7 @@ const end=app.indexOf('function hideLegacyProgramSections(){',start);
 if(start<0||end<0)throw new Error('[F60.94.31.35] repurposeAnnualMenu block missing');
 const restored=`function repurposeAnnualMenu(){
  const b=$('annualArchiveBtn');if(!b)return false;
- b.textContent='7. Yıllık Yarış Arşivi';
+ if(b.textContent!=='7. Yıllık Yarış Arşivi')b.textContent='7. Yıllık Yarış Arşivi';
  // Tıklama bağlama: bilerek yok. F60.94.31.18'deki annual-archive-menu-fix-v1662
  // drawer kapatma + iki animation frame bekleme + ATAnnualArchiveV13.open() akışını yönetir.
  return true;

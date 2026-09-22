@@ -16,7 +16,8 @@ function updateBatchState(){
   const shown=[...document.querySelectorAll('#f62aaList [data-f62-row]')];
   const selected=shown.filter(x=>x.checked).length;
   const total=selectionSet()?.size||0;
-  host.textContent=`Gösterilen ${shown.length} yarış · gösterilende ${selected} seçili · toplam ${total} seçili`;
+  const text=`Gösterilen ${shown.length} yarış · gösterilende ${selected} seçili · toplam ${total} seçili`;
+  if(host.textContent!==text)host.textContent=text;
 }
 function applyShown(checked){
   const sel=selectionSet();
@@ -39,16 +40,16 @@ function install(){
   // F60.62 düğmesi gerçek kullanıcı düğmesidir; alttaki V14 düğmesi yalnız mevcut motor köprüsü olarak DOM'da kalır.
   const run=$('f62aaRun');
   if(run){
-    run.textContent='Seçilen Yarışlarla Kariyer Analizi';
-    run.classList.add('aa-btn','warn');
+    if(run.textContent!=='Seçilen Yarışlarla Kariyer Analizi')run.textContent='Seçilen Yarışlarla Kariyer Analizi';
+    for(const name of ['aa-btn','warn'])if(!run.classList.contains(name))run.classList.add(name);
   }
 
   // Eski V14 sonuç bloğunu kullanıcıdan kaldır. İçindeki aaRunSelected DOM'da kalır ki F60.62 mevcut motoru aynen çağırabilsin.
   const oldRun=$('aaRunSelected');
   const oldSection=oldRun?.closest?.('.aa-section');
   if(oldSection){
-    oldSection.dataset.f6088LegacySelection='1';
-    oldSection.style.display='none';
+    if(oldSection.dataset.f6088LegacySelection!=='1')oldSection.dataset.f6088LegacySelection='1';
+    if(oldSection.style.display!=='none')oldSection.style.display='none';
   }
 
   let tools=$('f6088SelectionTools');
@@ -83,7 +84,14 @@ function install(){
   return true;
 }
 function schedule(){for(const ms of[0,60,180,500,1200])setTimeout(install,ms);}
-const mo=new MutationObserver(()=>setTimeout(install,0));
+// Coalesce changes and avoid rewriting our own labels: the global observer also
+// receives records caused by install(), including when the archive is closed.
+let installPending=false;
+const mo=new MutationObserver(()=>{
+  if(installPending)return;
+  installPending=true;
+  setTimeout(()=>{installPending=false;install()},0);
+});
 try{mo.observe(document.documentElement,{subtree:true,childList:true})}catch{}
 window.addEventListener('at-ai:annual-archive-open',schedule);
 document.addEventListener('click',e=>{if(e.target?.closest?.('#annualArchiveBtn,#tjkAnnualArchiveButton,#annualArchiveButton'))schedule()},true);
