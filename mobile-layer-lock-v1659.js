@@ -1,6 +1,7 @@
 /* AT AI Mobil — V16.5.9 hard modal layer lock
    Amaç: mobilde sağ drawer ile herhangi bir dialog/export penceresinin aynı anda görünmesini kesin olarak engellemek.
-   Analiz/puanlama/export hesaplarını değiştirmez. */
+   Analiz/puanlama/export hesaplarını değiştirmez.
+   F60.94.31.41: F18 Yıllık Yarış Arşivi kendi güvenli drawer→dialog geçişini yönettiği için annualArchiveBtn genel erken kilitten muaftır. */
 (()=>{
 'use strict';
 if(window.__AT_MOBILE_LAYER_LOCK_V1659__)return;
@@ -85,16 +86,17 @@ if(window.HTMLDialogElement?.prototype?.show){
   }
 }
 
-/* Drawer içinden bir pencere açılacaksa, hedef handler çalışmadan önce drawer fiziksel olarak kaybolsun. */
+/* Drawer içinden bir pencere açılacaksa, hedef handler çalışmadan önce drawer fiziksel olarak kaybolsun.
+   annualArchiveBtn hariç: onun F18 annual-archive-menu-fix akışı drawer'ı kapatıp iki frame sonra dialogu açar. */
 document.addEventListener('pointerdown',e=>{
   const b=e.target?.closest?.('#drawer button');
-  if(!b || b.id==='closeMenu')return;
+  if(!b || b.id==='closeMenu' || b.id==='annualArchiveBtn')return;
   lockLayers();
 },true);
 
 document.addEventListener('click',e=>{
   const b=e.target?.closest?.('#drawer button');
-  if(!b || b.id==='closeMenu')return;
+  if(!b || b.id==='closeMenu' || b.id==='annualArchiveBtn')return;
   lockLayers();
   setTimeout(syncLayers,0);
   setTimeout(syncLayers,80);
