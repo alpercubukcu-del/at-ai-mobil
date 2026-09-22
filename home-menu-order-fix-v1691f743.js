@@ -1,5 +1,5 @@
-/* AT AI Mobil - F60.94.31.23 analysis menu order + missing menu 8 fix
-   F60.94.31.40: 7. menü F60.94.31.18 productiondaki Yıllık Yarış Arşivi olarak korunur.
+/* AT AI Mobil - menu order fix
+   F60.94.31.41: 7 No'lu menü production arayüzünden kaldırıldı; diğer menüler korunur.
 */
 (()=>{
 'use strict';
@@ -53,8 +53,10 @@ function repair(){
   const byNum=new Map();for(const b of buttons)if(!byNum.has(numOf(b)))byNum.set(numOf(b),b);
   if(![1,2,3,4,5,6,7,9].every(n=>byNum.has(n)))return false;
 
-  // 7. düğme F18'deki kendi click zinciriyle yerinde kalır. Klonlama/yeniden yönlendirme yok.
-  byNum.set(7,seven);
+  // 7 No'lu menüyü tamamen görünür menüden kaldır.
+  const sevenUnit=directUnit(seven,root);
+  sevenUnit.remove();
+  byNum.delete(7);
 
   const existing8=byNum.get(8)||[...root.querySelectorAll('button')].find(b=>clean(b.textContent).includes('Gerçek Yarış Arşivi'));
   const eightSource=existing8||byNum.get(9)||seven;
@@ -67,11 +69,12 @@ function repair(){
 
   buttons=[...root.querySelectorAll('button')].filter(b=>numOf(b));
   const fresh=new Map();for(const b of buttons)if(!fresh.has(numOf(b)))fresh.set(numOf(b),b);
-  if(![1,2,3,4,5,6,7,8,9].every(n=>fresh.has(n)))return false;
-  const units=[...new Set([1,2,3,4,5,6,7,8,9].map(n=>directUnit(fresh.get(n),root)))];
+  if(![1,2,3,4,5,6,8,9].every(n=>fresh.has(n)))return false;
+  const order=[1,2,3,4,5,6,8,9];
+  const units=[...new Set(order.map(n=>directUnit(fresh.get(n),root)))];
   const childList=[...root.children],first=units.slice().sort((a,b)=>childList.indexOf(a)-childList.indexOf(b))[0];
   const marker=document.createComment('AT_MENU_ORDER_F60943123');root.insertBefore(marker,first);
-  for(let n=1;n<=9;n++){const u=directUnit(fresh.get(n),root);root.insertBefore(u,marker)}
+  for(const n of order){const u=directUnit(fresh.get(n),root);root.insertBefore(u,marker)}
   marker.remove();
   root.dataset.menuOrderF60943123='1';
   return true;
@@ -85,5 +88,5 @@ function install(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 window.ATHomeMenuOrderFixF60943123={version:VERSION,repair,openArchiveHub,legacyText7:LEGACY_TEXT7,legacyId7:LEGACY_ID7};
-console.info('[AT AI]',VERSION,'active - menu order 1..9 restored; menu 8 restored; F18 Menu 7 preserved.');
+console.info('[AT AI]',VERSION,'active - Menu 7 removed; remaining menu order preserved.');
 })();
