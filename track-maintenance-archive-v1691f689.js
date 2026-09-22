@@ -55,8 +55,8 @@ function windParts(raw=''){
   for(const [word,code] of dirs){if(u.includes(word)||new RegExp(`(^|[^A-Z])${code}([^A-Z]|$)`).test(u)){direction=code;break}}
   return{speed:Number.isFinite(speed)?speed:null,direction};
 }
-function detailedSurface(city,track){const c=fold(city),t=fold(track),ref=TRACK_MASTER[c];if(t.includes('CIM'))return'Çim';if(t.includes('SENTETIK'))return'Sentetik';if(t.includes('KUM')&&ref?.race?.KUM)return ref.race.KUM;if(!t.includes('KUM'))return clean(track)||'Bilinmiyor';return'Kum'}
-function masterContext(city,track){const surface=detailedSurface(city,track),rules=surface==='Çim'?TRACK_RULES.grass:surface==='Sentetik'?TRACK_RULES.synthetic:surface==='Yarı Sentetik'?TRACK_RULES.semiSynthetic:surface==='Doğal Dere Kumu'?TRACK_RULES.naturalSand:null;return{city:clean(city),surface,hippodrome:TRACK_MASTER[fold(city)]?.name||clean(city),rules,source:'AT_AI_PIST_ANA_REFERANSI'}}
+function detailedSurface(city,track){const c=fold(city),t=fold(track),ref=TRACK_MASTER[c];if(t.includes('CIM'))return'Çim';if(t.includes('SENTETIK'))return'Sentetik';if(t.includes('KUM')&&ref&&ref.race&&ref.race.KUM)return ref.race.KUM;if(!t.includes('KUM'))return clean(track)||'Bilinmiyor';return'Kum'}
+function masterContext(city,track){const surface=detailedSurface(city,track),rules=surface==='Çim'?TRACK_RULES.grass:surface==='Sentetik'?TRACK_RULES.synthetic:surface==='Yarı Sentetik'?TRACK_RULES.semiSynthetic:surface==='Doğal Dere Kumu'?TRACK_RULES.naturalSand:null;return{city:clean(city),surface,hippodrome:(TRACK_MASTER[fold(city)]&&TRACK_MASTER[fold(city)].name)||clean(city),rules,source:'AT_AI_PIST_ANA_REFERANSI'}}
 
 function openDb(){
   if(dbPromise)return dbPromise;
