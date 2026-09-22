@@ -3,7 +3,25 @@
 if (window.__AT_TRACK_MAINT_ARCHIVE_F6089__) return;
 window.__AT_TRACK_MAINT_ARCHIVE_F6089__ = true;
 
-const VERSION='TRACK-MAINT-ARCHIVE-V16.9.1F60.89';
+const VERSION='TRACK-MAINT-ARCHIVE-V16.9.1F60.94.32.21';
+const TRACK_MASTER={
+ ADANA:{name:'Adana Yeşiloba',race:{CIM:'Çim',KUM:'Yarı Sentetik'},training:['Doğal Dere Kumu']},
+ ANKARA:{name:'Ankara 75. Yıl',race:{CIM:'Çim',KUM:'Yarı Sentetik'},training:['Doğal Dere Kumu']},
+ BURSA:{name:'Bursa Osmangazi',race:{CIM:'Çim',KUM:'Yarı Sentetik'},training:['Doğal Dere Kumu']},
+ DIYARBAKIR:{name:'Diyarbakır',race:{KUM:'Doğal Dere Kumu'},training:[]},
+ ELAZIG:{name:'Elazığ',race:{KUM:'Doğal Dere Kumu'},training:[]},
+ ISTANBUL:{name:'İstanbul Veliefendi',race:{CIM:'Çim',SENTETIK:'Sentetik',KUM:'Sentetik'},training:['Yarı Sentetik']},
+ IZMIR:{name:'İzmir Şirinyer',race:{CIM:'Çim',KUM:'Yarı Sentetik'},training:['Sentetik']},
+ SANLIURFA:{name:'Şanlıurfa',race:{KUM:'Doğal Dere Kumu'},training:['Doğal Dere Kumu']},
+ KOCAELI:{name:'Kocaeli',race:{KUM:'Yarı Sentetik'},training:[]}
+};
+const TRACK_RULES={
+ grass:{drainageCm:[30,40],vegetationCm:[20,30],ph:[6.5,7.5],mowingCm:[10,12],aerationDays:21,maintenance:['Gübre','Herbisid','İnsektisid','Fungisid','Havalandırma','Sulama','İz doldurma','Biçim','Ara ekim','Bariyer değişimi','Silindir','Günlük ölçüm'],penetrometer:[{min:2.5,max:2.9,label:'Sert'},{min:3,max:3.3,label:'Normal'},{min:3.4,max:3.4,label:'Biraz Yumuşak'},{min:3.5,max:3.7,label:'Yumuşak'},{min:3.8,max:4.3,label:'Çok Yumuşak'},{min:4.4,max:4.4,label:'Biraz Ağır'},{min:4.5,max:4.9,label:'Ağır'},{min:5,max:99,label:'Çok Ağır'}]},
+ synthetic:{depthCm:15,asphaltCm:6,drainageCm:10,maintenance:['Gallop Master','Power Harrow','Stone Burier','Kum derinliği','Reglaj','Derece takibi','Clegg Hammer'],gallopMasterPerDay:2,powerHarrowSummerDays:14,powerHarrowWinterDays:2,stoneBurierWinterDays:15},
+ semiSynthetic:{drainageCm:[30,40],sandCm:20,hardLayerCm:8,softLayerCm:12,fiberGm2:[600,800],stabilizerGm2:[300,400],maintenance:['Synchrogerm','Mini Synchrogerm','Rotavatör','Silindir','Sulama','Kum derinliği','Reglaj','Derece takibi','Clegg Hammer'],rakeDepthCm:[6.5,11],rotavatorDays:21,rotavatorDepthCm:[10,12],reglajDays:15},
+ naturalSand:{drainageCm:[30,40],sandCm:12,maintenance:['Normal tırmık','Rotavatör','Silindir','Sulama','Kum derinliği','Reglaj','Derece takibi','Clegg Hammer'],rotavatorDays:21,rotavatorDepthCm:[8,9],reglajDays:15},
+ sandConditions:['Normal','Nemli','Islak','Sulu']
+};
 const DB_NAME='at_ai_tjk_track_maintenance_v1';
 const DB_VERSION=1;
 const STORE='reports';
@@ -37,7 +55,8 @@ function windParts(raw=''){
   for(const [word,code] of dirs){if(u.includes(word)||new RegExp(`(^|[^A-Z])${code}([^A-Z]|$)`).test(u)){direction=code;break}}
   return{speed:Number.isFinite(speed)?speed:null,direction};
 }
-function detailedSurface(city,track){const c=fold(city),t=fold(track);if(t.includes('CIM'))return'Çim';if(t.includes('SENTETIK'))return'Sentetik';if(!t.includes('KUM'))return clean(track)||'Bilinmiyor';if(['ADANA','ANKARA','BURSA','IZMIR','KOCAELI'].includes(c))return'Yarı Sentetik';if(['DIYARBAKIR','ELAZIG','SANLIURFA'].includes(c))return'Doğal Dere Kumu';return'Kum'}
+function detailedSurface(city,track){const c=fold(city),t=fold(track),ref=TRACK_MASTER[c];if(t.includes('CIM'))return'Çim';if(t.includes('SENTETIK'))return'Sentetik';if(t.includes('KUM')&&ref?.race?.KUM)return ref.race.KUM;if(!t.includes('KUM'))return clean(track)||'Bilinmiyor';return'Kum'}
+function masterContext(city,track){const surface=detailedSurface(city,track),rules=surface==='Çim'?TRACK_RULES.grass:surface==='Sentetik'?TRACK_RULES.synthetic:surface==='Yarı Sentetik'?TRACK_RULES.semiSynthetic:surface==='Doğal Dere Kumu'?TRACK_RULES.naturalSand:null;return{city:clean(city),surface,hippodrome:TRACK_MASTER[fold(city)]?.name||clean(city),rules,source:'AT_AI_PIST_ANA_REFERANSI'}}
 
 function openDb(){
   if(dbPromise)return dbPromise;
@@ -124,7 +143,7 @@ async function infer(date,city){
   const env=exact||last||{};
   const z=(v,med,scale)=>Number.isFinite(v)&&Number.isFinite(med)?Number(((v-med)/scale).toFixed(3)):null;
   const inferredMaintenance=exact?.maintenance?.signalCount?exact.maintenance:(p?{inferred:true,probabilities:p.probabilities,barrierMeters:Number.isFinite(Number(p.barrierMedian))?[Number(p.barrierMedian)]:[],penetrometer:Number.isFinite(Number(p.penetrometerMedian))?[Number(p.penetrometerMedian)]:[],signalCount:0}:null);
-  return{date,city,source:exact?'EXACT_TJK':(last?'LAST_KNOWN_PLUS_SEASONAL':'SEASONAL_ONLY'),confidence:exact?.maintenance?.signalCount?1:(last&&p?.sampleCount>=5?.72:p?.sampleCount>=5?.55:.25),record:exact||null,lastKnown:last,maintenance:inferredMaintenance,weather:{temperature:env.temperature??null,humidity:env.humidity??null,pressure:env.pressure??null,sky:env.sky||'',wind:env.wind||'',windSpeedKmh:env.windSpeedKmh??null,windDirection:env.windDirection||'',temperatureAnomaly:z(env.temperature,p?.temperatureMedian,8),humidityAnomaly:z(env.humidity,p?.humidityMedian,20),pressureAnomaly:z(env.pressure,p?.pressureMedian,15),windAnomaly:z(env.windSpeedKmh,p?.windSpeedMedian,15)},profile:p};
+  const master=masterContext(city,env?.track||env?.surface||env?.pist||'');return{date,city,master,source:exact?'EXACT_TJK':(last?'LAST_KNOWN_PLUS_SEASONAL':'SEASONAL_ONLY'),confidence:exact?.maintenance?.signalCount?1:(last&&p?.sampleCount>=5?.72:p?.sampleCount>=5?.55:.25),record:exact||null,lastKnown:last,maintenance:inferredMaintenance,weather:{temperature:env.temperature??null,humidity:env.humidity??null,pressure:env.pressure??null,sky:env.sky||'',wind:env.wind||'',windSpeedKmh:env.windSpeedKmh??null,windDirection:env.windDirection||'',temperatureAnomaly:z(env.temperature,p?.temperatureMedian,8),humidityAnomaly:z(env.humidity,p?.humidityMedian,20),pressureAnomaly:z(env.pressure,p?.pressureMedian,15),windAnomaly:z(env.windSpeedKmh,p?.windSpeedMedian,15)},profile:p};
 }
 
 async function storageSummary(){try{const e=await navigator.storage?.estimate?.();if(!e)return'';return`Tarayıcı: ${(Number(e.usage||0)/1048576).toFixed(1)} MB kullanılıyor`;}catch{return''}}
@@ -162,7 +181,7 @@ try{
   }
 }catch(e){console.warn('[AT AI]',VERSION,'program hook kurulamadı',e)}
 
-window.ATTrackMaintenanceV1={version:VERSION,get:getReport,profile,infer,syncRange,backfillYears,autoSync,detailedSurface,windParts,getLastContext:()=>lastContext};
+window.ATTrackMaintenanceV1={version:VERSION,get:getReport,profile,infer,syncRange,backfillYears,autoSync,detailedSurface,masterContext,TRACK_MASTER,TRACK_RULES,windParts,getLastContext:()=>lastContext};
 installWhenReady();
 console.info('[AT AI]',VERSION,'aktif');
 })();
