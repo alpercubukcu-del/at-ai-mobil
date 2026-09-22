@@ -18,7 +18,6 @@ for(const token of[
  'ANNUAL-ARCHIVE-MENU-FIX-V16.6.3',
  'openAnnualArchiveV1663',
  'window.ATAnnualArchiveV13',
- "b.textContent='7. Yıllık Yarış Arşivi'",
  '/api/tjk-race-query-v1',
  'TJK_KOSU_SORGULAMA',
  'ATMenu7F18QueryBridgeF60943138'
