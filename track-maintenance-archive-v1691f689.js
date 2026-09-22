@@ -4,24 +4,8 @@ if (window.__AT_TRACK_MAINT_ARCHIVE_F6089__) return;
 window.__AT_TRACK_MAINT_ARCHIVE_F6089__ = true;
 
 const VERSION='TRACK-MAINT-ARCHIVE-V16.9.1F60.94.32.21';
-const TRACK_MASTER={
- ADANA:{name:'Adana Yeşiloba',race:{CIM:'Çim',KUM:'Yarı Sentetik'},training:['Doğal Dere Kumu']},
- ANKARA:{name:'Ankara 75. Yıl',race:{CIM:'Çim',KUM:'Yarı Sentetik'},training:['Doğal Dere Kumu']},
- BURSA:{name:'Bursa Osmangazi',race:{CIM:'Çim',KUM:'Yarı Sentetik'},training:['Doğal Dere Kumu']},
- DIYARBAKIR:{name:'Diyarbakır',race:{KUM:'Doğal Dere Kumu'},training:[]},
- ELAZIG:{name:'Elazığ',race:{KUM:'Doğal Dere Kumu'},training:[]},
- ISTANBUL:{name:'İstanbul Veliefendi',race:{CIM:'Çim',SENTETIK:'Sentetik',KUM:'Sentetik'},training:['Yarı Sentetik']},
- IZMIR:{name:'İzmir Şirinyer',race:{CIM:'Çim',KUM:'Yarı Sentetik'},training:['Sentetik']},
- SANLIURFA:{name:'Şanlıurfa',race:{KUM:'Doğal Dere Kumu'},training:['Doğal Dere Kumu']},
- KOCAELI:{name:'Kocaeli',race:{KUM:'Yarı Sentetik'},training:[]}
-};
-const TRACK_RULES={
- grass:{drainageCm:[30,40],vegetationCm:[20,30],ph:[6.5,7.5],mowingCm:[10,12],aerationDays:21,maintenance:['Gübre','Herbisid','İnsektisid','Fungisid','Havalandırma','Sulama','İz doldurma','Biçim','Ara ekim','Bariyer değişimi','Silindir','Günlük ölçüm'],penetrometer:[{min:2.5,max:2.9,label:'Sert'},{min:3,max:3.3,label:'Normal'},{min:3.4,max:3.4,label:'Biraz Yumuşak'},{min:3.5,max:3.7,label:'Yumuşak'},{min:3.8,max:4.3,label:'Çok Yumuşak'},{min:4.4,max:4.4,label:'Biraz Ağır'},{min:4.5,max:4.9,label:'Ağır'},{min:5,max:99,label:'Çok Ağır'}]},
- synthetic:{depthCm:15,asphaltCm:6,drainageCm:10,maintenance:['Gallop Master','Power Harrow','Stone Burier','Kum derinliği','Reglaj','Derece takibi','Clegg Hammer'],gallopMasterPerDay:2,powerHarrowSummerDays:14,powerHarrowWinterDays:2,stoneBurierWinterDays:15},
- semiSynthetic:{drainageCm:[30,40],sandCm:20,hardLayerCm:8,softLayerCm:12,fiberGm2:[600,800],stabilizerGm2:[300,400],maintenance:['Synchrogerm','Mini Synchrogerm','Rotavatör','Silindir','Sulama','Kum derinliği','Reglaj','Derece takibi','Clegg Hammer'],rakeDepthCm:[6.5,11],rotavatorDays:21,rotavatorDepthCm:[10,12],reglajDays:15},
- naturalSand:{drainageCm:[30,40],sandCm:12,maintenance:['Normal tırmık','Rotavatör','Silindir','Sulama','Kum derinliği','Reglaj','Derece takibi','Clegg Hammer'],rotavatorDays:21,rotavatorDepthCm:[8,9],reglajDays:15},
- sandConditions:['Normal','Nemli','Islak','Sulu']
-};
+const TRACK_MASTER={ADANA:{name:'Adana Yeşiloba',race:{CIM:'Çim',KUM:'Yarı Sentetik'}},ANKARA:{name:'Ankara 75. Yıl',race:{CIM:'Çim',KUM:'Yarı Sentetik'}},BURSA:{name:'Bursa Osmangazi',race:{CIM:'Çim',KUM:'Yarı Sentetik'}},DIYARBAKIR:{name:'Diyarbakır',race:{KUM:'Doğal Dere Kumu'}},ELAZIG:{name:'Elazığ',race:{KUM:'Doğal Dere Kumu'}},ISTANBUL:{name:'İstanbul Veliefendi',race:{CIM:'Çim',KUM:'Sentetik'}},IZMIR:{name:'İzmir Şirinyer',race:{CIM:'Çim',KUM:'Yarı Sentetik'}},SANLIURFA:{name:'Şanlıurfa',race:{KUM:'Doğal Dere Kumu'}},KOCAELI:{name:'Kocaeli',race:{KUM:'Yarı Sentetik'}}};
+const TRACK_RULES={grass:{penetrometer:'2.5-2.9 Sert; 3.0-3.3 Normal; 3.4 Biraz Yumuşak; 3.5-3.7 Yumuşak; 3.8-4.3 Çok Yumuşak; 4.4 Biraz Ağır; 4.5-4.9 Ağır; 5+ Çok Ağır',maintenance:'Sulama|Havalandırma|İz doldurma|Biçim|Ara ekim|Bariyer değişimi|Silindir|Günlük ölçüm'},synthetic:{maintenance:'Gallop Master|Power Harrow|Stone Burier|Kum derinliği|Reglaj|Derece takibi|Clegg Hammer'},semiSynthetic:{maintenance:'Synchrogerm|Mini Synchrogerm|Rotavatör|Silindir|Sulama|Kum derinliği|Reglaj|Derece takibi|Clegg Hammer'},naturalSand:{maintenance:'Normal tırmık|Rotavatör|Silindir|Sulama|Kum derinliği|Reglaj|Derece takibi|Clegg Hammer'}};
 const DB_NAME='at_ai_tjk_track_maintenance_v1';
 const DB_VERSION=1;
 const STORE='reports';
