@@ -259,35 +259,11 @@ function schedule(reason,delays=[0,60,140,320,800,1600,3000]){
  for(const ms of delays)setTimeout(()=>applyFinalOrder(reason+'-'+ms),ms);
 }
 
-function installDrawerObserver(){
- const drawer=$('drawer');
- if(!drawer||drawer.__AT_FINAL_DRAWER_OBSERVER_F609414__)return;
- drawer.__AT_FINAL_DRAWER_OBSERVER_F609414__=new MutationObserver(()=>{
-  if(applying)return;
-  if(performance.now()-lastAppliedAt<120)return;
-  schedule('drawer-mutation',[40,180,600]);
- });
- drawer.__AT_FINAL_DRAWER_OBSERVER_F609414__.observe(drawer,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['class','aria-hidden','style']});
-}
-
-function bootPoll(){
- bootAttempts+=1;
- installDrawerObserver();
- if(applyFinalOrder('boot-'+bootAttempts))return;
- if(bootAttempts<140)setTimeout(bootPoll,100);
-}
-
+/* MOBILE.CLEAN.5: F60.94.14 no longer owns drawer labels/order.
+   Its maintenance fallback and preview helpers remain available. */
 function start(){
  installStyle();
  installPreviewChromeGuard();
- bootPoll();
- const onOpen=e=>{if(e.target?.closest?.('#menuBtn')){applyFinalOrder('pre-menu-open');schedule('menu-open')}};
- document.addEventListener('pointerdown',onOpen,true);
- document.addEventListener('touchstart',onOpen,true);
- document.addEventListener('click',onOpen,true);
- window.addEventListener('pageshow',()=>schedule('pageshow',[0,120,700]),{passive:true});
- document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')schedule('visible',[60,500])},{passive:true});
- setInterval(()=>{installPreviewChromeGuard();if($('drawer')?.classList.contains('open'))applyFinalOrder('open-interval')},2000);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 window.ATFinalDrawerOrderF609414={version:VERSION,apply:applyFinalOrder,openMaintenance};
