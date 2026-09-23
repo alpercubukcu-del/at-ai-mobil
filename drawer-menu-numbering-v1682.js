@@ -18,7 +18,7 @@ function fixDrawerNumbers(){
     const t=(btn.textContent||'').replace(/\s+/g,' ').trim();
     if(/Kupon Oluştur/i.test(t)) normalizeLabel(btn,'6. Kupon Oluştur');
     else if(/Kariyer Excel Dışa Aktarım/i.test(t)) normalizeLabel(btn,'7. Kariyer Excel Dışa Aktarım');
-    else if(/TJK Yıllık Yarış Arşivi/i.test(t)) normalizeLabel(btn,'8. TJK Yıllık Yarış Arşivi');
+    else if(/TJK Yıllık Yarış Arşivi|Yıllık Yarış Arşivi|Tarihsel Sonuç Arşivi/i.test(t)) normalizeLabel(btn,'7. Tarihsel Sonuç Arşivi');
   }
 }
 
