@@ -16,8 +16,8 @@ let app=fs.readFileSync(APP,'utf8');
 
 /* 1) One menu owner: the F60.94.4 canonical writer must never call the older workflow writer first. */
 const legacyCall='try{legacyGuideApply?.()}catch{}';
-if(!app.includes(legacyCall))throw new Error('[F60.94.8] legacy guide call not found');
-app=app.replaceAll(legacyCall,'/* F60.94.8: legacy workflow menu writer permanently bypassed. */');
+if(app.includes(legacyCall))app=app.replaceAll(legacyCall,'/* F60.94.8: legacy workflow menu writer permanently bypassed. */');
+/* Source may already be cleaned; keep the canonical no-legacy-call state valid. */
 
 /* 2) Emit real maintenance progress from the existing F60.89 engine. */
 const statusStart=app.indexOf("function setStatus(text,pct=null){const e=$('tmStatusF6089')");
