@@ -47,7 +47,7 @@ function repair(){
   const seven=document.getElementById('annualArchiveBtn')||document.getElementById('annualArchiveBtnSafeF60943122')||[...document.querySelectorAll('button')].find(b=>numOf(b)===7);
   if(!seven)return false;
   if(seven.id==='annualArchiveBtnSafeF60943122')seven.id='annualArchiveBtn';
-  seven.textContent='7. Yıllık Yarış Arşivi';
+  seven.textContent='7. Tarihsel Sonuç Arşivi';
   const root=menuRoot(seven);if(!root)return false;
   let buttons=[...root.querySelectorAll('button')].filter(b=>numOf(b));
   const byNum=new Map();for(const b of buttons)if(!byNum.has(numOf(b)))byNum.set(numOf(b),b);
