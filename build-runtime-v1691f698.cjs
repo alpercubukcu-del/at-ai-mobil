@@ -14,7 +14,7 @@ new Function(guard);
 execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
 let app=fs.readFileSync(APP,'utf8');
 app+='\n\n'+guard.trim()+'\n';
-for(const token of['STABLE-ANALYSIS-MENU-V16.9.1F60.94.4','DEGREE-SPEED-TOP5-V16.9.1F60.94.5','MENU-AUTHORITY-GUARD-V16.9.1F60.94.6','7. Yıllık Yarış Arşivi','8. Pist / Bakım / Hava Arşivi'])if(!app.includes(token))throw new Error('[F60.94.6] bundle verification failed: '+token);
+for(const token of['STABLE-ANALYSIS-MENU-V16.9.1F60.94.4','DEGREE-SPEED-TOP5-V16.9.1F60.94.5','MENU-AUTHORITY-GUARD-V16.9.1F60.94.6','7. Tarihsel Sonuç Arşivi','8. Pist / Bakım / Hava Arşivi'])if(!app.includes(token))throw new Error('[F60.94.6] bundle verification failed: '+token);
 new Function(app);
 fs.writeFileSync(APP,app,'utf8');
 let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1692946');
