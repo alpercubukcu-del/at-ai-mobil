@@ -121,9 +121,9 @@ function applyFinalOrder(reason='manual'){
  setLabel(r.current,'2. Güncel Analiz',2);
  setLabel(r.career,'3. Kariyer Yol Haritası',3);
  setLabel(r.calibration,'4. Model Kalibrasyonu',4);
- setLabel(r.scenario,'5. Koşu Senaryosu',5);
+ setLabel(r.scenario,'5. Günlük Koşu Kalibrasyonu',5);
  setLabel(r.coupon,'6. Kupon Oluştur',6);
- setLabel(r.annual,'7. Yıllık Yarış Arşivi',7);
+ setLabel(r.annual,'7. Tarihsel Sonuç Arşivi',7);
  setLabel(r.maintenance,'8. Pist / Bakım / Hava Arşivi',8);
  const note=drawer.querySelector('.drawer-note');
  if(note){
