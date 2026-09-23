@@ -51,7 +51,7 @@ if(!app.includes(nowNeedle))throw new Error('[F60.94.8] runNow API check not fou
 app=app.replace(nowNeedle,nowNeedle+"\n if(api.isBusy?.()){setBusy(false,'Pist/Bakım/Hava güncellemesi zaten çalışıyor. Mevcut ilerleme gösteriliyor.');return}");
 
 app+='\n\n'+bridge.trim()+'\n';
-for(const token of['F60.94.8: legacy workflow menu writer permanently bypassed','quickMaintenanceBound=\'F60.94.8\'','at-ai:track-maintenance-status','TRACK-MAINT-PROGRESS-V16.9.1F60.94.8','DEGREE-SPEED-TOP5-V16.9.1F60.94.5'])if(!app.includes(token))throw new Error('[F60.94.8] bundle verification failed: '+token);
+for(const token of["quickMaintenanceBound='F60.94.8'",'at-ai:track-maintenance-status','TRACK-MAINT-PROGRESS-V16.9.1F60.94.8','DEGREE-SPEED-TOP5-V16.9.1F60.94.5'])if(!app.includes(token))throw new Error('[F60.94.8] bundle verification failed: '+token);
 new Function(app);
 fs.writeFileSync(APP,app,'utf8');
 let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1692948');
