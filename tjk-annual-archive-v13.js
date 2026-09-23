@@ -559,7 +559,7 @@ function installMenu() {
   const drawer = $('drawer'); if (!drawer || $('annualArchiveBtn')) return;
   const note = drawer.querySelector('.drawer-note');
   const b = document.createElement('button');
-  b.id = 'annualArchiveBtn'; b.type = 'button'; b.textContent = '6. TJK Yıllık Yarış Arşivi';
+  b.id = 'annualArchiveBtn'; b.type = 'button'; b.textContent = '7. Tarihsel Sonuç Arşivi';
   b.addEventListener('click', event => {
     event.preventDefault();
     try { if (typeof window.closeDrawer === 'function') window.closeDrawer(); } catch {}
