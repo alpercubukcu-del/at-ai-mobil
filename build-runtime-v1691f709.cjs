@@ -29,7 +29,7 @@ for(const token of[
  'ATRealRaceArchiveF6093',
  'ATAnnualResultsArchiveV661'
 ])if(!app.includes(token))throw new Error('[F60.94.18] required archive base missing: '+token);
-if(app.includes('ARCHIVE-HUB-MENU8-V16.9.1F60.94.18'))throw new Error('[F60.94.18] archive hub already present before append');
+app=app.replace(/\/\* AT AI Mobil - V16\.9\.1F60\.94\.18[\\s\\S]*?console\.info\('\[AT AI\]',VERSION,'active - menu 8 unifies real race results and track\/maintenance\/weather archives; shared local results are exposed to analyses\.'\);\n\}\)\(\);?/g,'');
 app=app.replaceAll('8. Pist / Bakım / Hava Arşivi','8. Gerçek Yarış Arşivi + Pist / Bakım / Hava');
 app=app.replaceAll('Arşiv → Pist/Bakım/Hava.','Arşiv → Gerçek Yarış + Pist/Bakım/Hava.');
 app+='\n\n'+hub.trim()+'\n';
