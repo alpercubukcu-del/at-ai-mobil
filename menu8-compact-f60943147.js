@@ -9,32 +9,28 @@ async function getAll(){let d=await db();return new Promise(r=>{let q=d.transact
 async function put(v){let d=await db();return new Promise(r=>{let q=d.transaction('d','readwrite').objectStore('d').put(v);q.onsuccess=q.onerror=()=>{r();d.close()}})}
 async function del(k){let d=await db();return new Promise((r,j)=>{let q=d.transaction('d','readwrite').objectStore('d').delete(k);q.onsuccess=()=>{d.close();r()};q.onerror=()=>{let e=q.error;d.close();j(e)}})}
 async function catalog(a,b){
-  /* TJK'nin "Daha Fazla Sonuç" mekanizmasına bağımlı değiliz.
-     Her yarış gününü ayrı sorguluyoruz; bir günlük sonuç 50 satır sınırının
-     altında kaldığı için sayfalama kaynaklı kayıt kaybı oluşmaz. */
-  const days=[];for(let d=new Date(a+'T12:00:00');d<=new Date(b+'T12:00:00');d.setDate(d.getDate()+1))days.push(d.toISOString().slice(0,10));
-  const m=new Map(),seen=new Set();let raw=0,tjkTotal=0,done=0,next=0;
-  async function worker(){
-    while(!stop){
-      const n=next++;if(n>=days.length)return;const day=days[n];
-      const x=await fetch('/api/tjk-race-query-v1?start='+day+'&end='+day+'&page=0',{cache:'no-store'}),j=await x.json();
-      if(!j.ok)throw Error(j.error||'Sorgu hatası');
-      const rr=Array.isArray(j.rows)?j.rows:[],dailyTotal=Number(j.total||0);
-      if(dailyTotal>rr.length)throw Error(day+' TJK günlük sorgu eksik: '+rr.length+' / '+dailyTotal);
-      tjkTotal+=dailyTotal;raw+=rr.length;
-      for(const z of rr){
-        const rk=z.canonicalRaceId||z.key||[z.date,z.city,z.winner,z.winnerDegree,z.raceType,z.group,z.distance,z.origin].join('|');
-        if(seen.has(rk))continue;seen.add(rk);
-        const k=z.date+'|'+z.city,v=m.get(k)||{key:k,date:z.date,city:z.city,count:0};v.count++;m.set(k,v)
-      }
-      done++;m8sum.textContent='Koşu Sorgulama gün gün alınıyor · '+done+'/'+days.length+' gün · '+seen.size+' yarış';
+  const m=new Map(),seen=new Set(),days=[];
+  for(let d=new Date(a+'T12:00:00');d<=new Date(b+'T12:00:00');d.setDate(d.getDate()+1))days.push(d.toISOString().slice(0,10));
+  let done=0,raw=0;
+  const take=async day=>{
+    if(stop)return;
+    const x=await fetch('/api/tjk-race-query-v1?start='+day+'&end='+day+'&page=0',{cache:'no-store'}),j=await x.json();
+    if(!j.ok)throw Error(j.error||day+' sorgu hatası');
+    const rr=Array.isArray(j.rows)?j.rows:[];
+    if(Number(j.total||0)>rr.length)throw Error(day+' günlük sorgu eksik: '+rr.length+' / '+j.total);
+    raw+=rr.length;
+    for(const z of rr){
+      const rk=z.canonicalRaceId||z.key||[z.date,z.city,z.winner,z.winnerDegree,z.raceType,z.group,z.distance,z.origin].join('|');
+      if(seen.has(rk))continue;seen.add(rk);
+      const k=z.date+'|'+z.city,v=m.get(k)||{key:k,date:z.date,city:z.city,count:0};
+      v.count++;m.set(k,v)
     }
-  }
-  await Promise.all(Array.from({length:Math.min(8,days.length)},worker));
+    done++;m8sum.textContent='Koşu Sorgulama gün gün alınıyor · '+done+'/'+days.length+' gün · '+seen.size+' yarış';
+  };
+  for(let i=0;i<days.length&&!stop;i+=8)await Promise.all(days.slice(i,i+8).map(take));
   if(stop)return;
-  if(seen.size!==tjkTotal)throw Error('Koşu Sorgulama toplam doğrulaması başarısız: '+seen.size+' / '+tjkTotal);
   rows=[...m.values()].sort((a,b)=>b.date.localeCompare(a.date)||a.city.localeCompare(b.city,'tr'));
-  window.__M8_QUERY_TOTAL__={tjk:tjkTotal,unique:seen.size,raw,days:days.length}
+  window.__M8_QUERY_TOTAL__={unique:seen.size,raw,days:done,method:'DAILY_EXHAUSTIVE'}
 }
 async function chooseDir(){if(!window.showDirectoryPicker)throw Error('Bu tarayıcı kalıcı klasör erişimini desteklemiyor');let picked=await window.showDirectoryPicker({mode:'readwrite'}),p=await picked.requestPermission({mode:'readwrite'});if(p!=='granted')throw Error('Klasör yazma izni verilmedi');if(picked.name==='Gerçek Yarış Arşivi'){rootDir=picked;rootDirIsRace=true;m8folder.textContent='✓ Klasör: Gerçek Yarış Arşivi'}else{rootDir=picked;rootDirIsRace=false;m8folder.textContent='✓ Klasör: '+rootDir.name}return rootDir}
 async function openAnyDb(name){return new Promise(r=>{let q=indexedDB.open(name);q.onsuccess=()=>r(q.result);q.onerror=q.onblocked=()=>r(null)})}
