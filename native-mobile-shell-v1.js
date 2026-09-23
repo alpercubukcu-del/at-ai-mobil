@@ -2,7 +2,7 @@
    UI/navigation layer only. Existing menu engines remain authoritative.
 */
 (()=>{'use strict';if(window.__AT_NATIVE_MOBILE_SHELL_V1__)return;window.__AT_NATIVE_MOBILE_SHELL_V1__=true;
-const VERSION='NATIVE-MOBILE-SHELL-V1.5';
+const VERSION='NATIVE-MOBILE-SHELL-V1.6-CLEAN';
 const css=document.createElement('style');css.id='atNativeMobileShellV1';css.textContent=`
 @media(max-width:820px){
  /* Legacy floating recovery controls are not needed in the native mobile shell.
@@ -61,31 +61,12 @@ function nav(action){
  if(action==='archive'){(drawerByText(/7\.\s*Tarihsel Sonuç Arşivi/i)||drawerByText(/Tarihsel Sonuç Arşivi/i))?.click();return}
  if(action==='menu'){document.getElementById('menuBtn')?.click();return}
 }
-const MENU_LABELS={
-  1:'1. Güncel Analiz',
-  2:'2. Tarihsel Benzerlik',
-  3:'3. Koşu Senaryosu',
-  4:'4. Kariyer Yol Haritası',
-  5:'5. Günlük Koşu Kalibrasyonu',
-  6:'6. Kupon Oluştur',
-  7:'7. Tarihsel Sonuç Arşivi',
-  8:'8. Gerçek Yarış Arşivi',
-  9:'9. FOGD Kalibrasyon'
-};
 function hideLegacyFloatingControls(){
  const labels=/^(Kilidi Aç|Yenile)$/i;
  [...document.querySelectorAll('button,[role="button"]')].forEach(el=>{
    if(el.closest('#atMobileBottomNav'))return;
-   const txt=String(el.textContent||'').trim();
-   if(labels.test(txt))el.classList.add('at-mobile-legacy-float-hidden');
+   if(labels.test(String(el.textContent||'').trim()))el.classList.add('at-mobile-legacy-float-hidden');
  });
-}
-function lockMenuLabels(){
- const buttons=[...document.querySelectorAll('#drawer button,button')];
- for(const b of buttons){
-  const raw=String(b.textContent||'').trim(),m=raw.match(/^([1-9])\.\s*/);if(!m)continue;
-  const label=MENU_LABELS[Number(m[1])];if(label&&raw!==label)b.textContent=label;
- }
 }
 function normalizeDialogs(){
  document.querySelectorAll('dialog').forEach(d=>{if(d.id==='drawer')return;d.classList.add('at-native-mobile-page')});
@@ -95,9 +76,9 @@ function install(){
  const n=document.createElement('nav');n.id='atMobileBottomNav';n.setAttribute('aria-label','Mobil ana gezinme');
  n.innerHTML='<button data-a="home" class="active"><span>⌂</span>Ana Sayfa</button><button data-a="current"><span>▥</span>Güncel</button><button data-a="coupon"><span>◆</span>Kupon</button><button data-a="archive"><span>▤</span>Arşiv</button><button data-a="menu"><span>⚙</span>Ayarlar</button>';
  n.addEventListener('click',e=>{const b=e.target.closest('button[data-a]');if(!b)return;nav(b.dataset.a);n.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b))});
- document.body.appendChild(n);normalizeDialogs();lockMenuLabels();hideLegacyFloatingControls();
+ document.body.appendChild(n);normalizeDialogs();hideLegacyFloatingControls();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-const mo=new MutationObserver(()=>{normalizeDialogs();lockMenuLabels();hideLegacyFloatingControls()});mo.observe(document.documentElement,{childList:true,subtree:true});
-window.ATNativeMobileShellV1={version:VERSION,install,nav,normalizeDialogs,lockMenuLabels,hideLegacyFloatingControls};console.info('[AT AI]',VERSION,'active');
+const mo=new MutationObserver(()=>{normalizeDialogs();hideLegacyFloatingControls()});mo.observe(document.documentElement,{childList:true,subtree:true});
+window.ATNativeMobileShellV1={version:VERSION,install,nav,normalizeDialogs,hideLegacyFloatingControls};console.info('[AT AI]',VERSION,'active');
 })();
