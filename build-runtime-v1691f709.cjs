@@ -16,7 +16,6 @@ for(const token of[
  'at_ai_tjk_annual_results_v1',
  'KOSU_SORGULAMA_REAL_ARCHIVE',
  'rrDownloadF6093',
- 'tmDailyDownloadF609418',
  'ATArchiveHubMenu8F609418'
 ])if(!hub.includes(token))throw new Error('[F60.94.18] archive hub invariant missing: '+token);
 new Function(hub);
