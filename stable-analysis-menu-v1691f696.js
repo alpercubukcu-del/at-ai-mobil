@@ -117,7 +117,7 @@ function applyStableMenu(){
   const calibration=drawer.querySelector('[data-view="calibration"]')||findButton(drawer,/Model Kalibrasyonu/i);
   const scenario=drawer.querySelector('[data-view="scenario"]')||findButton(drawer,/Koşu Senaryosu/i);
   const coupon=$('couponMenuBtn')||findButton(drawer,/Kupon Oluştur/i);
-  const annual=$('annualArchiveBtn')||findButton(drawer,/Yıllık Yarış Arşivi|TJK Yıllık Yarış Arşivi/i);
+  const annual=$('annualArchiveBtn')||findButton(drawer,/Tarihsel Sonuç Arşivi|Yıllık Yarış Arşivi|TJK Yıllık Yarış Arşivi/i);
   const maintenance=ensureMaintenanceButton(drawer);
 
   setLabel(guide,'1. Kullanım Talimatı');
@@ -126,7 +126,7 @@ function applyStableMenu(){
   setLabel(calibration,'4. Model Kalibrasyonu');
   setLabel(scenario,'5. Günün Koşu Kalibrasyonu');
   setLabel(coupon,'6. Kupon Oluştur');
-  setLabel(annual,'7. Yıllık Yarış Arşivi');
+  setLabel(annual,'7. Tarihsel Sonuç Arşivi');
   setLabel(maintenance,'8. Pist / Bakım / Hava Arşivi');
 
   const note=drawer.querySelector('.drawer-note');
@@ -149,9 +149,8 @@ if(window.ATProgramWorkflowGuideV661) window.ATProgramWorkflowGuideV661.applyMen
 if(window.ATDrawerMenuNumberingV1682) window.ATDrawerMenuNumberingV1682.fix=applyStableMenu;
 
 applyStableMenu();
-for(const ms of [50,350,1200,2550,3300]) setTimeout(applyStableMenu,ms);
-window.addEventListener('pageshow',()=>setTimeout(applyStableMenu,0),{passive:true});
-document.addEventListener('click',e=>{if(e.target?.closest?.('#menuBtn'))setTimeout(applyStableMenu,0)},true);
+window.addEventListener('pageshow',applyStableMenu,{passive:true});
+document.addEventListener('click',e=>{if(e.target?.closest?.('#menuBtn'))applyStableMenu()},true);
 
 window.ATStableAnalysisMenuF60944={version:VERSION,apply:applyStableMenu,openMaintenance};
 console.info('[AT AI]',VERSION,'active — drawer labels fixed and track maintenance entry restored.');
