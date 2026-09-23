@@ -6,15 +6,13 @@ const ROOT=__dirname;
 const BASE=path.join(ROOT,'build-runtime-v1678.cjs');
 const APP=path.join(ROOT,'public','at-ai-app-v142.js');
 const INDEX=path.join(ROOT,'public','index.html');
-const MENU_PATCH=path.join(ROOT,'menu-cleanup-v1689.js');
 const SOURCE_MODE='Güncel Analiz + Kariyer Yol Haritası 5 Model';
 
-for(const f of [BASE,MENU_PATCH]) if(!fs.existsSync(f)) throw new Error(`[V16.8.9] Eksik dosya: ${path.basename(f)}`);
+for(const f of [BASE]) if(!fs.existsSync(f)) throw new Error(`[V16.8.9] Eksik dosya: ${path.basename(f)}`);
 execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
 if(!fs.existsSync(APP)||!fs.existsSync(INDEX)) throw new Error('[V16.8.9] V16.8.8 build çıktısı bulunamadı.');
 
 let app=fs.readFileSync(APP,'utf8');
-const menuPatch=fs.readFileSync(MENU_PATCH,'utf8');
 
 function mustString(label,from,to){
   if(!app.includes(from)) throw new Error(`[V16.8.9] ${label} kaynak kalıbı bulunamadı.`);
@@ -95,7 +93,7 @@ app=app.replace('Bir ayak ancak model fikir birliği, lider farkı, yarış zorl
 app=app.replace('Karar Motoru seçimleri 5 Model kupon altyapısına uygulanıyor…','Güncel Analiz + Kariyer Yol Haritası 5 Model seçimleri kupona uygulanıyor…');
 app=app.replace('Tüm veri kaynakları kontrol edildi; ana kupon ve destek modelleri oluşturuldu.','Güncel Analiz + Kariyer Yol Haritası 5 Model ile kupon oluşturuldu.');
 
-if(!app.includes('MENU-2-REMOVED-V16.8.9')) app+=`\n${menuPatch}\n`;
+if(!app.includes('MENU-2-REMOVED-V16.8.9')) app+=`\n;window.__AT_MENU_2_REMOVED_V1689__='MENU-2-REMOVED-V16.8.9';\n`;
 app+=`\n;window.__AT_COUPON_SOURCE_MODE_V1689__='COUPON-CURRENT-CAREER5-V16.8.9';\n`;
 fs.writeFileSync(APP,app,'utf8');
 
