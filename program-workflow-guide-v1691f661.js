@@ -62,7 +62,7 @@ function applyMenu(){
   const calibration=drawer.querySelector('[data-view="calibration"]');
   const scenario=drawer.querySelector('[data-view="scenario"]');
   const coupon=$('couponMenuBtn')||findByText(drawer,/Kupon Oluştur/i);
-  const annual=$('annualArchiveBtn')||findByText(drawer,/Yıllık Yarış Arşivi/i);
+  const annual=$('annualArchiveBtn')||findByText(drawer,/Tarihsel Sonuç Arşivi|Yıllık Yarış Arşivi/i);
   const oldExport=findByText(drawer,/Kariyer Excel/i);
   const historical=drawer.querySelector('[data-view="historical"]');
   if(historical)historical.style.display='none';
@@ -71,9 +71,9 @@ function applyMenu(){
   label(current,'2. Güncel Analiz');
   label(career,'3. Kariyer Yol Haritası');
   label(calibration,'4. Model Kalibrasyonu');
-  label(scenario,'5. Koşu Senaryosu');
+  label(scenario,'5. Günün Koşu Kalibrasyonu');
   label(coupon,'6. Kupon Oluştur');
-  label(annual,'7. Yıllık Yarış Arşivi');
+  label(annual,'7. Tarihsel Sonuç Arşivi');
   const note=drawer.querySelector('.drawer-note');
   const nodes=[guide,current,career,calibration,scenario,coupon,annual].filter(Boolean);
   for(const node of nodes){
