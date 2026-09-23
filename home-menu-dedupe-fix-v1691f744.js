@@ -6,7 +6,7 @@
 if(window.__AT_HOME_MENU_DEDUPE_FIX_F60943124__)return;
 window.__AT_HOME_MENU_DEDUPE_FIX_F60943124__=true;
 const VERSION='AT_HOME_MENU_DEDUPE_FIX_F60943124';
-const TEXT7='7. Yıllık Yarış Arşivi';
+const TEXT7='7. Tarihsel Sonuç Arşivi';
 const LEGACY_TEXT7='7. Tarihsel Sonuç Arşivi · Koşu Sorgulama';
 const TEXT8='8. Gerçek Yarış Arşivi + Pist / Bakım / Hava';
 const clean=v=>String(v??'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim();
