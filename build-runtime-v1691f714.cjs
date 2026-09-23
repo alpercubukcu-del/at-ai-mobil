@@ -13,6 +13,7 @@ let app=fs.readFileSync(APP,'utf8');
 const order=fs.readFileSync(ORDER,'utf8');
 for(const token of[
  'DRAWER-ORDER-ONLY-V16.9.1F60.94.24',
+ "label(r.scenario,'5. Günlük Koşu Kalibrasyonu')",
  "label(r.annual,'7. Tarihsel Sonuç Arşivi')",
  "label(r.maintenance,'8. Gerçek Yarış Arşivi + Pist / Bakım / Hava')"
 ])if(!order.includes(token))throw new Error('[F60.94.24] order module invariant missing: '+token);
