@@ -60,7 +60,7 @@ function apply(reason='manual'){
   label(r.current,'2. Güncel Analiz');
   label(r.career,'3. Kariyer Yol Haritası');
   label(r.calibration,'4. Model Kalibrasyonu');
-  label(r.scenario,'5. Koşu Senaryosu');
+  label(r.scenario,'5. Günlük Koşu Kalibrasyonu');
   label(r.coupon,'6. Kupon Oluştur');
   label(r.annual,'7. Tarihsel Sonuç Arşivi');
   label(r.maintenance,'8. Gerçek Yarış Arşivi + Pist / Bakım / Hava');
