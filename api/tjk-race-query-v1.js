@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION='TJK-RACE-QUERY-V1.3-F60.94.29';
+const VERSION='TJK-RACE-QUERY-V1.4-F60.94.33';
 const TJK='https://www.tjk.org';
 const PAGE='/TR/YarisSever/Query/Page/KosuSorgulama';
 const FILTER='/TR/YarisSever/Query/Data/KosuSorgulama';
@@ -28,15 +28,10 @@ function parseRows(html){
     const field=(names,fallback)=>cellByClass($,tr,names)||at(fallback);
     const date=iso(field(['Tarih'],0)),city=field(['SehirAdi','Sehir'],1);
     if(!date||!city)return;
-    /* Koşu Sorgulama tablosunda güvenilir bir koşu-no alanı yok. Eski sürüm
-       tarih hücresini 18.09 gibi koşu numarası sanarak aynı günün yarışlarını
-       tek anahtara çökertiyordu. Buradaki raceNo yalnız sayfa-sırası ipucudur;
-       gerçek koşu numarası Günlük Yarış Sonuçları sayfasından alınır. */
-    const group=field(['Grup'],3),raceType=field(['KosuCinsi'],4),apprenticeType=field(['AprKosuCinsi','AprKosCinsi'],5),distance=Number(dec(field(['Mesafe'],6))||0)||null,track=field(['Pist'],7),winnerWeight=dec(field(['Siklet'],8)),origin=field(['Orijin'],9),prize=num(field(['Ikramiye'],10)),winner=field(['Birinci','Kazanan'],11),age=field(['Yas'],12),winnerDegree=field(['Derece'],13),hp=Number(dec(field(['HPuani','HPuan','HP'],14))||0)||null;
-    const dc=`${date}|${fold(city)}`,raceNo=(pageOrder.get(dc)||0)+1;pageOrder.set(dc,raceNo);
-    const signature=[date,fold(city),fold(winner),fold(winnerDegree),fold(raceType),fold(group),distance||0,fold(origin)].join('|');
-    const key=`query|${signature}`;
-    out.push({key,canonicalRaceId:key,queryKeyVersion:'F60.94.29',raceNoSource:'PAGE_ORDER_HINT',date,year:Number(date.slice(0,4)),city,raceNo,group,raceType,apprenticeType,distance,track,winnerWeight,origin,prize,winner,age,winnerDegree,hp});
+    const raceNo=Number(dec(field(['KosuNo','Kosu'],2))||0)||null,group=field(['Grup'],3),raceType=field(['KosuCinsi'],4),apprenticeType=field(['AprKosuCinsi','AprKosCinsi'],5),distance=Number(dec(field(['Mesafe'],6))||0)||null,track=field(['Pist'],7),winnerWeight=dec(field(['Siklet'],8)),origin=field(['Orijin'],9),prize=num(field(['Ikramiye'],10)),winner=field(['Birinci','Kazanan'],11),age=field(['Yas'],12),winnerDegree=field(['Derece'],13),hp=Number(dec(field(['HPuani','HPuan','HP'],14))||0)||null;
+    if(!raceNo)return;
+    const key=`query|${date}|${fold(city)}|${raceNo}`;
+    out.push({key,canonicalRaceId:key,queryKeyVersion:'F60.94.33',raceNoSource:'TJK_KOSU_COLUMN',date,year:Number(date.slice(0,4)),city,raceNo,group,raceType,apprenticeType,distance,track,winnerWeight,origin,prize,winner,age,winnerDegree,hp});
   });
   const text=clean($.root().text()),tm=text.match(/Toplam\s+([\d.]+)\s+sonuçtan/i),total=tm?Number(String(tm[1]).replace(/\./g,'')):out.length;
   return{rows:out,total:Number.isFinite(total)?total:out.length};
@@ -51,6 +46,6 @@ export default async function handler(req,res){
     if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end))return res.status(400).json({ok:false,version:VERSION,error:'start/end YYYY-MM-DD biçiminde gerekli.'});
     const d=await fetchList(start,end,page),rows=d.rows.filter(x=>x.date>=start&&x.date<=end);
     const invalidRows=rows.filter(x=>!x.key||!x.date||!x.city||!x.winner).length;
-    return res.status(200).json({ok:true,version:VERSION,start,end,page,tjkPage:page+1,total:d.total,rows,rawRowCount:d.rows.length,invalidRows,queryKeyVersion:'F60.94.29',filterMatched:rows.length>0||d.rows.length===0,sourceUrl:d.sourceUrl});
+    return res.status(200).json({ok:true,version:VERSION,start,end,page,tjkPage:page+1,total:d.total,rows,rawRowCount:d.rows.length,invalidRows,queryKeyVersion:'F60.94.33',filterMatched:rows.length>0||d.rows.length===0,sourceUrl:d.sourceUrl});
   }catch(e){const status=e?.name==='AbortError'?504:502;return res.status(status).json({ok:false,version:VERSION,error:e?.name==='AbortError'?'TJK Koşu Sorgulama zaman aşımına uğradı.':(e?.message||String(e))})}
 }
