@@ -58,7 +58,7 @@ for(const token of [
   'coupon-menu-embedded',
   'legacy ana-sayfa routing kapalı',
   '7. Kariyer Excel Dışa Aktarım',
-  '8. TJK Yıllık Yarış Arşivi',
+  '7. Tarihsel Sonuç Arşivi',
   '#couponCenterDialog #betTypes{display:none!important}',
   'dialog içi ilerleme görünür',
   'bahis türleri yalnız 6. Kupon Oluştur içinde inline açılır'
