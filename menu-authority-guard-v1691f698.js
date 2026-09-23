@@ -107,12 +107,12 @@ function scheduleAfterLegacy(){
 for(const name of ['at-ai:annual-archive-created','at-ai:annual-archive-open','at-ai:annual-archive-render','at-ai:annual-archive-ready']){
   window.addEventListener(name,()=>setTimeout(()=>repair(name),0),{passive:true});
 }
-document.addEventListener('click',e=>{if(e.target?.closest?.('#menuBtn'))scheduleAfterLegacy()},true);
-window.addEventListener('pageshow',()=>{setTimeout(()=>repair('pageshow'),0);setTimeout(()=>repair('pageshow-late'),80)},{passive:true});
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(()=>repair('foreground'),60)},{passive:true});
+/* MOBILE.CLEAN.5 menu-open repair disabled */
+/* MOBILE.CLEAN.5 pageshow repair disabled */
+/* MOBILE.CLEAN.5 foreground repair disabled */
 
-connectObserver();
-for(const ms of [0,80,700,1600]) setTimeout(()=>repair('startup-'+ms),ms);
+/* MOBILE.CLEAN.5: do not install another drawer observer/timer authority.
+   F60.94.24 is the single label/order writer. */
 
 window.ATMenuAuthorityGuardF60946={version:VERSION,repair,needsRepair};
 console.info('[AT AI]',VERSION,'active — canonical eight-item drawer owns labels/order; F60.45 menu rewrites are auto-repaired.');
