@@ -56,12 +56,12 @@ function upgradePanel(){
   try{
     ensureStyle();
     const oldReal=$('realRaceArchiveSectionF6093');if(oldReal&&!root.contains(oldReal))oldReal.remove();
-    root.querySelectorAll('button').forEach(b=>{if(b.id!=='tmRealCloseF609416'&&(/Pist\s*\/\s*Bakım\s*\/\s*Hava Arşivi/i.test((b.textContent||'').trim())||b.id==='trackMaintenanceMenuBtnF60944'))b.remove()});
+    root.querySelectorAll('button').forEach(b=>{if(b.id!=='tmRealCloseF609416'&&/Pist\s*\/\s*Bakım\s*\/\s*Hava Arşivi/i.test((b.textContent||'').trim()))b.remove()});
     const title=panel.querySelector('.tmr416-head h2');if(title)title.textContent='Gerçek Yarış Arşivi + Pist / Bakım / Hava';
     const kicker=panel.querySelector('.tmr416-head>div>div');if(kicker)kicker.textContent='AT AI GERÇEK VERİ MERKEZİ';
     const y=currentYear();
     body.innerHTML=`<div class="tmr418-intro">8. menü artık iki gerçek veri arşivini aynı yerde yönetir. Yarış sonuçları <b>${REAL_RESULTS_DB}</b> veritabanına yazılır ve mevcut yerel sonuç API'si üzerinden analizlerle paylaşılır.</div>${realSectionHtml(y)}${trackSectionHtml(y)}`;
-    wireRealButtons();
+    root.querySelectorAll('button').forEach(b=>{if(b.id!=='tmRealCloseF609416'&&/Pist\s*\/\s*Bakım\s*\/\s*Hava Arşivi/i.test((b.textContent||'').trim()))b.remove()});wireRealButtons();
     panel.dataset.archiveHubMenu8='F60.94.18';
     root.dataset.archiveHubMenu8Version=VERSION;
     setTimeout(()=>{void refreshRealMeta();try{window.ATTrackMaintenanceStageFixF609417?.runApply&&$('tmRealMetaF609416')?.setAttribute('data-stage-fix-ready','1')}catch{}},0);
