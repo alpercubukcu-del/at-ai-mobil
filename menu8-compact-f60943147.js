@@ -8,7 +8,31 @@ async function get(k){let d=await db();return new Promise(r=>{let q=d.transactio
 async function getAll(){let d=await db();return new Promise(r=>{let q=d.transaction('d').objectStore('d').getAll();q.onsuccess=()=>{r(q.result||[]);d.close()};q.onerror=()=>{r([]);d.close()}})}
 async function put(v){let d=await db();return new Promise(r=>{let q=d.transaction('d','readwrite').objectStore('d').put(v);q.onsuccess=q.onerror=()=>{r();d.close()}})}
 async function del(k){let d=await db();return new Promise((r,j)=>{let q=d.transaction('d','readwrite').objectStore('d').delete(k);q.onsuccess=()=>{d.close();r()};q.onerror=()=>{let e=q.error;d.close();j(e)}})}
-async function catalog(a,b){let m=new Map(),cursor=b,loops=0;while(cursor>=a&&loops++<400&&!stop){let x=await fetch('/api/tjk-race-query-v1?start='+a+'&end='+cursor+'&page=0',{cache:'no-store'}),j=await x.json();if(!j.ok)throw Error(j.error||'Sorgu hatası');let rr=j.rows||[];if(!rr.length)break;let old='9999-99-99';for(const z of rr){if(z.date<old)old=z.date;let k=z.date+'|'+z.city,v=m.get(k)||{key:k,date:z.date,city:z.city,count:0};v.count++;m.set(k,v)}if(old<=a||old==='9999-99-99')break;let d=new Date(old+'T12:00:00');d.setDate(d.getDate()-1);cursor=d.toISOString().slice(0,10)}rows=[...m.values()].sort((a,b)=>b.date.localeCompare(a.date)||a.city.localeCompare(b.city,'tr'))}
+async function catalog(a,b){
+  const m=new Map(),seen=new Set();let page=0,total=null,raw=0,empty=0;
+  while(!stop&&page<500){
+    const x=await fetch('/api/tjk-race-query-v1?start='+a+'&end='+b+'&page='+page,{cache:'no-store'}),j=await x.json();
+    if(!j.ok)throw Error(j.error||'Sorgu hatası');
+    if(total===null&&Number.isFinite(Number(j.total)))total=Number(j.total);
+    const rr=Array.isArray(j.rows)?j.rows:[];raw+=rr.length;
+    if(!rr.length){if(++empty>=2)break;page++;continue}
+    empty=0;
+    let added=0;
+    for(const z of rr){
+      const rk=z.canonicalRaceId||z.key||[z.date,z.city,z.winner,z.winnerDegree,z.raceType,z.group,z.distance,z.origin].join('|');
+      if(seen.has(rk))continue;seen.add(rk);added++;
+      const k=z.date+'|'+z.city,v=m.get(k)||{key:k,date:z.date,city:z.city,count:0};
+      v.count++;m.set(k,v)
+    }
+    page++;
+    m8sum.textContent='Koşu Sorgulama sayfaları alınıyor · Sayfa '+page+' · Benzersiz '+seen.size+(total!==null?' / TJK '+total:'');
+    if(total!==null&&seen.size>=total)break;
+    if(!added&&page>2)break
+  }
+  if(total!==null&&seen.size<total)throw Error('Koşu Sorgulama eksik alındı: '+seen.size+' / '+total+'. Arşiv listesi oluşturulmadı.');
+  rows=[...m.values()].sort((a,b)=>b.date.localeCompare(a.date)||a.city.localeCompare(b.city,'tr'));
+  window.__M8_QUERY_TOTAL__={tjk:total,unique:seen.size,raw,pages:page}
+}
 async function chooseDir(){if(!window.showDirectoryPicker)throw Error('Bu tarayıcı kalıcı klasör erişimini desteklemiyor');let picked=await window.showDirectoryPicker({mode:'readwrite'}),p=await picked.requestPermission({mode:'readwrite'});if(p!=='granted')throw Error('Klasör yazma izni verilmedi');if(picked.name==='Gerçek Yarış Arşivi'){rootDir=picked;rootDirIsRace=true;m8folder.textContent='✓ Klasör: Gerçek Yarış Arşivi'}else{rootDir=picked;rootDirIsRace=false;m8folder.textContent='✓ Klasör: '+rootDir.name}return rootDir}
 async function openAnyDb(name){return new Promise(r=>{let q=indexedDB.open(name);q.onsuccess=()=>r(q.result);q.onerror=q.onblocked=()=>r(null)})}
 async function realArchiveYear(year){let db=await openAnyDb('at_ai_tjk_annual_results_v1');if(!db||!db.objectStoreNames.contains('races'))return[];return new Promise(r=>{let out=[],os=db.transaction('races','readonly').objectStore('races'),idx=os.indexNames.contains('year')?os.index('year'):null;if(!idx){db.close();return r([])}let q=idx.openCursor(IDBKeyRange.only(Number(year)));q.onsuccess=()=>{let cur=q.result;if(!cur){db.close();return r(out)}out.push(cur.value);cur.continue()};q.onerror=()=>{db.close();r(out)}})}
