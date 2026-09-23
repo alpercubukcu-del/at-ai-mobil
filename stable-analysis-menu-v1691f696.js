@@ -109,13 +109,13 @@ function ensureMaintenanceButton(drawer){
 function applyStableMenu(){
   const drawer=$('drawer');
   if(!drawer) return false;
-  try{legacyGuideApply?.()}catch{}
+  /* Legacy menu writer intentionally not called: it restores stale labels. */
 
   const guide=$('programGuideBtnV661')||findButton(drawer,/Kullanım Talimatı/i);
   const current=drawer.querySelector('[data-view="current"]')||findButton(drawer,/Güncel Analiz/i);
   const career=drawer.querySelector('[data-view="career"]')||findButton(drawer,/Kariyer Yol Haritası/i);
   const calibration=drawer.querySelector('[data-view="calibration"]')||findButton(drawer,/Model Kalibrasyonu/i);
-  const scenario=drawer.querySelector('[data-view="scenario"]')||findButton(drawer,/Koşu Senaryosu/i);
+  const scenario=drawer.querySelector('[data-view="scenario"]')||findButton(drawer,/Günün Koşu Kalibrasyonu|Koşu Senaryosu/i);
   const coupon=$('couponMenuBtn')||findButton(drawer,/Kupon Oluştur/i);
   const annual=$('annualArchiveBtn')||findButton(drawer,/Tarihsel Sonuç Arşivi|Yıllık Yarış Arşivi|TJK Yıllık Yarış Arşivi/i);
   const maintenance=ensureMaintenanceButton(drawer);
