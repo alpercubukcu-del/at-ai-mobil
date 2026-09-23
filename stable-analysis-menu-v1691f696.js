@@ -148,10 +148,8 @@ try{
 if(window.ATProgramWorkflowGuideV661) window.ATProgramWorkflowGuideV661.applyMenu=applyStableMenu;
 if(window.ATDrawerMenuNumberingV1682) window.ATDrawerMenuNumberingV1682.fix=applyStableMenu;
 
-applyStableMenu();
-for(const ms of [50,350,1200,2550,3300]) setTimeout(applyStableMenu,ms);
-window.addEventListener('pageshow',()=>setTimeout(applyStableMenu,0),{passive:true});
-document.addEventListener('click',e=>{if(e.target?.closest?.('#menuBtn'))setTimeout(applyStableMenu,0)},true);
+/* MOBILE.CLEAN.5: label/order ownership moved to F60.94.24.
+   Keep this module only as the maintenance API/fallback provider. */
 
 window.ATStableAnalysisMenuF60944={version:VERSION,apply:applyStableMenu,openMaintenance};
 console.info('[AT AI]',VERSION,'active — drawer labels fixed and track maintenance entry restored.');
