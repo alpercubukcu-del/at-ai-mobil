@@ -198,7 +198,7 @@ function collectRequired(drawer){
   current:drawer.querySelector('[data-view="current"]')||findButton(drawer,/Güncel Analiz/i),
   career:drawer.querySelector('[data-view="career"]')||findButton(drawer,/Kariyer Yol Haritası/i),
   calibration:drawer.querySelector('[data-view="calibration"]')||findButton(drawer,/Model Kalibrasyonu/i),
-  scenario:drawer.querySelector('[data-view="scenario"]')||findButton(drawer,/Koşu Senaryosu/i),
+  scenario:drawer.querySelector('[data-view="scenario"]')||findButton(drawer,/Günün Koşu Kalibrasyonu|Koşu Senaryosu/i),
   coupon:$('couponMenuBtn')||findButton(drawer,/Kupon Oluştur/i),
   annual:$('annualArchiveBtn')||findButton(drawer,/Yıllık Yarış Arşivi|TJK Yıllık Yarış Arşivi/i)
  };
@@ -239,9 +239,9 @@ function applyFinalOrder(reason='manual'){
  setLabel(required.current,'2. Güncel Analiz',2);
  setLabel(required.career,'3. Kariyer Yol Haritası',3);
  setLabel(required.calibration,'4. Model Kalibrasyonu',4);
- setLabel(required.scenario,'5. Koşu Senaryosu',5);
+ setLabel(required.scenario,'5. Günün Koşu Kalibrasyonu',5);
  setLabel(required.coupon,'6. Kupon Oluştur',6);
- setLabel(required.annual,'7. Yıllık Yarış Arşivi',7);
+ setLabel(required.annual,'7. Tarihsel Sonuç Arşivi',7);
  setLabel(maintenance,'8. Pist / Bakım / Hava Arşivi',8);
 
  const desired=[head,...uniqueOrdered,note];
