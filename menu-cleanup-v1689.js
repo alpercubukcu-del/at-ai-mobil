@@ -20,12 +20,12 @@ function apply(){
       continue;
     }
     if(/Güncel Analiz/i.test(t)) text(btn,'1. Güncel Analiz');
-    else if(/Koşu Senaryosu/i.test(t)) text(btn,'2. Koşu Senaryosu');
+    else if(/Koşu Senaryosu|Günlük Koşu Kalibrasyonu/i.test(t)) text(btn,'5. Günlük Koşu Kalibrasyonu');
     else if(/Kariyer Yol Haritası/i.test(t)) text(btn,'3. Kariyer Yol Haritası');
     else if(/Model Kalibrasyonu/i.test(t)) text(btn,'4. Model Kalibrasyonu');
     else if(/Kupon Oluştur/i.test(t)) text(btn,'5. Kupon Oluştur');
     else if(/Kariyer Excel Dışa Aktarım/i.test(t)) text(btn,'6. Kariyer Excel Dışa Aktarım');
-    else if(/TJK Yıllık Yarış Arşivi/i.test(t)) text(btn,'7. TJK Yıllık Yarış Arşivi');
+    else if(/TJK Yıllık Yarış Arşivi|Yıllık Yarış Arşivi|Tarihsel Sonuç Arşivi/i.test(t)) text(btn,'7. Tarihsel Sonuç Arşivi');
   }
 }
 // Boot-time reconciliation below is sufficient; do not observe every document mutation.
