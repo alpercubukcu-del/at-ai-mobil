@@ -13,7 +13,7 @@ function neutralizeLegacyObserverTarget(){
   const btn=legacy||safe;
   if(!btn)return false;
   if(safe&&!legacy)safe.id='annualArchiveBtn';
-  if(btn.textContent!=='7. Yıllık Yarış Arşivi')btn.textContent='7. Yıllık Yarış Arşivi';
+  if(btn.textContent!=='7. Tarihsel Sonuç Arşivi')btn.textContent='7. Tarihsel Sonuç Arşivi';
   // F18'in annual-archive-menu-fix click akışına dokunma; capture listener ekleme.
   return true;
 }
