@@ -2065,7 +2065,7 @@ function openAnalysis(view) {
       'Tarihsel Benzerlik',
 
     scenario:
-      'Koşu Senaryosu',
+      'Günlük Koşu Kalibrasyonu',
 
     career:
       'Kariyer Yol Haritası'
