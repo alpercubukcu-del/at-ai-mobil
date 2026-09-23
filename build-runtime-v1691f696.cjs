@@ -9,7 +9,7 @@ const INDEX=path.join(ROOT,'public','index.html');
 if(!fs.existsSync(BASE))throw new Error('[F60.94.4] F60.94.3 base builder missing');
 if(!fs.existsSync(MENU))throw new Error('[F60.94.4] stable menu runtime missing');
 const menu=fs.readFileSync(MENU,'utf8');
-for(const token of['STABLE-ANALYSIS-MENU-V16.9.1F60.94.4','8. Pist / Bakım / Hava Arşivi','trackMaintenanceMenuBtnF60944','window.ATStableAnalysisMenuF60944'])if(!menu.includes(token))throw new Error('[F60.94.4] menu invariant missing: '+token);
+for(const token of['STABLE-ANALYSIS-MENU-V16.9.1F60.94.4','7. Tarihsel Sonuç Arşivi','8. Pist / Bakım / Hava Arşivi','trackMaintenanceMenuBtnF60944','window.ATStableAnalysisMenuF60944'])if(!menu.includes(token))throw new Error('[F60.94.4] menu invariant missing: '+token);
 new Function(menu);
 execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
 let app=fs.readFileSync(APP,'utf8');
