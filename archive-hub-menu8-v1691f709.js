@@ -15,10 +15,10 @@ function currentYear(){return new Date().getFullYear()}
 function getState(){try{if(typeof state==='object'&&state)return state}catch{}return window.state||null}
 function currentRaceSelection(){return $('analysisRace')?.value||'all'}
 function closeDrawer(){try{if(typeof window.closeDrawer==='function')window.closeDrawer()}catch{}try{$('drawer')?.classList.remove('open');$('drawer')?.setAttribute('aria-hidden','true');$('overlay')?.classList.remove('show')}catch{}}
-function dates(){const a=$('rrDateFromF6093')?.value||'',b=$('rrDateToF6093')?.value||'';return a&&b&&a<=b?[a,b]:null}
+function dates(){const a=$('rrDateFromF6093'),b=$('rrDateToF6093');const norm=e=>{if(!e)return'';const v=String(e.value||'').trim();if(/^\\d{4}-\\d{2}-\\d{2}$/.test(v))return v;if(e.valueAsDate&&!Number.isNaN(e.valueAsDate.getTime()))return e.valueAsDate.toISOString().slice(0,10);const m=v.match(/^(\\d{1,2})[.\\/-](\\d{1,2})[.\\/-](\\d{4})$/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:''};const x=norm(a),y=norm(b);return x&&y&&x<=y?[x,y]:null}
 function setRealBusy(on){for(const id of['rrDownloadF6093','rrUpdateF6093','rrApplyAnalysisF609418']){const b=$(id);if(b)b.disabled=!!on}}
 function setRealStatus(text,pct=null){const s=$('rrStatusF6093');if(s)s.textContent=String(text||'');const bar=$('rrBarF6093');if(bar&&pct!==null&&pct!==undefined){const n=Math.max(0,Math.min(100,Number(pct)||0));bar.style.width=n+'%';bar.setAttribute('aria-valuenow',String(n))}}
-async function waitRealArchive(waitMs=10000){const started=Date.now();while(Date.now()-started<waitMs){const api=window.ATRealRaceArchiveF6093;if(api?.syncYears&&api?.syncRecent)return api;await sleep(100)}return null}
+async function waitRealArchive(waitMs=10000){const started=Date.now();while(Date.now()-started<waitMs){const api=window.ATRealRaceArchiveF6093;if(api?.syncRange&&api?.syncRecent)return api;await sleep(100)}return null}
 async function refreshRealMeta(){try{await window.ATRealRaceArchiveF6093?.refresh?.()}catch(e){console.warn('[AT AI]',VERSION,'real archive meta refresh:',e)}}
 async function applyArchiveToAnalyses(userVisible=false){
   if(userVisible){setRealBusy(true);setRealStatus('Gerçek yarış sonuç arşivi analiz kaynaklarına bağlanıyor…')}
@@ -60,6 +60,7 @@ function upgradePanel(){
     const kicker=panel.querySelector('.tmr416-head>div>div');if(kicker)kicker.textContent='AT AI GERÇEK VERİ MERKEZİ';
     const y=currentYear();
     body.innerHTML=`<div class="tmr418-intro">8. menü artık iki gerçek veri arşivini aynı yerde yönetir. Yarış sonuçları <b>${REAL_RESULTS_DB}</b> veritabanına yazılır ve mevcut yerel sonuç API'si üzerinden analizlerle paylaşılır.</div>${realSectionHtml(y)}${trackSectionHtml(y)}`;
+    [...body.querySelectorAll('button')].forEach(b=>{if((b.textContent||'').trim()==='Pist / Bakım / Hava Arşivi')b.remove()});
     wireRealButtons();
     panel.dataset.archiveHubMenu8='F60.94.18';
     root.dataset.archiveHubMenu8Version=VERSION;
