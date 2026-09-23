@@ -44,7 +44,7 @@ async function applyArchiveToAnalyses(userVisible=false){
 async function runRealYears(){
   const dr=realDates();if(!dr){setRealStatus('Geçerli başlangıç ve bitiş tarihi seçin.',0);return}
   const api=await waitRealArchive();if(!api){setRealStatus('Gerçek Yarış Arşivi motoru yüklenemedi. Sayfayı yenileyip tekrar deneyin.',0);return}
-  const[a,b]=dr;setRealBusy(true);let cur=a,done=0,total=Math.max(1,Math.round((new Date(b)-new Date(a))/86400000)+1);
+  const[a,b]=dr;setRealBusy(true);let cur=a,done=0,total=Math.max(1,Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000)+1);
   try{while(cur<=b){setRealStatus(`Gerçek yarış arşivi · ${cur} · ${done+1}/${total}`,Math.round(done/total*100));if(api.syncRange)await api.syncRange(cur,cur);else if(api.syncDay)await api.syncDay(cur,{force:true});else if(api.syncRecent)await api.syncRecent({date:cur,start:cur,end:cur,force:true});else throw new Error('Gerçek Yarış Arşivi günlük indirme API’si bulunamadı.');saveProg('at_ai_real_archive_daily_progress_v1',{lastDate:cur,nextDate:addDay(cur),from:a,to:b,updatedAt:new Date().toISOString()});cur=addDay(cur);done++;renderDailyProgress()}await refreshRealMeta();await applyArchiveToAnalyses(false);setRealStatus(`${a} → ${b} gerçek yarış arşivi tamamlandı.`,100)}catch(e){setRealStatus('Gerçek yarış arşivi indirme hatası: '+(e?.message||e),0)}finally{setRealBusy(false)}}
 async function runRealRecent(){
   const api=await waitRealArchive();if(!api){setRealStatus('Gerçek Yarış Arşivi motoru yüklenemedi. Sayfayı yenileyip tekrar deneyin.',0);return}
@@ -67,6 +67,7 @@ function upgradePanel(){
   try{
     ensureStyle();
     const oldReal=$('realRaceArchiveSectionF6093');if(oldReal&&!root.contains(oldReal))oldReal.remove();
+    root.querySelectorAll('button').forEach(b=>{if(b.id!=='tmRealCloseF609416'&&/^Pist\s*\/\s*Bakım\s*\/\s*Hava Arşivi$/i.test((b.textContent||'').trim()))b.remove()});
     const title=panel.querySelector('.tmr416-head h2');if(title)title.textContent='Gerçek Yarış Arşivi + Pist / Bakım / Hava';
     const kicker=panel.querySelector('.tmr416-head>div>div');if(kicker)kicker.textContent='AT AI GERÇEK VERİ MERKEZİ';
     const y=currentYear();
@@ -79,7 +80,7 @@ function upgradePanel(){
     return true;
   }finally{upgrading=false}
 }
-function open(){closeDrawer();const door=window.ATTrackMaintenanceRealDoorF609416;if(typeof door?.open==='function'){door.open();setTimeout(upgradePanel,0);setTimeout(upgradePanel,100);return true}return false}
+function open(){closeDrawer();const door=window.ATTrackMaintenanceRealDoorF609416;if(typeof door?.open==='function'){door.open();upgradePanel();return true}return false}
 function install(){ensureStyle();markMenu();hideLegacyRealSection();upgradePanel();if(!observer){observer=new MutationObserver(()=>{markMenu();hideLegacyRealSection();upgradePanel()});observer.observe(document.documentElement,{childList:true,subtree:true})}for(const ms of[100,400,1000,2500])setTimeout(()=>{markMenu();hideLegacyRealSection();upgradePanel()},ms);window.addEventListener('at-ai:annual-archive-open',()=>setTimeout(hideLegacyRealSection,0))}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 window.ATArchiveHubMenu8F609418={version:VERSION,open,upgrade:upgradePanel,refresh:refreshRealMeta,applyToAnalyses:applyArchiveToAnalyses,getLocalResult:(date,city,raceNo)=>window.ATAnnualResultsArchiveV661?.getLocalResult?.(date,city,raceNo)??Promise.resolve(null),databases:{index:REAL_INDEX_DB,results:REAL_RESULTS_DB},source:REAL_SOURCE};
