@@ -20,7 +20,7 @@ function refs(){
   current:drawer.querySelector('[data-view="current"]')||findButton(drawer,/Güncel Analiz/i),
   career:drawer.querySelector('[data-view="career"]')||findButton(drawer,/Kariyer Yol Haritası/i),
   calibration:drawer.querySelector('[data-view="calibration"]')||findButton(drawer,/Model Kalibrasyonu/i),
-  scenario:drawer.querySelector('[data-view="scenario"]')||findButton(drawer,/Koşu Senaryosu/i),
+  scenario:drawer.querySelector('[data-view="scenario"]')||findButton(drawer,/Günün Koşu Kalibrasyonu|Koşu Senaryosu/i),
   coupon:$('couponMenuBtn')||findButton(drawer,/Kupon Oluştur/i),
   annual:$('annualArchiveBtn')||findButton(drawer,/Tarihsel Sonuç Arşivi|Yıllık Yarış Arşivi|TJK Yıllık Yarış Arşivi/i),
   maintenance:$('trackMaintenanceMenuBtnF60944')||findButton(drawer,/Gerçek Yarış Arşivi\s*\+\s*Pist\s*\/\s*Bakım\s*\/\s*Hava|Pist\s*\/\s*Bakım\s*\/\s*Hava\s*Arşivi/i),
@@ -60,7 +60,7 @@ function apply(reason='manual'){
   label(r.current,'2. Güncel Analiz');
   label(r.career,'3. Kariyer Yol Haritası');
   label(r.calibration,'4. Model Kalibrasyonu');
-  label(r.scenario,'5. Koşu Senaryosu');
+  label(r.scenario,'5. Günün Koşu Kalibrasyonu');
   label(r.coupon,'6. Kupon Oluştur');
   label(r.annual,'7. Tarihsel Sonuç Arşivi');
   label(r.maintenance,'8. Gerçek Yarış Arşivi + Pist / Bakım / Hava');
