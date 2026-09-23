@@ -110,7 +110,7 @@ const checks=[
   ['kaynak 2','Kaynak 2 · Kariyer Yolu 5 Model'],
   ['yeni kupon menüsü','5. Kupon Oluştur'],
   ['yeni dışa aktarım menüsü','6. Kariyer Excel Dışa Aktarım'],
-  ['yeni arşiv menüsü','7. TJK Yıllık Yarış Arşivi']
+  ['yeni arşiv menüsü','7. Tarihsel Sonuç Arşivi']
 ];
 for(const [label,token] of checks) if(!app.includes(token)) throw new Error(`[V16.8.9] Doğrulama başarısız: ${label}`);
 if(app.includes("careerRoad:careerChannel(no),winner:winnerChannel(no)")) throw new Error('[V16.8.9] Kazanan Yolu kupon kanalından çıkarılamadı.');
