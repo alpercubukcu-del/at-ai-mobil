@@ -93,5 +93,5 @@ by('m8UpdateHorses').onclick=async()=>{try{await updateProgramHorses(by('m8Progr
 function install(){let dr=document.getElementById('drawer');if(!dr)return;let host=[...dr.querySelectorAll('button')].find(x=>/^8\./.test(String(x.textContent||'').trim())&&/Gerçek Yarış Arşivi|Pist \/ Bakım \/ Hava/i.test(String(x.textContent||'')));if(!host||host.dataset.m8inside==='2')return;host.dataset.m8inside='2';host.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();open()},{capture:true})}
 function injectInside(){return open()}
 document.addEventListener('click',x=>{if(x.target?.id==='menuBtn')setTimeout(install,0);let t=x.target?.closest?.('button');if(t&&/^8\.\s*Gerçek Yarış Arşivi/i.test(String(t.textContent||'').trim()))setTimeout(injectInside,120)},{passive:true});
-window.ATM8F48={open,install,injectInside,programHorses,updateProgramHorses};console.info('[AT AI] F60.94.48 long-term track archive');
+window.ATM8F48={open,install,injectInside,programHorses,updateProgramHorses};console.info('[AT AI] F60.94.50 READY recovery after failed 51');
 })();
