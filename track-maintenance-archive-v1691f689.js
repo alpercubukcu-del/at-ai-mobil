@@ -20,6 +20,7 @@ const reportKey=(date,city)=>`${clean(date)}|${fold(city)}`;
 let dbPromise=null;
 let busy=false;
 let lastContext=null;
+let fileRoot=null;
 
 function isoDate(d){
   if(typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d))return d;
@@ -62,6 +63,13 @@ async function dbPut(store,value){const db=await openDb();if(!db)return false;re
 async function rowsByIndex(indexName,value){const db=await openDb();if(!db)return[];return new Promise(resolve=>{const out=[];try{const os=db.transaction(STORE,'readonly').objectStore(STORE),idx=os.index(indexName),q=idx.openCursor(IDBKeyRange.only(value));q.onsuccess=()=>{const c=q.result;if(!c)return;out.push(c.value);c.continue()};q.transaction.oncomplete=()=>resolve(out);q.transaction.onerror=q.transaction.onabort=()=>resolve(out)}catch{resolve(out)}})}
 async function allRows(){const db=await openDb();if(!db)return[];return new Promise(resolve=>{try{const q=db.transaction(STORE,'readonly').objectStore(STORE).getAll();q.onsuccess=()=>resolve(q.result||[]);q.onerror=()=>resolve([])}catch{resolve([])}})}
 
+async function selectFileArchive(){if(!window.showDirectoryPicker)throw new Error('Bu tarayıcı kalıcı klasör erişimini desteklemiyor');const picked=await window.showDirectoryPicker({mode:'readwrite'});let p=await picked.requestPermission({mode:'readwrite'});if(p!=='granted')throw new Error('Klasör yazma izni verilmedi');fileRoot=picked;await exportAllToFiles();return picked.name}
+async function trackFileDir(year,create=true){if(!fileRoot)return null;let base=fileRoot;if(fileRoot.name!=='Gerçek Yarış Arşivi')base=await fileRoot.getDirectoryHandle('Gerçek Yarış Arşivi',{create});let d=await base.getDirectoryHandle('Pist-Bakım-Hava',{create});return d.getDirectoryHandle(String(year),{create})}
+async function writeTrackFile(row){if(!fileRoot||!row?.date)return false;let d=await trackFileDir(String(row.date).slice(0,4),true),name=row.date+'_'+fold(row.city)+'.json',fh=await d.getFileHandle(name,{create:true}),w=await fh.createWritable();await w.write(JSON.stringify({version:VERSION,savedAt:new Date().toISOString(),data:row},null,2));await w.close();return true}
+async function exportAllToFiles(){if(!fileRoot)return 0;let a=await allRows(),n=0;for(const r of a){try{if(await writeTrackFile(r))n++}catch{}}return n}
+async function continuity(){const all=await allRows(),dates=all.map(r=>r.date).filter(Boolean).sort();return{count:all.length,first:dates[0]||'',last:dates.at(-1)||''}}
+async function resumeTo(targetDate){if(busy)return;busy=true;try{const s=await continuity(),start=s.last&&s.last<targetDate?addDays(s.last,1):(!s.last?(Number(targetDate.slice(0,4))-5)+'-01-01':targetDate);if(start<=targetDate)await syncRange(start,targetDate,{loadReports:true,label:'Kaldığı yerden pist arşivi'});return continuity()}finally{busy=false}}
+async function normalizationStats(city=''){const all=(await allRows()).filter(r=>!city||fold(r.city)===fold(city));let groups=new Map();for(const r of all){let ops=r.maintenance||{},sig=['watering','mowing','roller','harrow','rotavator','synchrogerm','gallopMaster','powerHarrow','vertiDrain','reglaj'].filter(k=>ops[k]===true).join('+')||'BAKIM_YOK',surface=detailedSurface(r.city,r.track||r.surface||''),wk=[Number.isFinite(r.temperature)?Math.round(r.temperature/5)*5:'?',Number.isFinite(r.humidity)?Math.round(r.humidity/10)*10:'?'].join('/'),k=[fold(r.city),surface,sig,wk].join('|'),g=groups.get(k)||{city:r.city,surface,maintenance:sig,weatherBand:wk,n:0,barriers:[],pen:[]};g.n++;g.barriers.push(...(ops.barrierMeters||[]));g.pen.push(...(ops.penetrometer||[]));groups.set(k,g)}let arr=[...groups.values()].map(g=>({...g,barrierMedian:median(g.barriers),penetrometerMedian:median(g.pen),confidence:g.n>=100?'YÜKSEK':g.n>=30?'ORTA':g.n>=10?'GELİŞİYOR':'DÜŞÜK'})).sort((a,b)=>b.n-a.n);return{records:all.length,groups:arr}}
 async function apiJson(url){const r=await fetch(url,{cache:'no-store',headers:{accept:'application/json'}}),d=await r.json();if(!r.ok||d?.ok===false)throw new Error(d?.error||`API ${r.status}`);return d}
 async function mapLimit(list,limit,worker){const out=new Array(list.length);let cursor=0;async function run(){for(;;){const i=cursor++;if(i>=list.length)return;out[i]=await worker(list[i],i)}}await Promise.all(Array.from({length:Math.min(Math.max(1,limit),list.length||1)},run));return out}
 function setStatus(text,pct=null){const e=$('tmStatusF6089');if(e)e.textContent=text;const b=$('tmBarF6089');if(b&&pct!==null)b.style.width=`${Math.max(0,Math.min(100,pct))}%`}
@@ -76,7 +84,7 @@ async function saveRows(rows,{loadReports=true,onProgress=null}={}){
     if(loadReports&&row.reportUrl&&(!old?.maintenance||old?.reportUrl!==row.reportUrl)){
       try{const detail=await fetchDetail(row.reportUrl);merged={...merged,maintenance:detail?.maintenance||null,reportPages:detail?.pages||0,reportParsedAt:new Date().toISOString()}}catch(e){merged.reportError=e?.message||String(e)}
     }
-    await dbPut(STORE,merged);
+    await dbPut(STORE,merged);if(fileRoot){try{await writeTrackFile(merged)}catch(e){merged.fileError=e?.message||String(e)}}
     await dbPut(META,{key:`city:${merged.cityKey}`,city:merged.city,cityKey:merged.cityKey,lastDate:merged.date,updatedAt:new Date().toISOString()});
     done++;if(onProgress)onProgress(done,list.length,merged);
   });
@@ -154,7 +162,7 @@ function installPanel(){
 }
 function installWhenReady(){if(installPanel())return;let n=0;const t=setInterval(()=>{n++;if(installPanel()||n>60)clearInterval(t)},500)}
 
-window.ATTrackMaintenanceV1={version:VERSION,get:getReport,profile,infer,syncRange,backfillYears,autoSync,detailedSurface,windParts,getLastContext:()=>lastContext};
+window.ATTrackMaintenanceV1={version:VERSION,get:getReport,profile,infer,syncRange,backfillYears,autoSync,resumeTo,continuity,normalizationStats,selectFileArchive,exportAllToFiles,detailedSurface,windParts,getLastContext:()=>lastContext};
 installWhenReady();
 console.info('[AT AI]',VERSION,'aktif');
 })();
