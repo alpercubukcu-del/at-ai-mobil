@@ -93,7 +93,7 @@ async function syncRange(start,end,{loadReports=true,label='Pist bilgileri'}={})
   return uniq;
 }
 async function syncYear(year){const y=Number(year),start=`${y}-01-01`,end=`${y}-12-31`;setStatus(`${y} pist/bakım/hava arşivi hazırlanıyor…`,0);const rows=await syncRange(start,end,{loadReports:true,label:String(y)});await dbPut(META,{key:`year:${y}`,year:y,rowCount:rows.length,status:'complete',updatedAt:new Date().toISOString(),version:VERSION});return rows}
-async function backfillYears(from,to){if(busy)return;busy=true;try{const a=Math.min(Number(from),Number(to)),b=Math.max(Number(from),Number(to));for(let y=a;y<=b;y++)await syncYear(y);await refreshUi()}finally{busy=false}}
+async function backfillYears(from,to){if(busy)throw new Error('Pist arşivinde başka işlem sürüyor. İşlem tamamlanınca tekrar deneyin.');busy=true;try{const a=Math.min(Number(from),Number(to)),b=Math.max(Number(from),Number(to));for(let y=a;y<=b;y++)await syncYear(y);await refreshUi()}finally{busy=false}}
 async function autoSync(targetDate){
   if(busy||!/^\d{4}-\d{2}-\d{2}$/.test(String(targetDate||'')))return;
   busy=true;
@@ -153,14 +153,6 @@ function installPanel(){
   refreshUi();return true;
 }
 function installWhenReady(){if(installPanel())return;let n=0;const t=setInterval(()=>{n++;if(installPanel()||n>60)clearInterval(t)},500)}
-
-try{
-  if(typeof loadProgram==='function'){
-    const before=loadProgram;
-    loadProgram=async function(){const out=await before();const d=state?.date||$('raceDate')?.value;if(d)setTimeout(()=>autoSync(d),20);return out};
-    if($('loadProgramBtn'))$('loadProgramBtn').onclick=loadProgram;
-  }
-}catch(e){console.warn('[AT AI]',VERSION,'program hook kurulamadı',e)}
 
 window.ATTrackMaintenanceV1={version:VERSION,get:getReport,profile,infer,syncRange,backfillYears,autoSync,detailedSurface,windParts,getLastContext:()=>lastContext};
 installWhenReady();
