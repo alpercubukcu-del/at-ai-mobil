@@ -19,7 +19,7 @@ function trDateIso(v=''){const m=clean(v).match(/^(\d{1,2})[./-](\d{1,2})[./-](\
 function daysBetween(a,b){const A=Date.parse(a+'T00:00:00Z'),B=Date.parse(b+'T00:00:00Z');return Number.isFinite(A)&&Number.isFinite(B)?Math.round((B-A)/86400000):null}
 function degreeSec(v=''){const s=clean(v).replace(/,/g,'.');if(!s)return null;const p=s.split('.').map(Number);if(p.length>=3&&p.every(Number.isFinite))return p[p.length-3]*60+p[p.length-2]+p[p.length-1]/100;if(p.length===2&&p.every(Number.isFinite))return p[0]*60+p[1];const n=Number(s);return Number.isFinite(n)?n:null}
 function parseLast6(v=''){const s=clean(v).replace(/[^0-9-]/g,'');return [...s].filter(c=>/\d/.test(c)).map(Number).slice(-6)}
-function finishScore(p){if(p===1)return100;if(p===2)return82;if(p===3)return68;if(p===4)return56;if(p===5)return46;if(p===6)return38;if(p===7)return32;if(p===8)return27;if(p===9)return23;return18}
+function finishScore(p){if(p===1)return 100;if(p===2)return 82;if(p===3)return 68;if(p===4)return 56;if(p===5)return 46;if(p===6)return 38;if(p===7)return 32;if(p===8)return 27;if(p===9)return 23;return 18}
 function last6Score(v){const a=parseLast6(v);if(!a.length)return null;return a.reduce((s,x)=>s+finishScore(x),0)/a.length}
 function earningsScore(v){const n=num(v);if(!Number.isFinite(n)||n<=0)return null;return clamp(Math.log10(1+n)*15)}
 async function fetchHtml(url){const c=new AbortController(),t=setTimeout(()=>c.abort(),TIMEOUT);try{const r=await fetch(url,{headers:HEADERS,redirect:'follow',signal:c.signal});if(!r.ok)throw new Error(`TJK HTTP ${r.status}`);return await r.text()}finally{clearTimeout(t)}}
