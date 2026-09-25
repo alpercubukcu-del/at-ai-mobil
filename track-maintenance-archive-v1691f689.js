@@ -93,13 +93,13 @@ async function syncRange(start,end,{loadReports=true,label='Pist bilgileri'}={})
   return uniq;
 }
 async function syncYear(year){const y=Number(year),start=`${y}-01-01`,end=`${y}-12-31`,saved=await dbGet(META,`year:${y}:progress`),resume=saved?.lastDate&&saved.lastDate>=start&&saved.lastDate<end?addDays(saved.lastDate,1):start;if(resume>end){await dbPut(META,{key:`year:${y}`,year:y,rowCount:Number(saved?.rowCount||0),status:'complete',updatedAt:new Date().toISOString(),version:VERSION});return[]}setStatus(`${y} pist/bakım/hava arşivi ${resume} tarihinden devam ediyor…`,0);const rows=await syncRange(resume,end,{loadReports:true,label:String(y)});const all=(await rowsByIndex('year',y)).filter(r=>r.date>=start&&r.date<=end);await dbPut(META,{key:`year:${y}:progress`,year:y,lastDate:end,rowCount:all.length,updatedAt:new Date().toISOString(),version:VERSION});await dbPut(META,{key:`year:${y}`,year:y,rowCount:all.length,status:'complete',updatedAt:new Date().toISOString(),version:VERSION});return rows}
-async function backfillYears(from,to){if(busy)return;busy=true;try{const a=Math.min(Number(from),Number(to)),b=Math.max(Number(from),Number(to));for(let y=a;y<=b;y++){const done=await dbGet(META,'year:'+y);if(done?.status==='complete'&&Number(done?.rowCount||0)>0){setStatus(y+' arşivde mevcut · TJK indirmesi atlandı',Math.round((y-a+1)/Math.max(1,b-a+1)*100));continue}await syncYear(y)}await refreshUi()}finally{busy=false}}
+async function backfillYears(from,to){if(busy)return;busy=true;try{const a=Math.min(Number(from),Number(to)),b=Math.max(Number(from),Number(to));for(let y=a;y<=b;y++){const done=await dbGet(META,'year:'+y);if(done?.status==='complete'&&Number(done?.rowCount||0)>0){setStatus(y+' arşivde mevcut · TJK indirmesi atlandı',Math.round((y-a+1)/Math.max(1,b-a+1)*100));continue}const existing=(await rowsByIndex('year',y)).filter(r=>r?.date&&String(r.date).startsWith(String(y)+'-')).sort((x,z)=>String(x.date).localeCompare(String(z.date)));if(existing.length){const last=existing.at(-1)?.date||'';await dbPut(META,{key:`year:${y}:progress`,year:y,lastDate:last,rowCount:existing.length,updatedAt:new Date().toISOString(),version:VERSION});setStatus(y+' mevcut '+existing.length+' kayıt bulundu · '+last+' sonrasından devam',Math.round((y-a)/Math.max(1,b-a+1)*100))}await syncYear(y)}await refreshUi()}finally{busy=false}}
 async function autoSync(targetDate){
   if(busy||!/^\d{4}-\d{2}-\d{2}$/.test(String(targetDate||'')))return;
   busy=true;
   try{
-    const meta=await dbGet(META,'sync:last');
-    let start=meta?.lastDate&&meta.lastDate<targetDate?addDays(meta.lastDate,1):targetDate;
+    const meta=await dbGet(META,'sync:last'),all=await getAll(STORE),dates=all.map(r=>r?.date).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(String(d))&&d<=targetDate).sort(),localLast=dates.at(-1)||'',last=[meta?.lastDate||'',localLast].sort().at(-1)||'';
+    let start=last&&last<targetDate?addDays(last,1):targetDate;
     if(start>targetDate)start=targetDate;
     await syncRange(start,targetDate,{loadReports:true,label:'Otomatik pist güncellemesi'});
     const city=typeof getCityName==='function'?getCityName():'';
