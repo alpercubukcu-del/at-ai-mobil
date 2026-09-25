@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION='TJK-FOG-HORSE-V1.4';
+const VERSION='TJK-FOG-HORSE-V1.5';
 const TJK='https://www.tjk.org';
 const HEADERS={
   'user-agent':'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/150 Safari/537.36',
@@ -67,9 +67,9 @@ export default async function handler(req,res){
 
     const urls={
       workout:horse?`${TJK}/TR/YarisSever/Query/Page/IdmanIstatistikleri?1=1&QueryParameter_ATADI=${encodeURIComponent(horse)}`:null,
-      sire:sire?`${TJK}/TR/YarisSever/Query/Page/AygirIstatistikleri?1=1&QueryParameter_AygirAdi=${encodeURIComponent(sire)}`:null,
-      dam:dam?`${TJK}/TR/YarisSever/Query/Page/KisrakIstatistikleri?1=1&QueryParameter_KisrakAdi=${encodeURIComponent(dam)}`:null,
-      damSire:damSire?`${TJK}/TR/YarisSever/Query/Page/KisrakBabasi?1=1&QueryParameter_KisrakBabaAdi=${encodeURIComponent(damSire)}`:null
+      sire:sire?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1&QueryParameter_BabaAdi=${encodeURIComponent(sire)}`:null,
+      dam:dam?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1&QueryParameter_AnneAdi=${encodeURIComponent(dam)}`:null,
+      damSire:damSire?`${TJK}/TR/YarisSever/Query/Page/KisrakBabasi?QueryParameter_KisrakBabaAdi=${encodeURIComponent(damSire)}`:null
     };
 
     const [w,s,d,ds]=await Promise.all([safe(urls.workout),safe(urls.sire),safe(urls.dam),safe(urls.damSire)]);
@@ -95,7 +95,7 @@ export default async function handler(req,res){
       errors
     });
   }catch(e){
-    console.error('[TJK-FOG-HORSE-V1.4]',e);
+    console.error('[TJK-FOG-HORSE-V1.5]',e);
     return res.status(500).json({ok:false,version:VERSION,error:e?.message||String(e)});
   }
 }
