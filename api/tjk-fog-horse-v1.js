@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION='TJK-FOG-HORSE-V1.5';
+const VERSION='TJK-FOG-HORSE-V1.6';
 const TJK='https://www.tjk.org';
 const HEADERS={
   'user-agent':'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/150 Safari/537.36',
@@ -54,48 +54,34 @@ function workoutRows(html,raceDate){
   }).slice(0,60);
 }
 
+function tjkUrl(raw){if(!raw)return null;try{const u=new URL(raw,TJK);if(!/(^|\\.)tjk\\.org$/i.test(u.hostname))return null;return u}catch{return null}}
+function idFrom(u,names){if(!u)return'';for(const n of names){const v=u.searchParams.get(n);if(v&&/^\\d+$/.test(v))return v}return''}
+function originRefs(src){
+ const $=cheerio.load(src||''),out={sire:{name:'',id:''},dam:{name:'',id:''},damSire:{name:'',code:''}};
+ $('a[href]').each((_,a)=>{const href=$(a).attr('href')||'',u=tjkUrl(href),name=clean($(a).text());if(!u)return;
+  const bid=idFrom(u,['QueryParameter_BabaId','BabaId']);if(bid&&!out.sire.id){out.sire={name:name||clean(u.searchParams.get('QueryParameter_BabaAdi')),id:bid}}
+  const aid=idFrom(u,['QueryParameter_AnneId','AnneId']);if(aid&&!out.dam.id){out.dam={name:name||clean(u.searchParams.get('QueryParameter_AnneAdi')),id:aid}}
+  const code=idFrom(u,['QueryParameter_KisrakBabaKodu','KisrakBabaKodu']);if(code&&!out.damSire.code){out.damSire={name:name||clean(u.searchParams.get('QueryParameter_KisrakBabaAdi')),code}}
+ });return out
+}
 export default async function handler(req,res){
-  res.setHeader('Cache-Control','no-store, max-age=0');
-  try{
-    const horse=clean(req.query.horse);
-    const atId=String(req.query.atId||'').replace(/\D/g,'');
-    const raceDate=clean(req.query.raceDate);
-    const sire=clean(req.query.sire);
-    const dam=clean(req.query.dam);
-    const damSire=clean(req.query.damSire);
-    if(!horse||!raceDate)return res.status(400).json({ok:false,version:VERSION,error:'horse ve raceDate gerekli'});
-
-    const urls={
-      workout:horse?`${TJK}/TR/YarisSever/Query/Page/IdmanIstatistikleri?1=1&QueryParameter_ATADI=${encodeURIComponent(horse)}`:null,
-      sire:sire?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1&QueryParameter_BabaAdi=${encodeURIComponent(sire)}`:null,
-      dam:dam?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1&QueryParameter_AnneAdi=${encodeURIComponent(dam)}`:null,
-      damSire:damSire?`${TJK}/TR/YarisSever/Query/Page/KisrakBabasi?QueryParameter_KisrakBabaAdi=${encodeURIComponent(damSire)}`:null
-    };
-
-    const [w,s,d,ds]=await Promise.all([safe(urls.workout),safe(urls.sire),safe(urls.dam),safe(urls.damSire)]);
-    const workout=workoutRows(w.html,raceDate);
-    const origin={
-      names:{sire,dam,damSire},
-      sireRows:tableRows(s.html),
-      damRows:tableRows(d.html),
-      damSireRows:tableRows(ds.html)
-    };
-    const errors={
-      workout:w.ok?null:w.error,
-      sire:s.ok?null:s.error,
-      dam:d.ok?null:d.error,
-      damSire:ds.ok?null:ds.error
-    };
-    return res.status(200).json({
-      ok:true,version:VERSION,horse,atId:atId||null,raceDate,
-      complete:!Object.values(errors).some(Boolean),
-      origin,
-      workout:{workouts:workout,totalBeforeRace:workout.length,latest:workout[0]||null},
-      sources:urls,
-      errors
-    });
-  }catch(e){
-    console.error('[TJK-FOG-HORSE-V1.5]',e);
-    return res.status(500).json({ok:false,version:VERSION,error:e?.message||String(e)});
-  }
+ res.setHeader('Cache-Control','no-store, max-age=0');
+ try{
+  const horse=clean(req.query.horse),atId=String(req.query.atId||'').replace(/\\D/g,''),raceDate=clean(req.query.raceDate);
+  let sire=clean(req.query.sire),dam=clean(req.query.dam),damSire=clean(req.query.damSire);
+  if(!horse||!raceDate)return res.status(400).json({ok:false,version:VERSION,error:'horse ve raceDate gerekli'});
+  let refs={sire:{name:sire,id:''},dam:{name:dam,id:''},damSire:{name:damSire,code:''}},resolveError=null;
+  if(atId){try{const atUrl=`${TJK}/TR/YarisSever/Query/ConnectedPage/AtKosuBilgileri?1=1&QueryParameter_AtId=${encodeURIComponent(atId)}`,src=await fetchHtml(atUrl),r=originRefs(src);refs={sire:{name:r.sire.name||sire,id:r.sire.id},dam:{name:r.dam.name||dam,id:r.dam.id},damSire:{name:r.damSire.name||damSire,code:r.damSire.code}};sire=refs.sire.name||sire;dam=refs.dam.name||dam;damSire=refs.damSire.name||damSire}catch(e){resolveError=e?.message||String(e)}}
+  const override={workout:tjkUrl(req.query.workoutUrl),sire:tjkUrl(req.query.sireUrl),dam:tjkUrl(req.query.damUrl),damSire:tjkUrl(req.query.damSireUrl)};
+  const urls={
+   workout:override.workout?.toString()||(horse?`${TJK}/TR/YarisSever/Query/Page/IdmanIstatistikleri?1=1&QueryParameter_ATADI=${encodeURIComponent(horse)}`:null),
+   sire:override.sire?.toString()||(sire?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1${refs.sire.id?'&QueryParameter_BabaId='+encodeURIComponent(refs.sire.id):''}&QueryParameter_BabaAdi=${encodeURIComponent(sire)}`:null),
+   dam:override.dam?.toString()||(dam?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1${refs.dam.id?'&QueryParameter_AnneId='+encodeURIComponent(refs.dam.id):''}&QueryParameter_AnneAdi=${encodeURIComponent(dam)}`:null),
+   damSire:override.damSire?.toString()||(damSire?`${TJK}/TR/YarisSever/Query/Grouped/KisrakBabasi?1=1${refs.damSire.code?'&QueryParameter_KisrakBabaKodu='+encodeURIComponent(refs.damSire.code):''}&QueryParameter_KisrakBabaAdi=${encodeURIComponent(damSire)}`:null)
+  };
+  const [w,s,d,ds]=await Promise.all([safe(urls.workout),safe(urls.sire),safe(urls.dam),safe(urls.damSire)]);
+  const workout=workoutRows(w.html,raceDate),origin={names:{sire,dam,damSire},refs,sireRows:tableRows(s.html),damRows:tableRows(d.html),damSireRows:tableRows(ds.html)};
+  const errors={workout:w.ok?null:w.error,sire:s.ok?null:s.error,dam:d.ok?null:d.error,damSire:ds.ok?null:ds.error};
+  return res.status(200).json({ok:true,version:VERSION,horse,atId:atId||null,raceDate,complete:!Object.values(errors).some(Boolean),origin,workout:{workouts:workout,totalBeforeRace:workout.length,latest:workout[0]||null},sources:urls,resolveError,errors});
+ }catch(e){console.error('[TJK-FOG-HORSE-V1.6]',e);return res.status(500).json({ok:false,version:VERSION,error:e?.message||String(e)})}
 }
