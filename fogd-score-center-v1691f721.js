@@ -20,7 +20,7 @@ function programRaces(){try{return Array.isArray(state?.races)?state.races:[]}ca
 function currentResult(){try{return state?.analyses?.current||null}catch{return null}}
 function parseOrigin(raw=''){const text=clean(raw);let sire='',rest='';const m=text.match(/^(.*?)\s+-\s+(.*)$/);if(m){sire=clean(m[1]);rest=clean(m[2])}else{const i=text.indexOf('-');if(i>0){sire=clean(text.slice(0,i));rest=clean(text.slice(i+1))}else sire=text}const p=rest.split(/\s*\/\s*/).map(clean).filter(Boolean);return{sire,dam:p[0]||rest,damSire:p.slice(1).join(' / ')}}
 function parseLast6(v=''){return[...clean(v).replace(/[^0-9]/g,'')].map(Number).slice(-6)}
-function finishScore(p){if(p===1)return100;if(p===2)return82;if(p===3)return68;if(p===4)return56;if(p===5)return46;if(p===6)return38;if(p===7)return32;if(p===8)return27;if(p===9)return23;return18}
+function finishScore(p){if(p===1)return 100;if(p===2)return 82;if(p===3)return 68;if(p===4)return 56;if(p===5)return 46;if(p===6)return 38;if(p===7)return 32;if(p===8)return 27;if(p===9)return 23;return 18}
 function formScore(last6){const a=parseLast6(last6);return a.length?Number((a.reduce((s,x)=>s+finishScore(x),0)/a.length).toFixed(1)):null}
 function weighted(values,weights){let s=0,w=0;for(const k of Object.keys(weights)){const v=values[k];if(Number.isFinite(v)){s+=v*weights[k];w+=weights[k]}}return w?Number((s/w).toFixed(1)):null}
 function recencyScore(days){if(!Number.isFinite(days))return null;if(days<=3)return100;if(days<=7)return90;if(days<=14)return78;if(days<=21)return66;if(days<=30)return55;if(days<=45)return45;return30}
