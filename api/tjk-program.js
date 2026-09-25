@@ -1347,6 +1347,21 @@ function parseHorseRow($, tr, table, raceNo) {
   const gnyText = get(['Gny','Ganyan','Muhtemel']);
   const agfText = get(['AGF','AGF Oranı','AGF Orani']);
 
+  // Orijin kimliklerini TJK programındaki gerçek linklerden al.
+  // Böylece AnneId/BabaId için at detay sayfasında tekrar çözümleme gerekmez.
+  const originRefs = {sire:null,dam:null,damSire:null};
+  $(tr).find('a[href]').each((_, a) => {
+    const h = $(a).attr('href') || '';
+    if (!/\/Query\/(?:Page\/Orijin|Grouped\/KisrakBabasi)/i.test(h)) return;
+    const full = new URL(h, TJK).toString();
+    const babaId = extractQueryNumber(h,['QueryParameter_BabaId','BabaId']);
+    const anneId = extractQueryNumber(h,['QueryParameter_AnneId','AnneId']);
+    const kb = extractQueryNumber(h,['QueryParameter_KisrakBabaKodu','KisrakBabaKodu']);
+    if (babaId && !originRefs.sire) originRefs.sire={id:babaId,name:oneLine($(a).text()),url:full};
+    if (anneId && !originRefs.dam) originRefs.dam={id:anneId,name:oneLine($(a).text()),url:full};
+    if (kb && !originRefs.damSire) originRefs.damSire={code:kb,name:oneLine($(a).text()),url:full};
+  });
+
   return {
     no,
     id,
@@ -1354,6 +1369,7 @@ function parseHorseRow($, tr, table, raceNo) {
 
     age: get(['Yaş','Yas']),
     origin: get(['Orijin(Baba - Anne)','Orijin','Orijin Baba Anne']),
+    originRefs,
 
     weight: parseDecimal(weightText),
     weightText: oneLine(weightText),
