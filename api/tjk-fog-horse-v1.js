@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION='TJK-FOG-HORSE-V1.6';
+const VERSION='TJK-FOG-HORSE-V1.7';
 const TJK='https://www.tjk.org';
 const HEADERS={
   'user-agent':'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/150 Safari/537.36',
@@ -80,8 +80,13 @@ export default async function handler(req,res){
    damSire:override.damSire?.toString()||(damSire?`${TJK}/TR/YarisSever/Query/Grouped/KisrakBabasi?1=1${refs.damSire.code?'&QueryParameter_KisrakBabaKodu='+encodeURIComponent(refs.damSire.code):''}&QueryParameter_KisrakBabaAdi=${encodeURIComponent(damSire)}`:null)
   };
   const [w,s,d,ds]=await Promise.all([safe(urls.workout),safe(urls.sire),safe(urls.dam),safe(urls.damSire)]);
-  const workout=workoutRows(w.html,raceDate),origin={names:{sire,dam,damSire},refs,sireRows:tableRows(s.html),damRows:tableRows(d.html),damSireRows:tableRows(ds.html)};
-  const errors={workout:w.ok?null:w.error,sire:s.ok?null:s.error,dam:d.ok?null:d.error,damSire:ds.ok?null:ds.error};
+  const sireRows=tableRows(s.html),damRows=tableRows(d.html),damSireRows=tableRows(ds.html),workout=workoutRows(w.html,raceDate),origin={archiveOnly:true,names:{sire,dam,damSire},refs,sireRows,damRows,damSireRows};
+  const errors={
+   workout:w.ok?null:w.error,
+   sire:!s.ok?s.error:(!sireRows.length?'Aygır Orijin tablosu boş':null),
+   dam:!d.ok?d.error:(!damRows.length?'Kısrak Orijin tablosu boş':null),
+   damSire:!ds.ok?ds.error:(!damSireRows.length?'Kısrak Babası Orijin tablosu boş':null)
+  };
   return res.status(200).json({ok:true,version:VERSION,horse,atId:atId||null,raceDate,complete:!Object.values(errors).some(Boolean),origin,workout:{workouts:workout,totalBeforeRace:workout.length,latest:workout[0]||null},sources:urls,resolveError,errors});
- }catch(e){console.error('[TJK-FOG-HORSE-V1.6]',e);return res.status(500).json({ok:false,version:VERSION,error:e?.message||String(e)})}
+ }catch(e){console.error('[TJK-FOG-HORSE-V1.7]',e);return res.status(500).json({ok:false,version:VERSION,error:e?.message||String(e)})}
 }
