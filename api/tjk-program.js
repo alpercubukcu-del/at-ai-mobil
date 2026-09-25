@@ -1347,20 +1347,36 @@ function parseHorseRow($, tr, table, raceNo) {
   const gnyText = get(['Gny','Ganyan','Muhtemel']);
   const agfText = get(['AGF','AGF Oranı','AGF Orani']);
 
-  // Orijin kimliklerini TJK programındaki gerçek linklerden al.
-  // Böylece AnneId/BabaId için at detay sayfasında tekrar çözümleme gerekmez.
-  const originRefs = {sire:null,dam:null,damSire:null};
-  $(tr).find('a[href]').each((_, a) => {
-    const h = $(a).attr('href') || '';
-    if (!/\/Query\/(?:Page\/Orijin|Grouped\/KisrakBabasi)/i.test(h)) return;
-    const full = new URL(h, TJK).toString();
-    const babaId = extractQueryNumber(h,['QueryParameter_BabaId','BabaId']);
-    const anneId = extractQueryNumber(h,['QueryParameter_AnneId','AnneId']);
-    const kb = extractQueryNumber(h,['QueryParameter_KisrakBabaKodu','KisrakBabaKodu']);
-    if (babaId && !originRefs.sire) originRefs.sire={id:babaId,name:oneLine($(a).text()),url:full};
-    if (anneId && !originRefs.dam) originRefs.dam={id:anneId,name:oneLine($(a).text()),url:full};
-    if (kb && !originRefs.damSire) originRefs.damSire={code:kb,name:oneLine($(a).text()),url:full};
-  });
+  // Bağlantıları yalnız kendi sütunlarından al: At/Jokey/Sahip/Antrenör linkleri birbirine karışmaz.
+  const cellFor = aliases => {
+    const idx=headerIndex(headers,aliases);
+    return idx>=0&&idx<cells.length?$(cells[idx]):null;
+  };
+  const directRef = aliases => {
+    const td=cellFor(aliases),a=td?.find('a[href]').first();
+    if(!a?.length)return null;
+    const h=a.attr('href')||'';
+    return h?{name:oneLine(a.text()),url:new URL(h,'https://www.tjk.org').toString()}:null;
+  };
+  const originRefs={sire:null,dam:null,damSire:null};
+  const originCell=cellFor(['Orijin(Baba - Anne)','Orijin','Orijin Baba Anne']);
+  if(originCell){
+    originCell.find('a[href]').each((_,a)=>{
+      const h=$(a).attr('href')||'',full=new URL(h,'https://www.tjk.org').toString(),label=oneLine($(a).text());
+      const babaId=extractQueryNumber(h,['QueryParameter_BabaId','BabaId']);
+      const anneId=extractQueryNumber(h,['QueryParameter_AnneId','AnneId']);
+      const kb=extractQueryNumber(h,['QueryParameter_KisrakBabaKodu','KisrakBabaKodu']);
+      if(babaId&&!originRefs.sire)originRefs.sire={id:babaId,name:label,url:full};
+      else if(anneId&&!originRefs.dam)originRefs.dam={id:anneId,name:label,url:full};
+      else if(kb&&!originRefs.damSire)originRefs.damSire={code:kb,name:label,url:full};
+    });
+  }
+  const links={
+    horse:{name,url:new URL(href,'https://www.tjk.org').toString()},
+    jockey:directRef(['Jokey','Jokey Adı']),
+    owner:directRef(['Sahip','Sahip Adı']),
+    trainer:directRef(['Antrenör','Antrenor','Antrenör Adı','Antrenor Adi'])
+  };
 
   return {
     no,
@@ -1370,6 +1386,7 @@ function parseHorseRow($, tr, table, raceNo) {
     age: get(['Yaş','Yas']),
     origin: get(['Orijin(Baba - Anne)','Orijin','Orijin Baba Anne']),
     originRefs,
+    links,
 
     weight: parseDecimal(weightText),
     weightText: oneLine(weightText),
