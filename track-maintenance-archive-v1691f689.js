@@ -3,7 +3,7 @@
 if (window.__AT_TRACK_MAINT_ARCHIVE_F6089__) return;
 window.__AT_TRACK_MAINT_ARCHIVE_F6089__ = true;
 
-const VERSION='TRACK-MAINT-ARCHIVE-V16.9.1F60.89';
+const VERSION='TRACK-MAINT-ARCHIVE-V16.9.1F60.90';
 const DB_NAME='at_ai_tjk_track_maintenance_v1';
 const DB_VERSION=1;
 const STORE='reports';
@@ -93,14 +93,14 @@ async function syncRange(start,end,{loadReports=true,label='Pist bilgileri'}={})
   return uniq;
 }
 async function syncYear(year){const y=Number(year),start=`${y}-01-01`,end=`${y}-12-31`;setStatus(`${y} pist/bakım/hava arşivi hazırlanıyor…`,0);const rows=await syncRange(start,end,{loadReports:true,label:String(y)});await dbPut(META,{key:`year:${y}`,year:y,rowCount:rows.length,status:'complete',updatedAt:new Date().toISOString(),version:VERSION});return rows}
-async function backfillYears(from,to){if(busy)return;busy=true;try{const a=Math.min(Number(from),Number(to)),b=Math.max(Number(from),Number(to));for(let y=a;y<=b;y++)await syncYear(y);await refreshUi()}finally{busy=false}}
+async function backfillYears(from,to){if(busy)return;busy=true;try{const a=Math.min(Number(from),Number(to)),b=Math.max(Number(from),Number(to));for(let y=a;y<=b;y++){const done=await dbGet(META,`year:${y}`);if(done?.status==='complete'&&Number(done?.rowCount||0)>0){setStatus(`${y} arşivde mevcut · TJK indirmesi atlandı`,Math.round((y-a+1)/Math.max(1,b-a+1)*100));continue}await syncYear(y)}await refreshUi()}finally{busy=false}}
 async function autoSync(targetDate){
   if(busy||!/^\d{4}-\d{2}-\d{2}$/.test(String(targetDate||'')))return;
   busy=true;
   try{
     const meta=await dbGet(META,'sync:last');
-    let start=meta?.lastDate&&meta.lastDate<targetDate?addDays(meta.lastDate,-7):addDays(targetDate,-7);
-    if(start>targetDate)start=addDays(targetDate,-7);
+    let start=meta?.lastDate&&meta.lastDate<targetDate?addDays(meta.lastDate,1):targetDate;
+    if(start>targetDate)start=targetDate;
     await syncRange(start,targetDate,{loadReports:true,label:'Otomatik pist güncellemesi'});
     const city=typeof getCityName==='function'?getCityName():'';
     if(city){lastContext=await infer(targetDate,city);window.__AT_TRACK_CONTEXT_F6089__=lastContext;}
