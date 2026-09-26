@@ -39,7 +39,7 @@ function parseWorkout(html,raceDate){const t=findTable(html,['ATADI','ITARIHI'])
 async function safe(url,attempts=2){let last=null;for(let i=0;i<attempts;i++){try{return{ok:true,html:await fetchHtml(url),url,attempt:i+1}}catch(e){last=e}}return{ok:false,html:'',url,error:last?.message||String(last||'TJK veri alınamadı'),attempt:attempts}}
 export default async function handler(req,res){
   res.setHeader('Cache-Control','no-store, max-age=0');
-  const atId=String(req.query.atId||'').replace(/\D/g,''),horse=clean(req.query.horse||''),sire=clean(req.query.sire||''),dam=clean(req.query.dam||''),damSire=clean(req.query.damSire||''),sireId=String(req.query.sireId||'').replace(/\D/g,''),damId=String(req.query.damId||'').replace(/\D/g,''),raceDate=clean(req.query.raceDate||'');
+  const atId=String(req.query.atId||'').replace(/\D/g,''),horse=clean(req.query.horse||''),sire=clean(req.query.sire||''),dam=clean(req.query.dam||''),damSire=clean(req.query.damSire||''),sireId=String(req.query.sireId||'').replace(/\D/g,''),damId=String(req.query.damId||'').replace(/\D/g,''),damSireCode=String(req.query.damSireCode||'').replace(/\D/g,''),raceDate=clean(req.query.raceDate||'');
   if(!horse||!raceDate||!/^\d{4}-\d{2}-\d{2}$/.test(raceDate))return res.status(400).json({ok:false,version:VERSION,error:'horse ve raceDate gerekli.'});
   const override={workout:tjkUrl(req.query.workoutUrl),sire:tjkUrl(req.query.sireUrl),dam:tjkUrl(req.query.damUrl),damSire:tjkUrl(req.query.damSireUrl)};
   const sireShort=sire.replace(/\s*\([^)]*\)\s*/g,' ').replace(/\s+/g,' ').trim();
@@ -49,7 +49,7 @@ export default async function handler(req,res){
     sire:override.sire?.toString()||(sireId?`${TJK}/TR/YarisSever/Query/Grouped/AygirIstatistikleri?1=1&QueryParameter_AygirId=${encodeURIComponent(sireId)}`:(sire?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1&QueryParameter_BabaAdi=${encodeURIComponent(sire)}`:'')),
     sireAlt:sireShort&&sireShort!==sire&&!sireId?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1&QueryParameter_BabaAdi=${encodeURIComponent(sireShort)}`:'',
     dam:override.dam?.toString()||(damId?`${TJK}/TR/YarisSever/Query/Grouped/KisrakIstatistikleri?1=1&QueryParameter_KisrakId=${encodeURIComponent(damId)}`:(dam?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1&QueryParameter_AnneAdi=${encodeURIComponent(dam)}`:'')),
-    damSire:override.damSire?.toString()||(damSire?`${TJK}/TR/YarisSever/Query/Page/KisrakBabasi?QueryParameter_KisrakBabaAdi=${encodeURIComponent(damSire)}`:'')
+    damSire:override.damSire?.toString()||(damSireCode?`${TJK}/TR/YarisSever/Query/Grouped/KisrakBabasi?1=1&QueryParameter_KisrakBabaKodu=${encodeURIComponent(damSireCode)}`:(damSire?`${TJK}/TR/YarisSever/Query/Page/KisrakBabasi?QueryParameter_KisrakBabaAdi=${encodeURIComponent(damSire)}`:''))
   };
   let [p,w,s,d,ds]=await Promise.all([urls.profile?safe(urls.profile):Promise.resolve({ok:false,html:''}),urls.workout?safe(urls.workout):Promise.resolve({ok:false,html:''}),urls.sire?safe(urls.sire):Promise.resolve({ok:false,html:''}),urls.dam?safe(urls.dam):Promise.resolve({ok:false,html:''}),urls.damSire?safe(urls.damSire):Promise.resolve({ok:false,html:''})]);
   let st=s.html?(findTable(s.html,['AYGIR','KOSANTAY'])||findTable(s.html,['KOSANTAY'])||tables(s.html)[0]||null):null,srow=st?bestMatch(st.rows,sire,['Aygir','Aygır']):null,sireData=sireStrength(srow);
