@@ -10,7 +10,8 @@ const STORE='reports';
 const META='meta';
 const API='/api/tjk-track-info-v1';
 const PAGE_SIZE=50;
-const DETAIL_CONCURRENCY=2;
+const DETAIL_CONCURRENCY=5;
+const PAGE_CONCURRENCY=4;
 const MAX_PAGES=80;
 const $=id=>document.getElementById(id);
 const clean=v=>String(v??'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim();
@@ -85,7 +86,7 @@ async function saveRows(rows,{loadReports=true,onProgress=null}={}){
 async function syncRange(start,end,{loadReports=true,label='Pist bilgileri'}={}){
   const first=await fetchPage(start,end,0),total=Number(first?.total||0),pages=Math.max(1,Math.min(MAX_PAGES,Math.ceil(Math.max(total,(first?.rows||[]).length)/PAGE_SIZE)));
   let rows=[...(first?.rows||[])];
-  for(let p=1;p<pages;p++){setStatus(`${label}: ${p+1}/${pages} sayfa alınıyor…`,Math.round(p/pages*45));const d=await fetchPage(start,end,p);rows.push(...(d?.rows||[]));if(!(d?.rows||[]).length)break}
+  if(pages>1){const pageNos=Array.from({length:pages-1},(_,i)=>i+1);let pageDone=0;const chunks=await mapLimit(pageNos,PAGE_CONCURRENCY,async p=>{const d=await fetchPage(start,end,p);pageDone++;setStatus(`${label}: ${pageDone+1}/${pages} sayfa alındı…`,Math.round((pageDone+1)/pages*45));return d?.rows||[]});for(const part of chunks)rows.push(...(part||[]))}
   const uniq=[...new Map(rows.map(r=>[reportKey(r.date,r.city),r])).values()].filter(r=>r.date>=start&&r.date<=end);
   await saveRows(uniq,{loadReports,onProgress:(done,n,row)=>setStatus(`${label}: ${done}/${n} rapor · ${row.city} ${row.date}`,45+Math.round(done/Math.max(1,n)*50))});
   await dbPut(META,{key:'sync:last',lastDate:end,startDate:start,rowCount:uniq.length,updatedAt:new Date().toISOString(),version:VERSION});
