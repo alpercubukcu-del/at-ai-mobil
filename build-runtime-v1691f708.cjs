@@ -22,8 +22,7 @@ let app=fs.readFileSync(APP,'utf8');
 for(const token of[
  'TRACK-MAINT-ARCHIVE-V16.9.1F60.89',
  'TRACK-MAINT-REAL-DOOR-V16.9.1F60.94.16',
- 'ATTrackMaintenanceRealDoorF609416',
- 'sayfa alınıyor…'
+ 'ATTrackMaintenanceRealDoorF609416'
 ])if(!app.includes(token))throw new Error('[F60.94.17] required F60.94.16/F60.89 base missing: '+token);
 if(app.includes('TRACK-MAINT-STAGE-FIX-V16.9.1F60.94.17'))throw new Error('[F60.94.17] staged fix already present before append');
 app+='\n\n'+fix.trim()+'\n';
