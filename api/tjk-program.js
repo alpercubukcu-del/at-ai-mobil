@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-PARSER-V11-TABLE-LOCK';
+const VERSION = 'TJK-PARSER-V12-AGF-CELL';
 const TJK_ROOT =
   'https://www.tjk.org/TR/YarisSever/Info/Page/GunlukYarisProgrami';
 const TJK_CITY =
@@ -1345,7 +1345,13 @@ function parseHorseRow($, tr, table, raceNo) {
 
   const hpText = get(['HP','H','Handikap Puanı','Handikap Puani']);
   const gnyText = get(['Gny','Ganyan','Muhtemel']);
-  const agfText = get(['AGF','AGF Oranı','AGF Orani']);
+  let agfText = get(['AGF','AGF Oranı','AGF Orani']);
+  if (!agfText) {
+    const agfCell = cellFor(['AGF','AGF Oranı','AGF Orani']);
+    agfText = agfCell ? oneLine(agfCell.text()) : '';
+  }
+  const agfMatch = oneLine(agfText).match(/%\s*([0-9]+(?:[.,][0-9]+)?)/);
+  const agfValue = agfMatch ? Number(agfMatch[1].replace(',', '.')) : parseDecimal(agfText);
 
   // Bağlantıları yalnız kendi sütunlarından al: At/Jokey/Sahip/Antrenör linkleri birbirine karışmaz.
   const cellFor = aliases => {
@@ -1413,7 +1419,7 @@ function parseHorseRow($, tr, table, raceNo) {
     odds: parseDecimal(gnyText),
     gny: parseDecimal(gnyText),
 
-    agf: parseDecimal(agfText),
+    agf: Number.isFinite(agfValue) ? agfValue : null,
 
     raceNo
   };
