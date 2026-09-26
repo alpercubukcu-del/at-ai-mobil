@@ -74,9 +74,26 @@ function loadState() {
   }
 }
 
+function broadcastProgramSelection() {
+  try {
+    const detail = {
+      date: state.date || $('raceDate')?.value || '',
+      city: state.city || '',
+      cityName: getCityName?.() || '',
+      selectedRace: state.selectedRace || 'all',
+      races: Array.isArray(state.races) ? state.races : []
+    };
+    localStorage.setItem('at_ai_active_program_v1', JSON.stringify(detail));
+    window.dispatchEvent(new CustomEvent('at-ai:program-selection-changed', { detail }));
+  } catch (e) {
+    console.warn('Program seçimi yayımlanamadı:', e);
+  }
+}
+
 function save() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    broadcastProgramSelection();
     return true;
   } catch (e) {
     console.warn('State kaydedilemedi:', e);
