@@ -118,15 +118,20 @@ async function updateFogArchive(kind,date,status,cityId='',onProgress,onlySectio
   if(kind==='O'){
    let jobs=[],uniq=new Set();
    for(const h of horses){let o=parseOriginText(h.origin);o.sire=o.sire||h.sire;o.dam=o.dam||h.dam;o.damSire=o.damSire||h.damSire;for(const sec of (onlySection?[onlySection]:['sire','dam','damSire'])){let name=o[sec];if(!name)continue;let k=sec+'|'+String(name).normalize('NFC').toLocaleUpperCase('tr-TR');if(uniq.has(k))continue;uniq.add(k);jobs.push({sec,name,h,o})}}
-   let done=0;await m8Pool(jobs,4,async j=>{let sec=j.sec,h=j.h,name=j.name;status.textContent=(done+1)+'/'+jobs.length+' · '+name+' · '+(sec==='sire'?'Aygır':sec==='dam'?'Kısrak':'Kısrak Babası');
+   status.textContent='Yerel arşiv taranıyor…';
+   let pending=[],checked=0;
+   await m8Pool(jobs,12,async j=>{let old=await originLineageFile(j.sec,j.name);if(old&&archiveFresh(old))stats[j.sec].existing++;else pending.push(j);checked++;if(onProgress)onProgress(stats,checked,jobs.length,j.h)});
+   if(!pending.length){status.textContent='✓ Tüm kayıtlar zaten güncel.';if(onProgress)onProgress(stats,jobs.length,jobs.length);return{stats,errors,total:jobs.length}}
+   let done=jobs.length-pending.length,netWorkers=Math.min(8,Math.max(4,pending.length));
+   status.textContent='Eksik '+pending.length+' kayıt indiriliyor · '+netWorkers+' paralel';
+   await m8Pool(pending,netWorkers,async j=>{let sec=j.sec,h=j.h,name=j.name;
     try{
-     let old=await originLineageFile(sec,name);if(old&&archiveFresh(old)){stats[sec].existing++;done++;if(onProgress)onProgress(stats,done,jobs.length,h);return}
      let q=new URLSearchParams({horse:h.name,raceDate:date,atId:h.id,section:sec});if(j.o.sire)q.set('sire',j.o.sire);if(j.o.dam)q.set('dam',j.o.dam);if(j.o.damSire)q.set('damSire',j.o.damSire);if(h.originRefs?.sire?.id)q.set('sireId',h.originRefs.sire.id);if(h.originRefs?.dam?.id)q.set('damId',h.originRefs.dam.id);if(h.originRefs?.damSire?.code)q.set('damSireCode',h.originRefs.damSire.code);let direct=h.originRefs?.[sec]?.url;if(direct)q.set(sec==='sire'?'sireUrl':sec==='dam'?'damUrl':'damSireUrl',direct);
      let r=await fetch('/api/tjk-fog-horse-v1?'+q,{cache:'no-store'}),x=await r.json();if(!r.ok||!x.ok)throw Error(x.error||'Orijin verisi alınamadı');if(x.errors?.[sec])throw Error(x.errors[sec]);
      let ref=sec==='sire'?(x.origin?.ids?.sireId||x.origin?.refs?.sire?.id):sec==='dam'?(x.origin?.ids?.damId||x.origin?.refs?.dam?.id):(x.origin?.ids?.damSireCode||x.origin?.refs?.damSire?.code),rows=sec==='sire'?x.origin?.sireRows:sec==='dam'?x.origin?.damRows:x.origin?.damSireRows;if(!rows?.length)throw Error('Orijin tablosu boş');
      await saveOriginLineage(sec,name,ref,rows,x.sources?.[sec],{sampleHorseId:h.id,sampleHorse:h.name,raceDate:date});stats[sec].downloaded++
     }catch(ex){stats[sec].failed++;errors.push({...h,error:sec+': '+(ex?.message||String(ex)),originSection:sec,originName:name})}
-    done++;if(onProgress)onProgress(stats,done,jobs.length,h)
+    done++;status.textContent=done+'/'+jobs.length+' · '+name+' · '+(sec==='sire'?'Aygır':sec==='dam'?'Kısrak':'Kısrak Babası');if(onProgress)onProgress(stats,done,jobs.length,h)
    });
    status.innerHTML=fogErrorBox(kind,errors,date);bindFogManual(kind,errors,date,status);window.__M8_FOG_ERRORS__=errors;return{stats,errors,total:jobs.length}
   }
