@@ -1,13 +1,12 @@
 import * as cheerio from 'cheerio';
 
-const VERSION='TJK-RACE-QUERY-V1.6-ANNUAL-FALLBACK';
+const VERSION='TJK-RACE-QUERY-V1.7-ANNUAL-PAGE';
 const TJK='https://www.tjk.org';
 const PAGE='/TR/YarisSever/Query/Page/KosuSorgulama';
 const FILTER='/TR/YarisSever/Query/Data/KosuSorgulama';
 const DATA='/TR/YarisSever/Query/DataRows/KosuSorgulama';
 const ANNUAL='/TR/YarisSever/Query/Page/YillikYarisProgrami';
-const ANNUAL_DATA='/TR/YarisSever/Query/Data/YillikYarisProgrami';
-const ANNUAL_ROWS='/TR/YarisSever/Query/DataRows/YillikYarisProgrami';
+
 const TIMEOUT=30000;
 const HEADERS={
   'user-agent':'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/150 Safari/537.36',
@@ -43,7 +42,7 @@ function query(start,end,page){const qs=new URLSearchParams();qs.set('QueryParam
 function urls(start,end,page){const q=query(start,end,page);return[`${TJK}${DATA}?${q}`,`${TJK}${FILTER}?${q}`,`${TJK}${PAGE}?${q}`]}
 function parseAnnualRows(html){const $=cheerio.load(html),out=[],seen=new Map();$('tr').each((_,tr)=>{const cells=$(tr).find('td').toArray();if(cells.length<8)return;const at=i=>clean($(cells[i]).text()),date=iso(at(0)),city=at(1),group=at(2),raceType=at(3),distance=Number(dec(at(4))||0)||null,track=at(5),prize=num(at(6)),raceName=at(7);if(!date||!city||!raceType||!distance||!track)return;const base=fold(date+'|'+city),raceNo=(seen.get(base)||0)+1;seen.set(base,raceNo);const key=`query|${date}|${fold(city)}|${raceNo}`;out.push({key,canonicalRaceId:key,queryKeyVersion:'ANNUAL-FALLBACK',raceNoSource:'ANNUAL_ROW_ORDER',date,year:Number(date.slice(0,4)),city,raceNo,group,raceType,apprenticeType:'',distance,track,winnerWeight:null,origin:'',prize,winner:'',age:'',winnerDegree:'',hp:null,raceName})});const text=clean($.root().text()),tm=text.match(/Toplam\s+([\d.]+)\s+sonuçtan/i),total=tm?Number(String(tm[1]).replace(/\./g,'')):out.length;return{rows:out,total:Number.isFinite(total)?total:out.length}}
 function annualQuery(start,end,page){const qs=new URLSearchParams();qs.set('QueryParameter_Tarih_Start',display(start));qs.set('QueryParameter_Tarih_End',display(end));if(page>0)qs.set('PageNumber',String(page+1));return qs.toString()}
-async function fetchAnnual(start,end,page){const q=annualQuery(start,end,page),candidates=[`${TJK}${ANNUAL_ROWS}?${q}`,`${TJK}${ANNUAL_DATA}?${q}`,`${TJK}${ANNUAL}?${q}`];let last=null,best={rows:[],total:0,sourceUrl:candidates[0]};for(const url of candidates){try{const html=await get(url),p=parseAnnualRows(html);if(p.rows.length)return{...p,sourceUrl:url,annualFallback:true};if(Number(p.total||0)>Number(best.total||0))best={...p,sourceUrl:url}}catch(e){last=e}}if(best.total)return{...best,annualFallback:true};throw last||new Error('Yıllık Yarış Programı alınamadı.')}
+async function fetchAnnual(start,end,page){const url=`${TJK}${ANNUAL}?${annualQuery(start,end,page)}`;const html=await get(url),p=parseAnnualRows(html);return{...p,sourceUrl:url,annualFallback:true}}
 async function fetchList(start,end,page){let last=null,bestTotal=0,bestUrl='';for(const url of urls(start,end,page)){try{const html=await get(url),p=parseRows(html);bestTotal=Math.max(bestTotal,Number(p.total||0));bestUrl=bestUrl||url;if(p.rows.length)return{...p,total:Math.max(Number(p.total||0),bestTotal),sourceUrl:url};}catch(e){last=e}}try{const a=await fetchAnnual(start,end,page);if(a.rows.length||a.total)return a}catch(e){last=e}if(bestUrl)return{rows:[],total:bestTotal,sourceUrl:bestUrl};throw last||new Error('Koşu Sorgulama ve Yıllık Yarış Programı alınamadı.')}
 export default async function handler(req,res){
   res.setHeader('Access-Control-Allow-Origin','*');res.setHeader('Cache-Control','no-store, max-age=0');
