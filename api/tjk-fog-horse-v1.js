@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION='TJK-FOG-HORSE-V1.8';
+const VERSION='TJK-FOG-HORSE-V1.9-ORIGIN-DIRECT';
 const TJK='https://www.tjk.org';
 const TIMEOUT=10000;
 const HEADERS={
@@ -39,25 +39,25 @@ function parseWorkout(html,raceDate){const t=findTable(html,['ATADI','ITARIHI'])
 async function safe(url,attempts=2){let last=null;for(let i=0;i<attempts;i++){try{return{ok:true,html:await fetchHtml(url),url,attempt:i+1}}catch(e){last=e}}return{ok:false,html:'',url,error:last?.message||String(last||'TJK veri alınamadı'),attempt:attempts}}
 export default async function handler(req,res){
   res.setHeader('Cache-Control','no-store, max-age=0');
-  const atId=String(req.query.atId||'').replace(/\D/g,''),horse=clean(req.query.horse||''),sire=clean(req.query.sire||''),dam=clean(req.query.dam||''),damSire=clean(req.query.damSire||''),raceDate=clean(req.query.raceDate||'');
+  const atId=String(req.query.atId||'').replace(/\D/g,''),horse=clean(req.query.horse||''),sire=clean(req.query.sire||''),dam=clean(req.query.dam||''),damSire=clean(req.query.damSire||''),sireId=String(req.query.sireId||'').replace(/\D/g,''),damId=String(req.query.damId||'').replace(/\D/g,''),raceDate=clean(req.query.raceDate||'');
   if(!horse||!raceDate||!/^\d{4}-\d{2}-\d{2}$/.test(raceDate))return res.status(400).json({ok:false,version:VERSION,error:'horse ve raceDate gerekli.'});
   const override={workout:tjkUrl(req.query.workoutUrl),sire:tjkUrl(req.query.sireUrl),dam:tjkUrl(req.query.damUrl),damSire:tjkUrl(req.query.damSireUrl)};
   const sireShort=sire.replace(/\s*\([^)]*\)\s*/g,' ').replace(/\s+/g,' ').trim();
   const urls={
     profile:atId?`${TJK}/TR/yarissever/Query/ConnectedPage/AtKosuBilgileri?1=1&QueryParameter_AtId=${encodeURIComponent(atId)}&Era=today`:'',
     workout:override.workout?.toString()||`${TJK}/TR/YarisSever/Query/Page/IdmanIstatistikleri?1=1&QueryParameter_ATADI=${encodeURIComponent(horse)}`,
-    sire:override.sire?.toString()||(sire?`${TJK}/TR/YarisSever/Query/Page/AygirIstatistikleri?QueryParameter_AygirAdi=${encodeURIComponent(sire)}`:''),
-    sireAlt:sireShort&&sireShort!==sire?`${TJK}/TR/YarisSever/Query/Page/AygirIstatistikleri?QueryParameter_AygirAdi=${encodeURIComponent(sireShort)}`:'',
-    dam:override.dam?.toString()||(dam?`${TJK}/TR/YarisSever/Query/Page/KisrakIstatistikleri?QueryParameter_KisrakAdi=${encodeURIComponent(dam)}`:''),
+    sire:override.sire?.toString()||(sire?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1&QueryParameter_BabaAdi=${encodeURIComponent(sire)}${sireId?`&QueryParameter_BabaId=${encodeURIComponent(sireId)}`:''}`:''),
+    sireAlt:sireShort&&sireShort!==sire?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1&QueryParameter_BabaAdi=${encodeURIComponent(sireShort)}${sireId?`&QueryParameter_BabaId=${encodeURIComponent(sireId)}`:''}`:'',
+    dam:override.dam?.toString()||(dam?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1&QueryParameter_AnneAdi=${encodeURIComponent(dam)}${damId?`&QueryParameter_AnneId=${encodeURIComponent(damId)}`:''}`:''),
     damSire:override.damSire?.toString()||(damSire?`${TJK}/TR/YarisSever/Query/Page/KisrakBabasi?QueryParameter_KisrakBabaAdi=${encodeURIComponent(damSire)}`:'')
   };
   let [p,w,s,d,ds]=await Promise.all([urls.profile?safe(urls.profile):Promise.resolve({ok:false,html:''}),urls.workout?safe(urls.workout):Promise.resolve({ok:false,html:''}),urls.sire?safe(urls.sire):Promise.resolve({ok:false,html:''}),urls.dam?safe(urls.dam):Promise.resolve({ok:false,html:''}),urls.damSire?safe(urls.damSire):Promise.resolve({ok:false,html:''})]);
-  let st=s.html?findTable(s.html,['AYGIR','KOSANTAY']):null,srow=st?bestMatch(st.rows,sire,['Aygir','Aygır']):null,sireData=sireStrength(srow);
-  if(!sireData&&urls.sireAlt){const alt=await safe(urls.sireAlt,1);if(alt.ok){s=alt;st=findTable(s.html,['AYGIR','KOSANTAY']);srow=st?bestMatch(st.rows,sireShort,['Aygir','Aygır']):null;sireData=sireStrength(srow)}}
+  let st=s.html?(findTable(s.html,['AYGIR','KOSANTAY'])||findTable(s.html,['KOSANTAY'])||tables(s.html)[0]||null):null,srow=st?bestMatch(st.rows,sire,['Aygir','Aygır']):null,sireData=sireStrength(srow);
+  if(!sireData&&urls.sireAlt){const alt=await safe(urls.sireAlt,1);if(alt.ok){s=alt;st=findTable(s.html,['AYGIR','KOSANTAY'])||findTable(s.html,['KOSANTAY'])||tables(s.html)[0]||null;srow=st?bestMatch(st.rows,sireShort,['Aygir','Aygır']):null;sireData=sireStrength(srow)}}
   let refs=originRefs(p.html),profile={horse:null,sire:null,dam:null,damSire:null};if(p.html){const $p=cheerio.load(p.html),txt=clean($p('body').text()),m=txt.match(/Baba\s+(.+?)\s+Anne\s+(.+?)\s*\/\s*(.+?)\s+Antrenör/i);profile.horse=clean($p('h2').first().text()||$p('h1').first().text()||horse);if(m){profile.sire=clean(m[1]);profile.dam=clean(m[2]);profile.damSire=clean(m[3])}}
   const workout=parseWorkout(w.html,raceDate);
   const dst=ds.html?findTable(ds.html,['KISRAKBABASI','KOSU']):null,dsrow=dst?bestMatch(dst.rows,damSire,['Kısrak Babası','Kisrak Babasi']):null,damSireData=damSireStrength(dsrow);
-  const mt=d.html?findTable(d.html,['KISRAK','KOSANTAY']):null,mrow=mt?bestMatch(mt.rows,dam,['Kısrak']):null,damData=mareStrength(mrow);
+  const mt=d.html?(findTable(d.html,['KISRAK','KOSANTAY'])||findTable(d.html,['KOSANTAY'])||tables(d.html)[0]||null):null,mrow=mt?bestMatch(mt.rows,dam,['Kısrak']):null,damData=mareStrength(mrow);
   const originScore=weighted([{value:sireData?.score,weight:.5},{value:damSireData?.score,weight:.3},{value:damData?.score,weight:.2}]);
   const errors={workout:w.ok?null:w.error||'AtId yok',sire:sireData?null:(s.error||'Baba istatistiği bulunamadı'),dam:damData?null:(d.error||'Kısrak istatistiği bulunamadı'),damSire:ds.ok?null:ds.error||'Kısrak babası yok'};
   const sireRows=st?.rows||[],damRows=mt?.rows||[],damSireRows=dst?.rows||[];const complete=!Object.values(errors).some(Boolean);
