@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION='TJK-RACE-QUERY-V1.4-F60.94.33';
+const VERSION='TJK-RACE-QUERY-V1.8-KOSU-PAGE-ALL-FIELDS';
 const TJK='https://www.tjk.org';
 const PAGE='/TR/YarisSever/Query/Page/KosuSorgulama';
 const FILTER='/TR/YarisSever/Query/Data/KosuSorgulama';
@@ -38,7 +38,7 @@ function parseRows(html){
   return{rows:out,total:Number.isFinite(total)?total:out.length};
 }
 function query(start,end,page){const qs=new URLSearchParams();qs.set('QueryParameter_Tarih_Start',display(start));qs.set('QueryParameter_Tarih_End',display(end));qs.set('PageNumber',String(Math.max(0,Number(page)||0)+1));return qs.toString()}
-function urls(start,end,page){const q=query(start,end,page);return[`${TJK}${DATA}?${q}`,`${TJK}${FILTER}?${q}`,`${TJK}${PAGE}?${q}`]}
+function urls(start,end,page){const q=query(start,end,page);return[`${TJK}${PAGE}?${q}`,`${TJK}${DATA}?${q}`,`${TJK}${FILTER}?${q}`]}
 async function fetchList(start,end,page){let last=null,bestTotal=0,bestUrl='';for(const url of urls(start,end,page)){try{const html=await get(url),p=parseRows(html);bestTotal=Math.max(bestTotal,Number(p.total||0));bestUrl=bestUrl||url;if(p.rows.length)return{...p,total:Math.max(Number(p.total||0),bestTotal),sourceUrl:url};}catch(e){last=e}}if(bestUrl)return{rows:[],total:bestTotal,sourceUrl:bestUrl};throw last||new Error('Koşu Sorgulama alınamadı.')}
 export default async function handler(req,res){
   res.setHeader('Access-Control-Allow-Origin','*');res.setHeader('Cache-Control','no-store, max-age=0');
