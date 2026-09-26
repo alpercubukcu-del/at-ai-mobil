@@ -1,10 +1,11 @@
 import * as cheerio from 'cheerio';
 
-const VERSION='TJK-RACE-QUERY-V1.4-F60.94.33';
+const VERSION='TJK-RACE-QUERY-V1.5-ANNUAL-FALLBACK';
 const TJK='https://www.tjk.org';
 const PAGE='/TR/YarisSever/Query/Page/KosuSorgulama';
 const FILTER='/TR/YarisSever/Query/Data/KosuSorgulama';
 const DATA='/TR/YarisSever/Query/DataRows/KosuSorgulama';
+const ANNUAL='/TR/YarisSever/Query/Page/YillikYarisProgrami';
 const TIMEOUT=30000;
 const HEADERS={
   'user-agent':'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/150 Safari/537.36',
@@ -38,14 +39,17 @@ function parseRows(html){
 }
 function query(start,end,page){const qs=new URLSearchParams();qs.set('QueryParameter_Tarih_Start',display(start));qs.set('QueryParameter_Tarih_End',display(end));qs.set('PageNumber',String(Math.max(0,Number(page)||0)+1));return qs.toString()}
 function urls(start,end,page){const q=query(start,end,page);return[`${TJK}${DATA}?${q}`,`${TJK}${FILTER}?${q}`,`${TJK}${PAGE}?${q}`]}
-async function fetchList(start,end,page){let last=null,bestTotal=0,bestUrl='';for(const url of urls(start,end,page)){try{const html=await get(url),p=parseRows(html);bestTotal=Math.max(bestTotal,Number(p.total||0));bestUrl=bestUrl||url;if(p.rows.length)return{...p,total:Math.max(Number(p.total||0),bestTotal),sourceUrl:url};}catch(e){last=e}}if(bestUrl)return{rows:[],total:bestTotal,sourceUrl:bestUrl};throw last||new Error('Koşu Sorgulama alınamadı.')}
+function parseAnnualRows(html){const $=cheerio.load(html),out=[],seen=new Map();$('tr').each((_,tr)=>{const cells=$(tr).find('td').toArray();if(cells.length<8)return;const at=i=>clean($(cells[i]).text()),date=iso(at(0)),city=at(1),group=at(2),raceType=at(3),distance=Number(dec(at(4))||0)||null,track=at(5),prize=num(at(6)),raceName=at(7);if(!date||!city||!raceType||!distance||!track)return;const base=fold(date+'|'+city),raceNo=(seen.get(base)||0)+1;seen.set(base,raceNo);const key=`query|${date}|${fold(city)}|${raceNo}`;out.push({key,canonicalRaceId:key,queryKeyVersion:'ANNUAL-FALLBACK',raceNoSource:'ANNUAL_ROW_ORDER',date,year:Number(date.slice(0,4)),city,raceNo,group,raceType,apprenticeType:'',distance,track,winnerWeight:null,origin:'',prize,winner:'',age:'',winnerDegree:'',hp:null,raceName})});const text=clean($.root().text()),tm=text.match(/Toplam\s+([\d.]+)\s+sonuçtan/i),total=tm?Number(String(tm[1]).replace(/\./g,'')):out.length;return{rows:out,total:Number.isFinite(total)?total:out.length}}
+function annualQuery(start,end,page){const qs=new URLSearchParams();qs.set('QueryParameter_Tarih_Start',display(start));qs.set('QueryParameter_Tarih_End',display(end));if(page>0)qs.set('PageNumber',String(page+1));return qs.toString()}
+async function fetchAnnual(start,end,page){const url=`${TJK}${ANNUAL}?${annualQuery(start,end,page)}`,html=await get(url),p=parseAnnualRows(html);return{...p,sourceUrl:url,annualFallback:true}}
+async function fetchList(start,end,page){let last=null,bestTotal=0,bestUrl='';for(const url of urls(start,end,page)){try{const html=await get(url),p=parseRows(html);bestTotal=Math.max(bestTotal,Number(p.total||0));bestUrl=bestUrl||url;if(p.rows.length)return{...p,total:Math.max(Number(p.total||0),bestTotal),sourceUrl:url};}catch(e){last=e}}try{const a=await fetchAnnual(start,end,page);if(a.rows.length||a.total)return a}catch(e){last=e}if(bestUrl)return{rows:[],total:bestTotal,sourceUrl:bestUrl};throw last||new Error('Koşu Sorgulama ve Yıllık Yarış Programı alınamadı.')}
 export default async function handler(req,res){
   res.setHeader('Access-Control-Allow-Origin','*');res.setHeader('Cache-Control','no-store, max-age=0');
   try{
     const start=clean(req.query?.start||req.query?.date||''),end=clean(req.query?.end||start),page=Math.max(0,Number(req.query?.page||0));
     if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end))return res.status(400).json({ok:false,version:VERSION,error:'start/end YYYY-MM-DD biçiminde gerekli.'});
     const d=await fetchList(start,end,page),rows=d.rows.filter(x=>x.date>=start&&x.date<=end);
-    const invalidRows=rows.filter(x=>!x.key||!x.date||!x.city||!x.winner).length;
+    const invalidRows=rows.filter(x=>!x.key||!x.date||!x.city).length;
     return res.status(200).json({ok:true,version:VERSION,start,end,page,tjkPage:page+1,total:d.total,rows,rawRowCount:d.rows.length,invalidRows,queryKeyVersion:'F60.94.33',filterMatched:rows.length>0||d.rows.length===0,sourceUrl:d.sourceUrl});
   }catch(e){const status=e?.name==='AbortError'?504:502;return res.status(status).json({ok:false,version:VERSION,error:e?.name==='AbortError'?'TJK Koşu Sorgulama zaman aşımına uğradı.':(e?.message||String(e))})}
 }
