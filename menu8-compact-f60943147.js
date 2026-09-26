@@ -133,7 +133,7 @@ async function updateFogArchive(kind,date,status,cityId='',onProgress,onlySectio
   status.innerHTML=fogErrorBox(kind,errors,date);bindFogManual(kind,errors,date,status);window.__M8_FOG_ERRORS__=errors;return{stats,errors,total:horses.length}
  }catch(x){status.textContent='⚠ '+x.message;throw x}
 }
-function activeProgram(){try{let x=JSON.parse(localStorage.getItem('at_ai_active_program_v1')||'null');if(x?.date)return x}catch{}try{let s=JSON.parse(localStorage.getItem('at_ai_mobil_state_v2')||'null');if(s?.date)return{date:s.date,city:s.city,cityName:(s.cities||[]).find(x=>String(x.id)===String(s.city))?.name||'',selectedRace:s.selectedRace||'all'}}catch{}return null}
+function activeProgram(){try{let date=document.getElementById('raceDate')?.value||'',sel=document.getElementById('citySelect'),city=sel?.value||'',cityName=sel?.selectedOptions?.[0]?.textContent?.trim()||'';if(date&&city)return{date,city,cityName,selectedRace:(window.state?.selectedRace||'all'),source:'live-dom'}}catch{}try{let s=JSON.parse(localStorage.getItem('at_ai_mobil_state_v2')||'null');if(s?.date&&s?.city)return{date:s.date,city:String(s.city),cityName:(s.cities||[]).find(x=>String(x.id)===String(s.city))?.name||'',selectedRace:s.selectedRace||'all',source:'state'}}catch{}try{let x=JSON.parse(localStorage.getItem('at_ai_active_program_v1')||'null');if(x?.date)return x}catch{}return null}
 async function applyActiveProgram(dateEl,cityEl,status){
  const a=activeProgram();if(!a?.date)return false;
  dateEl.value=a.date;status.textContent='Ana sayfadaki program uygulanıyor…';
