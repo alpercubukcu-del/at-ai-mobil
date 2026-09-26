@@ -30,8 +30,7 @@ for(const token of[
  "window.ATTrackMaintenanceV1={version:VERSION,get:getReport,profile,infer,syncRange,backfillYears,autoSync,detailedSurface,windParts,getLastContext:()=>lastContext,isBusy:()=>busy};",
  "window.dispatchEvent(new CustomEvent('at-ai:track-maintenance-status'",
  'async function syncYear(year)',
- 'async function backfillYears(from,to)',
- 'sayfa alınıyor…'
+ 'async function backfillYears(from,to)'
 ])if(!app.includes(token))throw new Error('[F60.94.16] REAL archive engine missing from generated bundle: '+token);
 
 /* F60.94.15 door must not be present: otherwise its document capture listener can win the tap. */
