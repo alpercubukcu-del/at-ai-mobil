@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION='TJK-FOG-HORSE-V1.9-ORIGIN-DIRECT';
+const VERSION='TJK-FOG-HORSE-V1.10-GROUPED-STATS';
 const TJK='https://www.tjk.org';
 const TIMEOUT=10000;
 const HEADERS={
@@ -46,9 +46,9 @@ export default async function handler(req,res){
   const urls={
     profile:atId?`${TJK}/TR/yarissever/Query/ConnectedPage/AtKosuBilgileri?1=1&QueryParameter_AtId=${encodeURIComponent(atId)}&Era=today`:'',
     workout:override.workout?.toString()||`${TJK}/TR/YarisSever/Query/Page/IdmanIstatistikleri?1=1&QueryParameter_ATADI=${encodeURIComponent(horse)}`,
-    sire:override.sire?.toString()||(sire?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1&QueryParameter_BabaAdi=${encodeURIComponent(sire)}${sireId?`&QueryParameter_BabaId=${encodeURIComponent(sireId)}`:''}`:''),
-    sireAlt:sireShort&&sireShort!==sire?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1&QueryParameter_BabaAdi=${encodeURIComponent(sireShort)}${sireId?`&QueryParameter_BabaId=${encodeURIComponent(sireId)}`:''}`:'',
-    dam:override.dam?.toString()||(dam?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1&QueryParameter_AnneAdi=${encodeURIComponent(dam)}${damId?`&QueryParameter_AnneId=${encodeURIComponent(damId)}`:''}`:''),
+    sire:override.sire?.toString()||(sireId?`${TJK}/TR/YarisSever/Query/Grouped/AygirIstatistikleri?1=1&QueryParameter_AygirId=${encodeURIComponent(sireId)}`:(sire?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1&QueryParameter_BabaAdi=${encodeURIComponent(sire)}`:'')),
+    sireAlt:sireShort&&sireShort!==sire&&!sireId?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1&QueryParameter_BabaAdi=${encodeURIComponent(sireShort)}`:'',
+    dam:override.dam?.toString()||(damId?`${TJK}/TR/YarisSever/Query/Grouped/KisrakIstatistikleri?1=1&QueryParameter_KisrakId=${encodeURIComponent(damId)}`:(dam?`${TJK}/TR/YarisSever/Query/Page/Orijin?1=1&QueryParameter_AnneAdi=${encodeURIComponent(dam)}`:'')),
     damSire:override.damSire?.toString()||(damSire?`${TJK}/TR/YarisSever/Query/Page/KisrakBabasi?QueryParameter_KisrakBabaAdi=${encodeURIComponent(damSire)}`:'')
   };
   let [p,w,s,d,ds]=await Promise.all([urls.profile?safe(urls.profile):Promise.resolve({ok:false,html:''}),urls.workout?safe(urls.workout):Promise.resolve({ok:false,html:''}),urls.sire?safe(urls.sire):Promise.resolve({ok:false,html:''}),urls.dam?safe(urls.dam):Promise.resolve({ok:false,html:''}),urls.damSire?safe(urls.damSire):Promise.resolve({ok:false,html:''})]);
