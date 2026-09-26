@@ -98,7 +98,7 @@ async function autoSync(targetDate){
   if(busy||!/^\d{4}-\d{2}-\d{2}$/.test(String(targetDate||'')))return;
   busy=true;
   try{
-    const meta=await dbGet(META,'sync:last'),all=await getAll(STORE),dates=all.map(r=>r?.date).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(String(d))&&d<=targetDate).sort(),localLast=dates.at(-1)||'',last=[meta?.lastDate||'',localLast].sort().at(-1)||'';
+    const meta=await dbGet(META,'sync:last'),all=await allRows(),dates=all.map(r=>r?.date).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(String(d))&&d<=targetDate).sort(),localLast=dates.at(-1)||'',last=[meta?.lastDate||'',localLast].sort().at(-1)||'';
     let start=last&&last<targetDate?addDays(last,1):targetDate;
     if(start>targetDate)start=targetDate;
     await syncRange(start,targetDate,{loadReports:true,label:'Otomatik pist güncellemesi'});
