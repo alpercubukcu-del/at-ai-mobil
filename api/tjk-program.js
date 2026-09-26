@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-PARSER-V12-AGF-CELL';
+const VERSION = 'TJK-PARSER-V12.1-AGF-CELL-HOTFIX';
 const TJK_ROOT =
   'https://www.tjk.org/TR/YarisSever/Info/Page/GunlukYarisProgrami';
 const TJK_CITY =
@@ -1345,6 +1345,11 @@ function parseHorseRow($, tr, table, raceNo) {
 
   const hpText = get(['HP','H','Handikap Puanı','Handikap Puani']);
   const gnyText = get(['Gny','Ganyan','Muhtemel']);
+  // Bağlantıları yalnız kendi sütunlarından al: At/Jokey/Sahip/Antrenör linkleri birbirine karışmaz.
+  const cellFor = aliases => {
+    const idx=headerIndex(headers,aliases);
+    return idx>=0&&idx<cells.length?$(cells[idx]):null;
+  };
   let agfText = get(['AGF','AGF Oranı','AGF Orani']);
   if (!agfText) {
     const agfCell = cellFor(['AGF','AGF Oranı','AGF Orani']);
@@ -1353,11 +1358,6 @@ function parseHorseRow($, tr, table, raceNo) {
   const agfMatch = oneLine(agfText).match(/%\s*([0-9]+(?:[.,][0-9]+)?)/);
   const agfValue = agfMatch ? Number(agfMatch[1].replace(',', '.')) : parseDecimal(agfText);
 
-  // Bağlantıları yalnız kendi sütunlarından al: At/Jokey/Sahip/Antrenör linkleri birbirine karışmaz.
-  const cellFor = aliases => {
-    const idx=headerIndex(headers,aliases);
-    return idx>=0&&idx<cells.length?$(cells[idx]):null;
-  };
   const directRef = aliases => {
     const td=cellFor(aliases),a=td?.find('a[href]').first();
     if(!a?.length)return null;
