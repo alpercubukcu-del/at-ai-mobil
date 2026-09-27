@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION = 'TJK-PARSER-V12.1-AGF-CELL-HOTFIX';
+const VERSION = 'TJK-PARSER-V12.2-TURKISH-NAME-LINKS';
 const TJK_ROOT =
   'https://www.tjk.org/TR/YarisSever/Info/Page/GunlukYarisProgrami';
 const TJK_CITY =
@@ -1251,7 +1251,10 @@ function cleanHorseName($, link) {
   name = name
     .replace(/\bAPApranti\b/gi, '')
     .replace(/\bApranti\b/gi, '')
-    .replace(/\b(?:KG|SK|DB|KUL|GKR|SGKR)\b.*$/i, '')
+    // Ekipman kodu ancak addan sonra, ayrı bir alan olarak gelirse temizlenir.
+    // Türkçe adlarda ASCII kelime sınırı güvenilir değildir: "İSKİT ALP"
+    // içindeki SK eski ifade tarafından yanlışlıkla ekipman sanılıyordu.
+    .replace(/\s+(?:KG|SK|DB|KUL|GKR|SGKR)(?:\s+.*)?$/i, '')
     .trim();
 
   return name;
@@ -1397,11 +1400,11 @@ function parseHorseRow($, tr, table, raceNo) {
     weight: parseDecimal(weightText),
     weightText: oneLine(weightText),
 
-    jockey,
+    jockey: jockey || links.jockey?.name || '',
     apprentice: isApprentice,
 
-    owner: get(['Sahip','Sahip Adı']),
-    trainer: get(['Antrenör','Antrenor','Antrenör Adı','Antrenor Adi']),
+    owner: get(['Sahip','Sahip Adı']) || links.owner?.name || '',
+    trainer: get(['Antrenör','Antrenor','Antrenör Adı','Antrenor Adi']) || links.trainer?.name || '',
 
     st: parseIntegerSafe(get(['St','Start','Kulvar'])),
     hp: parseIntegerSafe(hpText),

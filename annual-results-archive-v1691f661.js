@@ -97,6 +97,17 @@ async function saveDay(group,data){
   await dbPut(STORE_DAYS,{key:group.key,year:group.year,date:group.date,city:group.city,cityId:group.cityId,expectedRaceCount:expected,raceCount:got,status,sourceVersion:data?.version||'',updatedAt:new Date().toISOString(),error:got?null:'Sonuç yarışı bulunamadı'});
   return{status,expected,got};
 }
+async function syncDay(date,city,{cityId='',expectedRaceCount=0}={}){
+  const day=clean(date),place=clean(city),expected=Math.max(1,Number(expectedRaceCount)||0);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||!place)throw new Error('Sonuç eşleştirmesi için tarih ve şehir gerekli.');
+  const group={key:dayKey(day,place),date:day,year:yearFromDate(day),city:place,cityId:clean(cityId),rows:Array.from({length:expected},()=>({}))};
+  const data=await fetchDay(group),saved=await saveDay(group,data);
+  if(saved.got>0){
+    try{window.dispatchEvent(new CustomEvent('at-ai:real-race-archive-updated',{detail:{version:VERSION,date:day,city:place,raceCount:saved.got,automatic:true}}))}catch{}
+    try{await refreshMetaUi()}catch{}
+  }
+  return{ok:saved.got>0,date:day,city:place,races:Array.isArray(data?.races)?data.races:[],...saved};
+}
 async function mapLimit(list,limit,worker){const out=new Array(list.length);let cursor=0;async function run(){for(;;){const i=cursor++;if(i>=list.length)return;out[i]=await worker(list[i],i)}}await Promise.all(Array.from({length:Math.min(Math.max(1,limit),list.length||1)},run));return out}
 function setStatus(text,pct=null){const el=$('aarStatusV661');if(el)el.textContent=text;const bar=$('aarProgressV661');if(bar&&pct!==null)bar.style.width=`${Math.max(0,Math.min(100,pct))}%`}
 
@@ -193,6 +204,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 setTimeout(installHooks,400);
 setTimeout(installHooks,1200);
 window.addEventListener('at-ai:annual-archive-open',()=>setTimeout(()=>{installPanel();void refreshMetaUi()},0));
-window.ATAnnualResultsArchiveV661={version:VERSION,updateYear,updateRange,getLocalResult,refresh:refreshMetaUi,deleteYear,isDomestic};
+window.ATAnnualResultsArchiveV661={version:VERSION,updateYear,updateRange,syncDay,getLocalResult,refresh:refreshMetaUi,deleteYear,isDomestic};
 console.info('[AT AI]',VERSION,'aktif — yerli yıllık sonuçlar telefonda IndexedDB arşivine yazılır; /api/tjk-history önce yerel arşivi, yoksa TJK fallback yöntemini kullanır.');
 })();

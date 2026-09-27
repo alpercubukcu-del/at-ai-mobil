@@ -3,12 +3,13 @@ const R=__dirname,BASE=path.join(R,'build-runtime-v1691f773.cjs'),APP=path.join(
 for(const f of[BASE,DNA])if(!fs.existsSync(f))throw new Error('[V17 CLEAN] missing '+path.basename(f));
 const dna=fs.readFileSync(DNA,'utf8');
 if(!dna.includes('FOGD-DNA-ENGINE-V17.0-REBUILD'))throw new Error('[V17 CLEAN] DNA engine token missing');
+if(!dna.includes('FOGD-VERIFIED-CONNECTIONS-V17.1'))throw new Error('[V17 CLEAN] verified connections feature token missing');
 new Function(dna);
 execFileSync(process.execPath,[BASE],{cwd:R,stdio:'inherit'});
 let app=fs.readFileSync(APP,'utf8');
 if(!app.includes('FOGD-DNA-ENGINE-V17.0-REBUILD'))throw new Error('[V17 CLEAN] V17 DNA was not emitted by production build chain');
 if((app.match(/FOGD-DNA-ENGINE-V17\.0-REBUILD/g)||[]).length!==1)throw new Error('[V17 CLEAN] duplicate V17 DNA engine');
 new Function(app);
-let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1700002');
+let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1700101');
 fs.writeFileSync(INDEX,html,'utf8');
 console.log('[AT AI] V17 CLEAN verified: production chain emitted exactly one V17 DNA engine');
