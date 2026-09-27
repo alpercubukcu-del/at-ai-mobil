@@ -5,7 +5,6 @@ window.__AT_ANNUAL_RESULTS_ARCHIVE_V1691F661__ = true;
 
 const VERSION='ANNUAL-RESULTS-ARCHIVE-V16.9.1F60.61';
 const DB_NAME='at_ai_tjk_annual_results_v1';
-const DB_VERSION=1;
 const STORE_RACES='races';
 const STORE_DAYS='days';
 const STORE_META='meta';
@@ -27,23 +26,24 @@ function dayKey(date,city){return`day|${clean(date)}|${fold(city)}`}
 function yearFromDate(date){return Number(String(date||'').slice(0,4))||0}
 function clone(v){try{return typeof structuredClone==='function'?structuredClone(v):JSON.parse(JSON.stringify(v))}catch{return v}}
 function waitFrame(){return new Promise(resolve=>requestAnimationFrame(()=>resolve()))}
+function installStores(db,tx){
+  let races=db.objectStoreNames.contains(STORE_RACES)?tx.objectStore(STORE_RACES):db.createObjectStore(STORE_RACES,{keyPath:'key'});
+  if(!races.indexNames.contains('year'))races.createIndex('year','year',{unique:false});
+  if(!races.indexNames.contains('date'))races.createIndex('date','date',{unique:false});
+  let days=db.objectStoreNames.contains(STORE_DAYS)?tx.objectStore(STORE_DAYS):db.createObjectStore(STORE_DAYS,{keyPath:'key'});
+  if(!days.indexNames.contains('year'))days.createIndex('year','year',{unique:false});
+  if(!days.indexNames.contains('date'))days.createIndex('date','date',{unique:false});
+  if(!db.objectStoreNames.contains(STORE_META))db.createObjectStore(STORE_META,{keyPath:'key'});
+}
 
 function openDb(){
   if(dbPromise)return dbPromise;
   dbPromise=new Promise(resolve=>{
     if(!('indexedDB'in window))return resolve(null);
-    let q;try{q=indexedDB.open(DB_NAME,DB_VERSION)}catch{return resolve(null)}
-    q.onupgradeneeded=()=>{
-      const db=q.result;
-      let races=db.objectStoreNames.contains(STORE_RACES)?q.transaction.objectStore(STORE_RACES):db.createObjectStore(STORE_RACES,{keyPath:'key'});
-      if(!races.indexNames.contains('year'))races.createIndex('year','year',{unique:false});
-      if(!races.indexNames.contains('date'))races.createIndex('date','date',{unique:false});
-      let days=db.objectStoreNames.contains(STORE_DAYS)?q.transaction.objectStore(STORE_DAYS):db.createObjectStore(STORE_DAYS,{keyPath:'key'});
-      if(!days.indexNames.contains('year'))days.createIndex('year','year',{unique:false});
-      if(!days.indexNames.contains('date'))days.createIndex('date','date',{unique:false});
-      if(!db.objectStoreNames.contains(STORE_META))db.createObjectStore(STORE_META,{keyPath:'key'});
-    };
-    q.onsuccess=()=>{const db=q.result;db.onversionchange=()=>{try{db.close()}catch{}dbPromise=null};resolve(db)};
+    const ready=db=>{db.onversionchange=()=>{try{db.close()}catch{}dbPromise=null};resolve(db)};
+    let q;try{q=indexedDB.open(DB_NAME)}catch{return resolve(null)}
+    q.onupgradeneeded=()=>installStores(q.result,q.transaction);
+    q.onsuccess=()=>{const db=q.result,missing=[STORE_RACES,STORE_DAYS,STORE_META].filter(x=>!db.objectStoreNames.contains(x));if(!missing.length)return ready(db);const version=db.version+1;try{db.close()}catch{}let u;try{u=indexedDB.open(DB_NAME,version)}catch{return resolve(null)}u.onupgradeneeded=()=>installStores(u.result,u.transaction);u.onsuccess=()=>ready(u.result);u.onerror=u.onblocked=()=>{dbPromise=null;resolve(null)}};
     q.onerror=q.onblocked=()=>{dbPromise=null;resolve(null)};
   });
   return dbPromise;
@@ -80,6 +80,7 @@ function groupProgramDays(rows){
 }
 async function fetchDay(group){
   const u=new URL('/api/tjk-day-results-v1',location.origin);u.searchParams.set('date',group.date);u.searchParams.set('city',group.city);
+  if(/^\d+$/.test(clean(group.cityId)))u.searchParams.set('cityId',clean(group.cityId));
   const res=await fetch(u.pathname+u.search,{cache:'no-store',headers:{accept:'application/json'}}),data=await res.json();
   if(!res.ok||data?.ok===false)throw new Error(data?.error||`API ${res.status}`);
   return data;

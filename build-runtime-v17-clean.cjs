@@ -10,6 +10,6 @@ let app=fs.readFileSync(APP,'utf8');
 if(!app.includes('FOGD-DNA-ENGINE-V17.0-REBUILD'))throw new Error('[V17 CLEAN] V17 DNA was not emitted by production build chain');
 if((app.match(/FOGD-DNA-ENGINE-V17\.0-REBUILD/g)||[]).length!==1)throw new Error('[V17 CLEAN] duplicate V17 DNA engine');
 new Function(app);
-let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1700101');
+let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1700102');
 fs.writeFileSync(INDEX,html,'utf8');
 console.log('[AT AI] V17 CLEAN verified: production chain emitted exactly one V17 DNA engine');
