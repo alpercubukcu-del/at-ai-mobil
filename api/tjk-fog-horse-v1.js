@@ -12,7 +12,7 @@ const HEADERS={
 function clean(v=''){return String(v??'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim()}
 function fold(v=''){return clean(v).toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/İ/g,'I').replace(/[^A-Z0-9]+/g,'')}
 function headerKey(v=''){return fold(v)}
-function tjkUrl(raw){if(!raw)return null;try{const u=new URL(raw,TJK);if(!/(^|\\.)tjk\\.org$/i.test(u.hostname))return null;return u}catch{return null}}
+function tjkUrl(raw){if(!raw)return null;try{let s=clean(raw).replace(/&amp;/gi,'&').replace(/[\u200B-\u200D\uFEFF]/g,'');if(!/^https?:\/\//i.test(s))s=new URL(s,TJK).toString();const u=new URL(s);if(!/(^|\\.)tjk\\.org$/i.test(u.hostname))return null;for(const [k,v] of [...u.searchParams.entries()])u.searchParams.set(k,clean(v));return u}catch{return null}}
 function idFrom(u,names){if(!u)return'';for(const n of names){const v=u.searchParams.get(n);if(v&&/^\\d+$/.test(v))return v}return''}
 function originRefs(src){const $=cheerio.load(src||''),out={sire:{name:'',id:'',url:''},dam:{name:'',id:'',url:''},damSire:{name:'',code:'',url:''}};$('a[href]').each((_,a)=>{const href=$(a).attr('href')||'',u=tjkUrl(href),name=clean($(a).text());if(!u)return;const bid=idFrom(u,['QueryParameter_BabaId','BabaId']);if(bid&&!out.sire.id)out.sire={name,id:bid,url:u.toString()};const aid=idFrom(u,['QueryParameter_AnneId','AnneId']);if(aid&&!out.dam.id)out.dam={name,id:aid,url:u.toString()};const code=idFrom(u,['QueryParameter_KisrakBabaKodu','KisrakBabaKodu']);if(code&&!out.damSire.code)out.damSire={name,code,url:u.toString()}});return out}
 function num(v){const s=clean(v);if(!s)return null;const n=Number(s.replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''));return Number.isFinite(n)?n:null}
