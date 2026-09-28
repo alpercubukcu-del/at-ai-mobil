@@ -82,12 +82,23 @@ function latestWorkoutText(r){const x=r?.gMeta?.latest;if(!x)return'Galop verisi
 function originText(r){const raw=parseOrigin(r?.program?.origin||'');const m=r?.oMeta||{},score=x=>x!==null&&x!==undefined&&x!==''&&Number.isFinite(Number(x))?Number(x):null,a=[];const sire=score(m?.sire?.score),dam=score(m?.dam?.score),damSire=score(m?.damSire?.score);if(raw.sire||sire!==null)a.push(`Aygır${raw.sire?` ${raw.sire}`:''}${sire!==null?` ${Math.round(sire)}`:' —'}`);if(raw.dam||dam!==null)a.push(`Kısrak${raw.dam?` ${raw.dam}`:''}${dam!==null?` ${Math.round(dam)}`:' —'}`);if(raw.damSire||damSire!==null)a.push(`Kısrak Babası${raw.damSire?` ${raw.damSire}`:''}${damSire!==null?` ${Math.round(damSire)}`:' —'}`);return a.join(' · ')||'Orijin verisi sınırlı'}
 function connectionText(r){const m=r?.connectionMeta||{},fallback=r?.program||{},one=(label,key,score)=>{const name=clean(m?.[key]?.name||fallback?.[key]||fallback?.links?.[key]?.name||'');return`${label}: ${name||'—'}${Number.isFinite(score)?` ${score.toFixed(1)}`:' —'}`};return[one('J','jockey',r.J),one('S','owner',r.S),one('A','trainer',r.A)].join(' · ')}
 function signal(r,leaders){if(r.currentRank===1&&r.degreeRank===1&&r.totalRank===1)return'ÜÇLÜ TEYİT';if(r.currentRank===1&&r.degreeRank===1)return'ÇİFT TEYİT';if(r.currentRank===1&&r.totalRank===1)return'TOPLAM TEYİT';if(r.currentRank===1&&Number(r.degreeRank)>=4)return'D UYUŞMAZLIK';if(r.totalRank===1)return'T LİDERİ';return''}
-async function ensureAnalysis(){let c=currentResult(),date=dateNow();if(c?.races?.length&&clean(c?.date||date)===date){try{await window.ATDegreeSpeedF6090?.enrichCurrent?.()}catch{}try{window.ATDegreePredictionAuditF609430?.ensureEveryHorse?.(currentResult()||c)}catch{}return currentResult()||c}if(typeof gRunCurrentV1657!=='function')throw new Error('Güncel Analiz motoru hazır değil.');setPanelStatus('Güncel Analiz ve Derece-Hız hazırlanıyor…');await gRunCurrentV1657();c=currentResult();if(!c?.races?.length)throw new Error('Güncel Analiz sonucu oluşmadı.');try{if(window.ATDegreeSpeedF6090?.enrichCurrent)await window.ATDegreeSpeedF6090.enrichCurrent()}catch{}try{window.ATDegreePredictionAuditF609430?.ensureEveryHorse?.(c)}catch{}return c}
+async function ensureAnalysis(no){
+ const date=dateNow(),city=cityNow(),cityId=cityIdNow(),targetNo=Number(no)||0,hasTarget=c=>!targetNo||(c?.races||[]).some(r=>Number(r?.no)===targetNo),sameContext=c=>{if(!c?.races?.length||clean(c?.date||'')!==date)return false;const resultCityId=clean(c?.city||''),resultCity=clean(c?.cityName||'');return!!((cityId&&resultCityId&&cityId===resultCityId)||(city&&resultCity&&fold(city)===fold(resultCity)))};
+ let c=currentResult();
+ if(sameContext(c)&&hasTarget(c)){try{await window.ATDegreeSpeedF6090?.enrichCurrent?.()}catch{}try{window.ATDegreePredictionAuditF609430?.ensureEveryHorse?.(currentResult()||c)}catch{}return currentResult()||c}
+ if(typeof gRunCurrentV1657!=='function')throw new Error('Güncel Analiz motoru hazır değil.');
+ const selector=$('analysisRace'),previousValue=selector?.value||'',targetValue=String(targetNo),hasOption=!!(selector&&targetNo&&Array.from(selector.options||[]).some(o=>String(o.value)===targetValue));
+ if(hasOption)selector.value=targetValue;
+ setPanelStatus(`${targetNo?`${targetNo}. Koşu · `:''}Güncel Analiz ve Derece-Hız hazırlanıyor…`);
+ try{await gRunCurrentV1657()}finally{if(hasOption&&selector&&Array.from(selector.options||[]).some(o=>String(o.value)===previousValue))selector.value=previousValue}
+ c=currentResult();if(!sameContext(c)||!hasTarget(c))throw new Error(`${targetNo?`${targetNo}. Koşu `:''}Güncel Analiz sonucu oluşmadı.`);
+ try{if(window.ATDegreeSpeedF6090?.enrichCurrent)await window.ATDegreeSpeedF6090.enrichCurrent()}catch{}try{window.ATDegreePredictionAuditF609430?.ensureEveryHorse?.(c)}catch{}return c
+}
 async function compute(no){
  if(busy)return;busy=true;setButtons(true);
  try{
   const date=dateNow(),city=cityNow(),pr=programRaceFor(no);if(!date||!city||!pr)throw new Error('Önce günün programını yükleyin ve bir koşu seçin.');
-  setPanelStatus(`${no}. Koşu · Güncel Analiz kontrol ediliyor…`);await ensureAnalysis();const cr=currentRaceFor(no);if(!cr)throw new Error(`${no}. Koşu Güncel Analiz içinde bulunamadı.`);
+  setPanelStatus(`${no}. Koşu · Güncel Analiz kontrol ediliyor…`);await ensureAnalysis(no);const cr=currentRaceFor(no);if(!cr)throw new Error(`${no}. Koşu Güncel Analiz içinde bulunamadı.`);
   const horses=(pr.horses||[]).map(h=>({program:h,analysis:matchAnalysisHorse(cr,h),name:h.name,no:h.no,currentRank:null,F:formScore(h.last6),O:null,G:null,D:null,J:null,S:null,A:null,E:null,TBase:null,T:null,context:null}));
   const order=[...(cr.horses||[])];for(const r of horses){const ix=order.findIndex(x=>Number(x?.no)===Number(r.no)||fold(x?.name)===fold(r.name));r.currentRank=ix>=0?ix+1:null}
   degreeScores(horses);if(window.ATHistoryFormBridge?.apply)await window.ATHistoryFormBridge.apply(horses,{date,city,distance:pr.distance||pr.mes||pr.mesafe,track:pr.track||pr.pist});
