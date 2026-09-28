@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION='TJK-FOG-HORSE-V1.12-VERIFIED-CONNECTIONS';
+const VERSION='TJK-FOG-HORSE-V1.13-ORIGIN-LINEAGE';
 const TJK='https://www.tjk.org';
 const TIMEOUT=10000;
 const ROLE_TIMEOUT=18000;
@@ -14,7 +14,7 @@ const HEADERS={
 function clean(v=''){return String(v??'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim()}
 function fold(v=''){return clean(v).toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/İ/g,'I').replace(/[^A-Z0-9]+/g,'')}
 function headerKey(v=''){return fold(v)}
-function tjkUrl(raw){if(!raw)return null;try{let s=clean(raw).replace(/&amp;/gi,'&').replace(/[\u200B-\u200D\uFEFF]/g,'');if(!/^https?:\/\//i.test(s))s=new URL(s,TJK).toString();const u=new URL(s);if(!/(^|\.)tjk\.org$/i.test(u.hostname))return null;for(const [k,v] of [...u.searchParams.entries()])u.searchParams.set(k,clean(v));return u}catch{return null}}
+function tjkUrl(raw){if(!raw)return null;try{let s=clean(raw).replace(/&amp;/gi,'&').replace(/[\u200B-\u200D\uFEFF]/g,'');if(!/^https?:\/\//i.test(s))s=new URL(s,TJK).toString();const u=new URL(s);if(!/(^|\.)tjk\.org$/i.test(u.hostname))return null;if(/^\/Query\//i.test(u.pathname))u.pathname='/TR/YarisSever'+u.pathname;for(const [k,v] of [...u.searchParams.entries()])u.searchParams.set(k,clean(v));return u}catch{return null}}
 function idFrom(u,names){if(!u)return'';for(const n of names){const v=u.searchParams.get(n);if(v&&/^\d+$/.test(v))return v}return''}
 function originRefs(src){const $=cheerio.load(src||''),out={sire:{name:'',id:'',url:''},dam:{name:'',id:'',url:''},damSire:{name:'',code:'',url:''}};$('a[href]').each((_,a)=>{const href=$(a).attr('href')||'',u=tjkUrl(href),name=clean($(a).text());if(!u)return;const bid=idFrom(u,['QueryParameter_BabaId','BabaId']);if(bid&&!out.sire.id)out.sire={name,id:bid,url:u.toString()};const aid=idFrom(u,['QueryParameter_AnneId','AnneId']);if(aid&&!out.dam.id)out.dam={name,id:aid,url:u.toString()};const code=idFrom(u,['QueryParameter_KisrakBabaKodu','KisrakBabaKodu']);if(code&&!out.damSire.code)out.damSire={name,code,url:u.toString()}});return out}
 function num(v){const s=clean(v);if(!s)return null;const n=Number(s.replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''));return Number.isFinite(n)?n:null}
@@ -121,7 +121,9 @@ export default async function handler(req,res){
   const dst=ds.html?(findTable(ds.html,['KISRAKBABASI','KOSU'])||findTable(ds.html,['KOSU'])||tables(ds.html)[0]||null):null,dsrow=dst?bestMatch(dst.rows,damSire,['Kısrak Babası','Kisrak Babasi']):null,damSireData=damSireStrength(dsrow);
   const mt=d.html?(findTable(d.html,['KISRAK','KOSANTAY'])||findTable(d.html,['KOSANTAY'])||tables(d.html)[0]||null):null,mrow=mt?bestMatch(mt.rows,dam,['Kısrak']):null,damData=mareStrength(mrow);
   const originScore=weighted([{value:sireData?.score,weight:.5},{value:damSireData?.score,weight:.3},{value:damData?.score,weight:.2}]);
-  const errors={workout:w.ok?null:w.error||'AtId yok',sire:sireData?null:(s.error||'Baba istatistiği bulunamadı'),dam:damData?null:(d.error||'Kısrak istatistiği bulunamadı'),damSire:ds.ok?null:ds.error||'Kısrak babası yok'};
+  const sireRows=st?.rows||[],damRows=mt?.rows||[],damSireRows=dst?.rows||[];
+  const lineageReady=(key,rows)=>section===key&&rows.length>0;
+  const errors={workout:w.ok?null:w.error||'AtId yok',sire:sireData||lineageReady('sire',sireRows)?null:(s.error||'Baba istatistiği bulunamadı'),dam:damData||lineageReady('dam',damRows)?null:(d.error||'Kısrak istatistiği bulunamadı'),damSire:damSireData||lineageReady('damSire',damSireRows)?null:(ds.error||'Kısrak babası bulunamadı')};
   const jockeyData=jr.ok?connectionStrength(jr.html,'jockey',raceDate,jockeyName):null;
   const ownerData=ow.ok?connectionStrength(ow.html,'owner',raceDate,ownerName):null;
   const trainerData=tr.ok?connectionStrength(tr.html,'trainer',raceDate,trainerName):null;
@@ -132,7 +134,6 @@ export default async function handler(req,res){
   };
   const connectionScore=weighted([{value:jockeyData?.score,weight:.5},{value:ownerData?.score,weight:.2},{value:trainerData?.score,weight:.3}]);
   const connections={attempted:true,verified:[jockeyData,ownerData,trainerData].filter(Boolean).length,score:connectionScore,weights:{jockey:.5,owner:.2,trainer:.3},jockey:jockeyData,owner:ownerData,trainer:trainerData,ids:{jockeyId:jockeyId||null,ownerId:ownerId||null,trainerId:trainerId||null},errors:connectionErrors};
-  const sireRows=st?.rows||[],damRows=mt?.rows||[],damSireRows=dst?.rows||[];
   const originComplete=!Object.values(errors).some(Boolean),connectionsComplete=!Object.values(connectionErrors).some(Boolean),complete=originComplete&&connectionsComplete;
   return res.status(200).json({
     ok:true,version:VERSION,complete,originComplete,connectionsComplete,horse,atId:atId||null,raceDate,profile,
