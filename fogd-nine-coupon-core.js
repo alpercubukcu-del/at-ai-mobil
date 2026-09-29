@@ -3,7 +3,7 @@
 'use strict';
 if(root.ATFogdNineCouponCoreV1)return;
 
-const VERSION='FOGD-NINE-COUPON-CORE-V17.2';
+const VERSION='FOGD-NINE-COUPON-CORE-V17.3';
 const TARGET_CAPTURE=.85;
 const MODELS=[
   {id:'dna-f',key:'F',short:'F',label:'F · Form',minCoverage:.85},
@@ -111,7 +111,7 @@ function recommendWidth(rankingInput,profile={},options={}){
   if(strongBefore)width=strongBefore.boundary;
   while(width<maxWidth&&score(width-1)-score(width)<2.5)width++;
   const boundaryGap=width<n?score(width-1)-score(width):null;
-  const reason=singleQualified?`lider farkı ${leaderGap.toFixed(1)}; tek adayı`:
+  const reason=singleQualified?`lider farkı ${leaderGap.toFixed(1)}; güvenli tek`:
     strongBefore?`${strongBefore.boundary}. sırada ${strongBefore.gap.toFixed(1)} puan kırılması`:
     learned?`geçmiş %${Math.round(TARGET_CAPTURE*100)} yakalama hedefi · ilk ${width}`:
     `öğrenme dönemi · puan bandı ilk ${width}`;
@@ -120,9 +120,52 @@ function recommendWidth(rankingInput,profile={},options={}){
 
 function ticketMoney(counts,unitPrice){const combinations=product(counts);return{combinations,cost:Number((combinations*Math.max(.01,Number(unitPrice)||1)).toFixed(2))}}
 
+function buildAllRacesTemplate({modelId,races,snapshotsByRace,profiles,eligibleByRace,maxWidth=5}){
+  const model=modelById(modelId),profile=profiles?.[modelId]||profileFromSnapshots([],model);
+  const templateBase={
+    version:'FOGD-ALL-RACES-TEMPLATE-V17.3',couponMode:'FOGD_ALL_RACES_V173',scoreVersion:VERSION,
+    modelId:model?.id||modelId,modelKey:model?.key||'',modelLabel:model?.label||modelId,
+    available:false,complete:false,profile,allRaces:true
+  };
+  if(!model)return{...templateBase,error:'Bilinmeyen puan modeli.',legs:[]};
+  const ordered=(Array.isArray(races)?races:[]).slice().sort((a,b)=>(Number(a?.no)||0)-(Number(b?.no)||0));
+  if(!ordered.length)return{...templateBase,error:'Programda koşu bulunamadı.',legs:[]};
+  const legs=ordered.map(race=>{
+    const raceNo=Number(race?.no)||0;
+    const snapshot=snapshotsByRace&&typeof snapshotsByRace.get==='function'?snapshotsByRace.get(String(raceNo)):null;
+    const eligible=eligibleByRace&&typeof eligibleByRace.get==='function'?eligibleByRace.get(String(raceNo)):null;
+    const ranked=rankSnapshot(snapshot,model,eligible);
+    if(!snapshot||!ranked.usable){
+      return{
+        raceNo,raceClass:race?.class||'',distance:race?.distance||'',track:race?.track||'',time:race?.time||'',
+        available:false,coverage:ranked.coverage||0,selections:[],ranking:ranked.ranking.map((r,j)=>({no:r.horse.no,name:r.horse.name,id:r.horse.id,score:r.score,rank:j+1})),
+        error:!snapshot?'Yarış DNA kaydı yok.':ranked.error||`${model.short} puanı kullanılamıyor.`
+      };
+    }
+    const cut=recommendWidth(ranked.ranking,profile,{coverage:ranked.coverage,maxWidth});
+    const selectedWidth=cut.singleQualified?1:Math.max(1,Math.min(ranked.ranking.length,cut.width||2));
+    return{
+      raceNo,raceClass:race?.class||'',distance:race?.distance||'',track:race?.track||'',time:race?.time||'',
+      available:true,coverage:ranked.coverage,single:selectedWidth===1,
+      cut:{...cut,selectedWidth,automatic:true},
+      selections:ranked.ranking.slice(0,selectedWidth).map((r,j)=>({no:r.horse.no,name:r.horse.name,id:r.horse.id,score:r.score,modelRank:j+1,coverage:ranked.coverage,analysisMode:model.key})),
+      ranking:ranked.ranking.map((r,j)=>({no:r.horse.no,name:r.horse.name,id:r.horse.id,score:r.score,rank:j+1}))
+    };
+  });
+  const ready=legs.filter(x=>x.available).length,missing=legs.length-ready;
+  const warnings=[];
+  if(profile.sample<20)warnings.push(`${model.short} geçmiş kalibrasyonu ${profile.sample} koşu; kesim öğrenme döneminde ilk 3 bandından başlar.`);
+  else warnings.push(`${model.short} geçmiş ${profile.sample} koşu: İlk1 %${Math.round(profile.rates[1]*100)} · İlk2 %${Math.round(profile.rates[2]*100)} · İlk3 %${Math.round(profile.rates[3]*100)} · İlk4 %${Math.round(profile.rates[4]*100)} · İlk5 %${Math.round(profile.rates[5]*100)}.`);
+  if(missing)warnings.push(`${missing} koşu veri kapsamı nedeniyle şablonda uyarı olarak gösterildi; başka puan sütunuyla doldurulmadı.`);
+  return{
+    ...templateBase,available:ready>0,complete:missing===0,readyRaces:ready,totalRaces:legs.length,missingRaces:missing,
+    selectionsTotal:legs.reduce((sum,x)=>sum+(x.selections?.length||0),0),warnings,legs,generatedAt:new Date().toISOString()
+  };
+}
+
 function buildModelTicket({plan,type,modelId,snapshotsByRace,profiles,budget=500,unitPrice=1,maxSingles=1,eligibleByRace}){
   const model=modelById(modelId),profile=profiles?.[modelId]||profileFromSnapshots([],model);
-  const ticketBase={version:'FIVE-TICKET-MODELS-V11.0',couponMode:'FOGD_NINE_V172',scoreVersion:VERSION,type:type||plan?.desc?.type||'Bahis',modelId:model?.id||modelId,modelLabel:model?.label||modelId,available:false,budget:Number(budget)||500,unitPrice:Number(unitPrice)||1,profile};
+  const ticketBase={version:'FIVE-TICKET-MODELS-V11.0',couponMode:'FOGD_OFFICIAL_BET_V173',scoreVersion:VERSION,type:type||plan?.desc?.type||'Bahis',modelId:model?.id||modelId,modelLabel:model?.label||modelId,available:false,budget:Number(budget)||500,unitPrice:Number(unitPrice)||1,profile};
   if(!model)return{...ticketBase,error:'Bilinmeyen puan modeli.'};
   if(!plan?.ok)return{...ticketBase,error:plan?.error||'Bahis başlangıcı bulunamadı.'};
   const legsData=(plan.legs||[]).map(race=>{
@@ -168,5 +211,5 @@ function buildModelTicket({plan,type,modelId,snapshotsByRace,profiles,budget=500
   return{...ticketBase,available:true,startRace:plan.startRace,startLabel:plan.startLabel,startInferred:plan.inferred,requestedSingles:singleLimit,actualSingles:legs.filter(x=>x.single).length,combinations:money.combinations,cost:money.cost,overBudget:money.cost>budget,minimumCostExceeded:money.cost>budget,warnings,legs,generatedAt:new Date().toISOString()};
 }
 
-root.ATFogdNineCouponCoreV1={VERSION,TARGET_CAPTURE,MODELS,finite,modelById,scoreFor,rankSnapshot,profileFromSnapshots,recommendWidth,ticketMoney,buildModelTicket};
+root.ATFogdNineCouponCoreV1={VERSION,TARGET_CAPTURE,MODELS,finite,modelById,scoreFor,rankSnapshot,profileFromSnapshots,recommendWidth,ticketMoney,buildAllRacesTemplate,buildModelTicket};
 })(typeof globalThis!=='undefined'?globalThis:this);

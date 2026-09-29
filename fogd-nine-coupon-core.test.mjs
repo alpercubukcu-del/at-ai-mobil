@@ -87,30 +87,144 @@ test('a model is unavailable when its score coverage is below the declared thres
   assert.match(ticket.error,/kapsamı/);
 });
 
-test('browser runtime installs the nine-model route and updates menu copy',()=>{
-  const classes=()=>({add(){},remove(){},toggle(){}});
-  const elements={
-    tickets:{classList:classes(),textContent:'',innerHTML:'',querySelectorAll(){return[]}},
-    buildAllBtn:{disabled:false,textContent:'',insertAdjacentElement(){}},
-    couponMenuBtn:{addEventListener(){}},
-    couponCenterDialog:{open:false}
+test('all-races template keeps every program race and exposes missing data inline',()=>{
+  const races=[{no:1,horses:[{no:1},{no:2},{no:3}]},{no:2,horses:[{no:1},{no:2},{no:3}]},{no:3,horses:[{no:1},{no:2},{no:3}]}];
+  const map=new Map([
+    ['1',snapshot([90,87,84],'F',1)],
+    ['2',{...snapshot([88,75,63],'F',1),raceNo:2}]
+  ]);
+  const template=core.buildAllRacesTemplate({modelId:'dna-f',races,snapshotsByRace:map,profiles:{'dna-f':core.profileFromSnapshots([],'dna-f')}});
+  assert.equal(template.legs.length,3);
+  assert.equal(template.readyRaces,2);
+  assert.equal(template.complete,false);
+  assert.equal(template.legs[2].raceNo,3);
+  assert.equal(template.legs[2].available,false);
+  assert.match(template.legs[2].error,/Yarış DNA kaydı yok/);
+});
+
+test('each all-races template ranks only its own score column',()=>{
+  const s={
+    date:'2026-01-01',city:'TEST',raceNo:1,
+    rows:[
+      {no:1,name:'F LİDERİ',F:92,A:55,connectionMeta:{verified:3}},
+      {no:2,name:'A LİDERİ',F:60,A:94,connectionMeta:{verified:3}},
+      {no:3,name:'DİĞER',F:50,A:50,connectionMeta:{verified:3}}
+    ]
   };
-  const note={innerHTML:''},rule={textContent:''};
+  const args={races:[{no:1,horses:[{no:1},{no:2},{no:3}]}],snapshotsByRace:new Map([['1',s]]),profiles:{}};
+  const f=core.buildAllRacesTemplate({...args,modelId:'dna-f'});
+  const a=core.buildAllRacesTemplate({...args,modelId:'dna-a'});
+  assert.equal(f.legs[0].ranking[0].no,1);
+  assert.equal(a.legs[0].ranking[0].no,2);
+});
+
+test('all-races critical cut can make a safe single without an official bet plan',()=>{
+  const s=snapshot([90,70,68],'T',1);
+  const template=core.buildAllRacesTemplate({
+    modelId:'dna-t',races:[{no:1,horses:[{no:1},{no:2},{no:3}]}],
+    snapshotsByRace:new Map([['1',s]]),profiles:{'dna-t':core.profileFromSnapshots([],'dna-t')}
+  });
+  assert.equal(template.available,true);
+  assert.equal(template.legs[0].single,true);
+  assert.equal(template.legs[0].selections.length,1);
+  assert.match(template.legs[0].cut.reason,/güvenli tek/);
+});
+
+test('browser runtime replaces the legacy menu route and renders nine all-races templates',async()=>{
+  const runtimeSource=fs.readFileSync(new URL('./fogd-nine-coupon-v173.js',import.meta.url),'utf8');
+  assert.match(runtimeSource,/FOGD-NINE-COUPON-V17\.3/);
+  assert.match(runtimeSource,/fogdAllRacesBuildV173/);
+  assert.match(runtimeSource,/9 BAĞIMSIZ TÜM-KOŞU ŞABLONU/);
+  assert.match(runtimeSource,/F · O · G · D · J · S · E · A · T/);
+  assert.match(runtimeSource,/YARIŞ DNA · KUPON ŞABLONLARI/);
+  assert.match(runtimeSource,/#090b0d/);
+  assert.match(runtimeSource,/#a70e15/);
+  assert.match(runtimeSource,/replaceWith\(fresh\)/);
+  assert.doesNotMatch(runtimeSource,/alert\s*\(/);
+  assert.doesNotMatch(runtimeSource,/buildAllBtn/);
+  assert.doesNotMatch(runtimeSource,/Kariyer|Hazırlık/);
+
+  class ClassList{
+    constructor(){this.values=new Set()}
+    add(...values){values.forEach(value=>this.values.add(value))}
+    remove(...values){values.forEach(value=>this.values.delete(value))}
+    contains(value){return this.values.has(value)}
+  }
+  class Element{
+    constructor(tag,doc){this.tagName=tag.toUpperCase();this.doc=doc;this.dataset={};this.classList=new ClassList();this.listeners={};this.attributes={};this.children=[];this.open=false;this.textContent='';this._id='';this._innerHTML=''}
+    set id(value){if(this._id)this.doc.elements.delete(this._id);this._id=value;if(value)this.doc.elements.set(value,this)}
+    get id(){return this._id}
+    set className(value){this.classList=new ClassList();String(value).split(/\s+/).filter(Boolean).forEach(x=>this.classList.add(x))}
+    get className(){return[...this.classList.values].join(' ')}
+    set innerHTML(value){
+      this.children.forEach(child=>child.unregister());this.children=[];this._innerHTML=String(value);
+      for(const match of this._innerHTML.matchAll(/<([a-z0-9-]+)([^>]*?)\sid="([^"]+)"([^>]*)>/gi)){
+        const child=new Element(match[1],this.doc),attrs=`${match[2]} ${match[4]}`,classMatch=attrs.match(/class="([^"]+)"/i);
+        child.id=match[3];if(classMatch)child.className=classMatch[1];child.parent=this;this.children.push(child);
+      }
+    }
+    get innerHTML(){return this._innerHTML}
+    unregister(){this.children.forEach(child=>child.unregister());if(this.id)this.doc.elements.delete(this.id)}
+    appendChild(child){child.parent=this;this.children.push(child);if(child.id)this.doc.elements.set(child.id,child);return child}
+    replaceWith(next){this.unregister();if(this.id)this.doc.elements.delete(this.id);this.doc.elements.set(next.id,next)}
+    cloneNode(){const next=new Element(this.tagName,this.doc);next.id=this.id;next.textContent=this.textContent;next.className=this.className;next.dataset={...this.dataset};next.attributes={...this.attributes};return next}
+    setAttribute(name,value){this.attributes[name]=String(value);if(name==='id')this.id=String(value)}
+    removeAttribute(name){delete this.attributes[name]}
+    addEventListener(type,handler){(this.listeners[type]||=[]).push(handler)}
+    dispatch(type){for(const handler of this.listeners[type]||[])handler({target:this,preventDefault(){},stopPropagation(){}})}
+    querySelector(selector){if(selector.startsWith('.'))return this.children.find(child=>child.classList.contains(selector.slice(1)))||null;return null}
+    querySelectorAll(){return[]}
+    showModal(){this.open=true}
+    close(){this.open=false;(this.listeners.close||[]).forEach(handler=>handler())}
+    scrollTo(){}
+  }
   const document={
-    head:{appendChild(node){if(node.id)elements[node.id]=node}},
-    getElementById(id){return elements[id]||null},
-    querySelector(selector){if(selector.includes('five-model-note'))return note;if(selector.includes('ticket-rule'))return rule;return null},
-    querySelectorAll(){return[]},
-    createElement(){return{id:'',className:'',textContent:'',style:{},classList:classes()}}
+    elements:new Map(),
+    getElementById(id){return this.elements.get(id)||null},
+    createElement(tag){return new Element(tag,this)},
+    addEventListener(){},
+    documentElement:{classList:new ClassList()}
   };
-  const runtime={document,state:{tickets:[],races:[],analyses:{}},console,setTimeout,clearTimeout};
-  runtime.window=runtime;
-  runtime.addEventListener=()=>{};
-  vm.createContext(runtime);
-  vm.runInContext(source,runtime);
-  vm.runInContext(fs.readFileSync(new URL('./fogd-nine-coupon-v172.js',import.meta.url),'utf8'),runtime);
-  assert.equal(runtime.ATFogdNineCouponV172.models.length,9);
-  assert.equal(runtime.ATCouponFiveModelCalibratedV631.buildAll,runtime.ATFogdNineCouponV172.build);
-  assert.match(note.innerHTML,/9 BAĞIMSIZ PUAN KUPONU/);
-  assert.equal(elements.buildAllBtn.textContent,'9 Puan Modelinden Kupon Oluştur');
+  document.head=new Element('head',document);document.body=new Element('body',document);
+  const oldDialog=new Element('dialog',document);oldDialog.id='couponCenterDialog';oldDialog.innerHTML='<button id="buildAllBtn">Eski Kupon</button>';
+  const oldMenu=new Element('button',document);oldMenu.id='couponMenuBtn';oldMenu.textContent='6. Kupon Oluştur';
+  const rows=(shift=0)=>[
+    {no:1,name:'BİR',F:90-shift,O:80,G:84,D:88,J:77,S:72,E:76,A:79,T:87,connectionMeta:{verified:3}},
+    {no:2,name:'İKİ',F:82,O:91-shift,G:78,D:81,J:88,S:83,E:85,A:90,T:84,connectionMeta:{verified:3}},
+    {no:3,name:'ÜÇ',F:70,O:72,G:90-shift,D:75,J:70,S:91,E:80,A:74,T:79,connectionMeta:{verified:3}}
+  ];
+  const stored=[
+    {key:'2026-09-29|ISTANBUL|1',date:'2026-09-29',city:'İstanbul',raceNo:1,rows:rows()},
+    {key:'2026-09-29|ISTANBUL|2',date:'2026-09-29',city:'İstanbul',raceNo:2,rows:rows(2)}
+  ];
+  const fakeDb={
+    objectStoreNames:{contains(){return true}},
+    transaction(){return{objectStore(){return{
+      getAll(){const q={};queueMicrotask(()=>{q.result=stored;q.onsuccess?.()});return q},
+      get(key){const q={};queueMicrotask(()=>{q.result=stored.find(x=>x.key===key)||null;q.onsuccess?.()});return q}
+    }}}}
+  };
+  const indexedDB={open(){const q={result:fakeDb};queueMicrotask(()=>q.onsuccess?.());return q}};
+  const listeners={};let alertCount=0;
+  const runtime={document,console,indexedDB,alert(){alertCount++},state:{date:'2026-09-29',city:'34',cities:[{id:'34',name:'İstanbul'}],races:[{no:1,time:'14:00',class:'ŞARTLI',distance:1400,track:'Kum',horses:[{no:1},{no:2},{no:3}]},{no:2,time:'14:30',class:'HANDİKAP',distance:1600,track:'Çim',horses:[{no:1},{no:2},{no:3}]}],analyses:{}},getCityName:()=> 'İstanbul'};
+  runtime.window=runtime;runtime.addEventListener=(type,handler)=>{(listeners[type]||=[]).push(handler)};
+  vm.createContext(runtime);vm.runInContext(source,runtime);vm.runInContext(runtimeSource,runtime);
+  assert.equal(runtime.ATFogdNineCouponV173.models.length,9);
+  assert.equal(document.getElementById('buildAllBtn'),null);
+  assert.ok(document.getElementById('fogdAllRacesBuildV173'));
+  assert.match(document.getElementById('couponCenterDialog').innerHTML,/YARIŞ DNA · KUPON ŞABLONLARI/);
+  document.getElementById('couponMenuBtn').dispatch('click');
+  assert.equal(document.getElementById('couponCenterDialog').open,true);
+  assert.equal(document.documentElement.classList.contains('fogd-coupon-full-open'),true);
+  const templates=await runtime.ATFogdNineCouponV173.build();
+  assert.equal(templates.length,9);
+  assert.deepEqual(Array.from(templates,x=>x.modelKey),['F','O','G','D','J','S','E','A','T']);
+  assert.equal(templates.every(x=>x.legs.length===2),true);
+  assert.match(document.getElementById('fogdCouponStatusV173').textContent,/9\/9 sütun şablonu/);
+  assert.match(document.getElementById('fogdCouponTabsV173').innerHTML,/data-fogd-tab-v173="dna-f"/);
+  assert.match(document.getElementById('fogdCouponTemplatesV173').innerHTML,/1\. Koşu/);
+  assert.match(document.getElementById('fogdCouponTemplatesV173').innerHTML,/2\. Koşu/);
+  assert.equal(alertCount,0);
+  runtime.ATFogdNineCouponV173.close();
+  assert.equal(document.getElementById('couponCenterDialog').open,false);
 });
