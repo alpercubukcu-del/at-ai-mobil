@@ -3,6 +3,8 @@ const R=__dirname,BASE=path.join(R,'build-runtime-v1691f773.cjs'),APP=path.join(
 for(const f of[BASE,DNA,COUPON_CORE,CONDITION_CORE,CONDITION,COUPON])if(!fs.existsSync(f))throw new Error('[V17 CLEAN] missing '+path.basename(f));
 const directory=fs.readFileSync(path.join(R,'archive-directory-v1741.js'),'utf8');
 new Function(directory);
+const program=fs.readFileSync(path.join(R,'archive-program-v1742.js'),'utf8');
+new Function(program);
 const maintenance=fs.readFileSync(path.join(R,'track-maintenance-archive-v1741.js'),'utf8');
 new Function(maintenance);
 const dna=fs.readFileSync(DNA,'utf8'),couponCore=fs.readFileSync(COUPON_CORE,'utf8'),coupon=fs.readFileSync(COUPON,'utf8'),conditionCore=fs.readFileSync(CONDITION_CORE,'utf8'),condition=fs.readFileSync(CONDITION,'utf8');
@@ -14,7 +16,19 @@ new Function(conditionCore);
 new Function(condition);
 new Function(coupon);
 execFileSync(process.execPath,[BASE],{cwd:R,stdio:'inherit'});
-let app=directory.trim()+'\n\n'+fs.readFileSync(APP,'utf8');
+let app=directory.trim()+'\n\n'+program.trim()+'\n\n'+fs.readFileSync(APP,'utf8');
+// Capture official main-page payloads before normalization discards their scope.
+const programAnchor='function getCurrentRaceList(data,cityId){';
+if(!app.includes(programAnchor))throw Error('[V17 CLEAN] main program capture boundary missing');
+app=app.replace(programAnchor,programAnchor+'window.ATArchiveProgramV1742.remember(data);');
+// Do not publish the previous city's horses while a new city is loading.
+const cityAnchor='async function changeCity(cityId){state.city=String(cityId);';
+if(!app.includes(cityAnchor))throw Error('[V17 CLEAN] city-change boundary missing');
+app=app.replace(cityAnchor,cityAnchor+'state.races=[];');
+const programReady='state.races=await enrichProgramRaceMeta(state.races);';
+if(app.split(programReady).length<3)throw Error('[V17 CLEAN] program provenance boundaries missing');
+let provenanceCount=0;
+app=app.replaceAll(programReady,()=>programReady+(provenanceCount++<2?'state.programDate=date;state.programCity=String(state.city);':''));
 // Replace the first executing maintenance module after the historical build steps.
 // Later compatibility copies retain their original guard and cannot replace this API.
 const maintenanceMarker=app.indexOf("const VERSION='TRACK-MAINT-ARCHIVE-V16.9.1F60.89';");
@@ -37,7 +51,7 @@ for(const token of['FOGD-NINE-COUPON-CORE-V17.3','FOGD-ALL-RACES-TEMPLATE-V17.3'
 for(const forbidden of['id="buildAllBtn"','Kupon kaynağı: Kariyer/Hazırlık'])if(coupon.includes(forbidden))throw new Error('[V17 CLEAN] legacy coupon route leaked into V17.3 runtime: '+forbidden);
 new Function(app);
 fs.writeFileSync(APP,app,'utf8');
-for(const token of['ARCHIVE-DIRECTORY-V17.4.1','ARCHIVE-MENU-V17.4.1','TRACK-LONGTERM-ARCHIVE-V17.4.1','TRACK-MAINT-ARCHIVE-V17.4.1'])if(!app.includes(token))throw Error('[V17 CLEAN] archive menu fix missing '+token);
-let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1700401');
+for(const token of['ARCHIVE-PROGRAM-V17.4.2','ARCHIVE-DIRECTORY-V17.4.1','ARCHIVE-MENU-V17.4.2','TRACK-LONGTERM-ARCHIVE-V17.4.1','TRACK-MAINT-ARCHIVE-V17.4.1'])if(!app.includes(token))throw Error('[V17 CLEAN] archive menu fix missing '+token);
+let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1700402');
 fs.writeFileSync(INDEX,html,'utf8');
 console.log('[AT AI] V17.4 verified: one V17 DNA engine + nine independent column templates + isolated condition-aware tenth method');
