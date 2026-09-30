@@ -1,0 +1,172 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+
+const dnaSource = fs.readFileSync(new URL('../fogd-score-center-v1691f721.js', import.meta.url), 'utf8');
+const degreeSource = fs.readFileSync(new URL('../degree-speed-shadow-v1691f690.js', import.meta.url), 'utf8');
+const surfaceSource = fs.readFileSync(new URL('../degree-speed-surface-fix-v1691f691.js', import.meta.url), 'utf8');
+const date = '2026-09-30', city = 'İstanbul';
+const copy = value => JSON.parse(JSON.stringify(value));
+const tick = () => new Promise(resolve => setImmediate(resolve));
+function deferred() { let release; const promise = new Promise(resolve => { release = resolve; }); return {promise, release}; }
+function fixture() {
+  const horses = [1, 2, 3].map(no => ({no, id: String(no), name: `AT ${no}`, last6: '333333', origin: ''}));
+  const race = {no: 1, distance: 1400, track: 'Sentetik', class: 'ŞARTLI 4', horses};
+  const current = {date, city: '3', cityName: city, races: [{no: 1, horses: horses.map((h, i) => ({...h, history: {degreeSamples: []}, degreeModel: {predictedSec: 90 + i}}))}]};
+  return {date, city: '3', cityName: city, races: [race], analyses: {current}};
+}
+function runtime({state = fixture(), enrich, run, track, fetchContext, loadDegree = false, loadSurface = false, calibration = []} = {}) {
+  const saved = [], messages = [], elements = new Map();
+  elements.set('fogdStatusF609431', {set textContent(value) {messages.push(value);}});
+  elements.set('analysisRace', {value: 'all', options: [{value: 'all'}, {value: '1'}]});
+  const window = {
+    addEventListener() {}, dispatchEvent() {},
+    AT_AI_LOCAL_ARCHIVE: {ready: () => false, saveFogdAnalysis: async value => {saved.push(copy(value)); return true;}}
+  };
+  if (enrich) window.ATDegreeSpeedF6090 = {enrichCurrent: () => enrich(state.analyses.current, state)};
+  if (track) window.ATTrackMaintenanceV1 = {infer: track};
+  const context = vm.createContext({window, state, getCityName: () => state.cityName,
+    document: {readyState: 'loading', addEventListener() {}, getElementById: id => elements.get(id) || null},
+    indexedDB: {open(name) {
+      if (name !== 'at_ai_degree_calibration_v1') throw Error('storage unavailable');
+      const q = {}; queueMicrotask(() => {q.result = {objectStoreNames: {contains: () => true}, close() {}, transaction: () => ({objectStore: () => ({getAll: () => {const request = {}; queueMicrotask(() => {request.result = copy(calibration); request.onsuccess();}); return request;}})})}; q.onsuccess();}); return q;
+    }},
+    URL, AbortController, structuredClone, Date, console: {info() {}, warn() {}},
+    setTimeout: (fn, ms) => {const timer = setTimeout(fn, ms); if (ms >= 1000) timer.unref(); return timer;}, clearTimeout,
+    save() {}, gRenderCurrentV1657() {},
+    gRunCurrentV1657: run ? () => run(state) : async () => {},
+    fetch: async input => {
+      const url = new URL(input, 'https://test.invalid');
+      const data = url.pathname.includes('fog-horse') ? await (fetchContext?.(url) || {ok: true, connections: {attempted: true}, origin: null, workout: null}) : {ok: true, races: []};
+      return {ok: true, json: async () => data};
+    }, location: {origin: 'https://test.invalid'}
+  });
+  if (loadDegree) vm.runInContext(degreeSource, context);
+  if (loadSurface) vm.runInContext(surfaceSource, context);
+  vm.runInContext(dnaSource, context);
+  return {state, window, api: window.ATFogdScoreCenterF609431, saved, messages, elements, context};
+}
+const predictions = snapshot => snapshot.rows.map(({no, F, O, G, D, J, S, A, E, T, predictedSec, degreeRank, totalRank}) => ({no, F, O, G, D, J, S, A, E, T, predictedSec, degreeRank, totalRank}));
+
+test('DNA waits for degree enrichment and cold/warm runs have identical scores and order', async () => {
+  const gate = deferred(); let starts = 0;
+  const r = runtime({enrich: async current => {starts++; await gate.promise; current.races[0].horses.forEach((h, i) => {h.degreeModel.predictedSec = 92 - i;});}});
+  const first = r.api.compute(1); await tick();
+  assert.equal(starts, 1);
+  assert.equal(r.saved.length, 0, 'no provisional degree may be saved as a final prediction');
+  gate.release(); await first;
+  await r.api.compute(1); await r.api.compute(1);
+  assert.equal(r.saved.length, 3);
+  assert.deepEqual(r.saved[0].rows.map(h => h.no), [3, 2, 1]);
+  assert.deepEqual(predictions(r.saved[0]), predictions(r.saved[1]));
+  assert.deepEqual(predictions(r.saved[1]), predictions(r.saved[2]));
+});
+
+test('a newly published current result is not used until the full current-analysis run finishes', async () => {
+  const state = fixture(), current = state.analyses.current; state.analyses.current = null;
+  const gate = deferred();
+  const r = runtime({state, run: async state => {state.analyses.current = current; await gate.promise; current.races[0].horses.forEach((h, i) => {h.degreeModel.predictedSec = 92 - i;});}});
+  const pending = r.api.compute(1); await tick(); await new Promise(resolve => setTimeout(resolve, 150));
+  assert.equal(r.saved.length, 0, 'publishing the base result does not complete its degree model');
+  assert.equal(r.elements.get('analysisRace').value, '1');
+  gate.release(); await pending;
+  assert.equal(r.saved.length, 1);
+  assert.deepEqual(r.saved[0].rows.map(h => h.no), [3, 2, 1]);
+  assert.equal(r.elements.get('analysisRace').value, 'all');
+});
+
+test('degree failures stop the run instead of saving a provisional or stale final prediction', async () => {
+  const r = runtime({enrich: async () => {throw Error('degree data unavailable');}});
+  await r.api.compute(1);
+  assert.equal(r.saved.length, 0);
+  assert.match(r.messages.at(-1), /degree data unavailable/);
+});
+
+test('local degree fallbacks do not mutate the shared current result', async () => {
+  const state = fixture(); delete state.analyses.current.races[0].horses[0].degreeModel;
+  const original = copy(state.analyses.current);
+  const r = runtime({state}); await r.api.compute(1);
+  assert.equal(r.saved.length, 1);
+  assert.deepEqual(state.analyses.current, original);
+});
+
+test('an in-flight DNA run rejects a changed program and never saves under the previous city', async () => {
+  const gate = deferred();
+  const r = runtime({enrich: async () => {await gate.promise;}});
+  const pending = r.api.compute(1); await tick();
+  r.state.city = '4'; r.state.cityName = 'Bursa'; gate.release(); await pending;
+  assert.equal(r.saved.length, 0);
+  assert.match(r.messages.at(-1), /Program.*değişti/i);
+});
+
+test('D uses the same captured track context as the completed degree model', async () => {
+  let calls = 0;
+  const context = {source: 'EXACT_TJK', confidence: 1, weather: {temperatureAnomaly: 0}, maintenance: {signalCount: 5}};
+  const r = runtime({enrich: async current => {current.degreeSpeed = {trackContext: context};}, track: async () => {calls++; return null;}});
+  await r.api.compute(1); await r.api.compute(1);
+  assert.equal(r.saved.length, 2);
+  assert.equal(calls, 0, 'degree and FOGD must not independently resolve different track contexts');
+  assert.equal(r.saved[0].rows[0].dMeta.trackSource, 'EXACT_TJK');
+  assert.deepEqual(predictions(r.saved[0]), predictions(r.saved[1]));
+});
+
+test('genuine changes to degree inputs are recalculated rather than pinning the previous order', async () => {
+  const r = runtime(); await r.api.compute(1);
+  r.state.analyses.current.races[0].horses.forEach((h, i) => {h.degreeModel.predictedSec = 92 - i;});
+  await r.api.compute(1);
+  assert.deepEqual(r.saved[0].rows.map(h => h.no), [1, 2, 3]);
+  assert.deepEqual(r.saved[1].rows.map(h => h.no), [3, 2, 1]);
+});
+
+test('concurrent degree consumers share one complete enrichment and commit all races together', async () => {
+  const gate = deferred(); let calls = 0;
+  const state = fixture(); state.analyses.current.races[0].horses.forEach((h, i) => {h.history.degreeSamples = [{sec: 92 - i, distance: 1400}];});
+  const before = copy(state.analyses.current);
+  const r = runtime({state, loadDegree: true, track: async () => {calls++; await gate.promise; return null;}});
+  const first = r.window.ATDegreeSpeedF6090.enrichCurrent(), second = r.window.ATDegreeSpeedF6090.enrichCurrent();
+  await tick(); assert.equal(calls, 1);
+  assert.deepEqual(state.analyses.current, before, 'awaiting track data must not publish half-built models');
+  gate.release(); await Promise.all([first, second]);
+  assert.deepEqual(state.analyses.current.races[0].horses.map(h => h.degreeModel.predictedSec), [92, 91, 90]);
+});
+
+test('base and surface enrichment complete before publication and surface runs on every repeat', async () => {
+  const gate = deferred(); let calls = 0;
+  const state = fixture(); state.analyses.current.races[0].horses.forEach((h, i) => {h.history.degreeSamples = [{sec: 90 + i, distance: 1400}];});
+  const original = copy(state.analyses.current), r = runtime({state, loadDegree: true});
+  r.window.ATDegreeSpeedSurfaceF6091 = {recalc: async options => {
+    calls++; await gate.promise;
+    options.result.races[0].horses.forEach((h, i) => {h.degreeModel.predictedSec = 92 - i;});
+    options.result.degreeSpeed.surfaceAware = true;
+  }};
+  const pending = r.api.compute(1); await tick();
+  assert.equal(calls, 1); assert.equal(r.saved.length, 0);
+  assert.deepEqual(state.analyses.current, original);
+  gate.release(); await pending; await r.api.compute(1);
+  assert.equal(calls, 2);
+  assert.deepEqual(r.saved[0].rows.map(h => h.no), [3, 2, 1]);
+  assert.deepEqual(predictions(r.saved[0]), predictions(r.saved[1]));
+});
+
+test('the real current-run and surface wrappers produce the same completed model as DNA reruns', async () => {
+  const state = fixture(); state.analyses.current.races[0].horses.forEach((h, i) => {h.history.degreeSamples = [{sec: 92 - i, distance: 1400}];});
+  const r = runtime({state, loadDegree: true, loadSurface: true});
+  await r.context.gRunCurrentV1657();
+  assert.equal(state.analyses.current.degreeSpeed.surfaceAware, true);
+  await r.api.compute(1); await r.api.compute(1);
+  assert.equal(r.saved.length, 2);
+  assert.deepEqual(predictions(r.saved[0]), predictions(r.saved[1]));
+});
+
+test('current-day, future and undated calibration cannot change a historical race prediction', async () => {
+  const state = fixture(); state.analyses.current.races[0].horses.forEach(h => {h.history.degreeSamples = [{sec: 90, distance: 1400}];});
+  const samples = stamp => Array.from({length: 16}, () => ({date: stamp, city, trackContext: {surface: 'Sentetik'}, timeErrorSec: 3}));
+  const r = runtime({state, loadDegree: true, calibration: [...samples(date), ...samples('2026-10-01'), ...samples(null)]});
+  await r.window.ATDegreeSpeedF6090.enrichCurrent();
+  assert.equal(state.analyses.current.races[0].horses[0].degreeModel.predictedSec, 90);
+  assert.equal(state.analyses.current.races[0].horses[0].degreeModel.autoCalibration.samples, 0);
+  const past = runtime({state: copy(state), loadDegree: true, calibration: samples('2026-09-29')});
+  await past.window.ATDegreeSpeedF6090.enrichCurrent();
+  assert.equal(past.state.analyses.current.races[0].horses[0].degreeModel.predictedSec, 90.4);
+});
