@@ -6,34 +6,38 @@
  async function until(fn,label){const end=Date.now()+12000;while(Date.now()<end){if(fn())return;await new Promise(r=>setTimeout(r,25))}throw Error('Timeout: '+label)}
  const folder=await t.folderReady;
  for(const name of ['Gerçek Yarış Arşivi','Orijin Arşivi','Galop Arşivi'])try{await folder.removeEntry(name,{recursive:true})}catch(e){if(e.name!=='NotFoundError')throw e}
- // Recreate the menu with automatic program discovery still pending.
- let releaseGreeting;t.programGate=new Promise(resolve=>{releaseGreeting=resolve});
+ // Recreate the menu: the local catalog resolves asynchronously during selection.
  by('m8dlg').close();by('m8dlg').remove();window.ATM8F48.open();
  let releasePicker;t.pickerGate=new Promise(resolve=>{releasePicker=resolve});
  by('m8HorseFolder').click();by('m8HorseFolder').click();
  assert(t.pickerCalls===1,'two folder taps open one picker');
  assert(by('m8HorseFolder').disabled&&by('m8tabTrack').disabled,'folder choice locks all tabs and actions');
  const sameSelection=window.ATArchiveDirectoryV1741.select();assert(t.pickerCalls===1,'shared API also reuses the pending picker');
- releaseGreeting();t.programGate=null;await new Promise(r=>setTimeout(r,50));
+ await new Promise(r=>setTimeout(r,50));
  assert(by('m8HorseSummary').textContent==='Klasör seçimi başlatılıyor…','late automatic greeting cannot overwrite a user operation');
  releasePicker(folder);await sameSelection;t.pickerGate=null;
  await until(()=>!by('m8HorseFolder').disabled,'folder settled');
  assert(window.ATTrackLongterm48.ready()&&window.AT_AI_LOCAL_ARCHIVE.ready(),'horse and track archives share the selected folder');
- by('m8HorseLoadCities').click();await until(()=>!window.ATM8F48.isBusy(),'load program cities');by('m8HorseCity').value='3';by('m8HorseCity').dispatchEvent(new Event('change'));
+ assert(by('m8HorseCity').value==='3','loaded main program selects its city without a network request');
  const previous=t.requests.filter(x=>x.startsWith('/api/tjk-program')).length;let releaseProgram;
  t.programGate=new Promise(resolve=>{releaseProgram=resolve});by('m8UpdateHorses').click();by('m8UpdateHorses').click();
  assert(by('m8UpdateHorses').disabled,'repeated update is blocked');
- await until(()=>t.requests.filter(x=>x.startsWith('/api/tjk-program')).length>previous,'update request');
- assert(by('m8HorseSummary').textContent.includes('güncellemesi başlıyor'),'start is visible while program request is pending');
- assert(t.requests.filter(x=>x.startsWith('/api/tjk-program')).length===previous+1,'one program request per update');
- releaseProgram();t.programGate=null;
+ const started=Date.now();
  await until(()=>!window.ATM8F48.isBusy(),'horse update');
+ assert(Date.now()-started<3000,'loaded city starts and finishes history writes despite an unavailable program API');
+ assert(t.requests.filter(x=>x.startsWith('/api/tjk-program')).length===previous,'loaded city update makes no redundant program request');
+ releaseProgram();t.programGate=null;
  assert(by('m8StatNew').textContent==='2'&&by('m8StatError').textContent==='0','two horse histories finish without errors');
  const raceDir=await folder.getDirectoryHandle('Gerçek Yarış Arşivi'),horseDir=await raceDir.getDirectoryHandle('Atlar');
  const record=JSON.parse(await(await(await horseDir.getFileHandle('900101.json')).getFile()).text());
  assert(record.horseId==='900101'&&record.races.length===1,'horse JSON is actually written with its ID and history');
  const requestCount=t.requests.length,local=await window.AT_AI_LOCAL_ARCHIVE.horseHistory('900101');
  assert(local.source==='phone'&&t.requests.length===requestCount,'saved Menu 8 horse history is reused without a network request');
+ by('m8HorseLoadCities').click();await until(()=>!window.ATM8F48.isBusy(),'refresh catalog');
+ assert(t.requests.filter(x=>x.includes('/api/tjk-program')&&x.includes('catalog=1')).length===1,'manual discovery fetches only the city catalog');
+ assert(by('m8HorseCity').value==='3','manual refresh preserves the selected city');
+ by('m8FindHorses').click();await until(()=>!window.ATM8F48.isBusy(),'find refreshed city horses');
+ assert(t.requests.filter(x=>x.includes('/api/tjk-program')&&x.includes('cityId=3')).length===1,'refreshed horse lookup fetches only the selected city');
  by('m8tabTrack').click();assert(by('m8FolderStatus').textContent.includes(folder.name),'track tab shows the same folder');
  by('m8TrackToday').click();await until(()=>!window.ATM8F48.isBusy(),'track update');
  assert(by('m8TrackStatus').textContent.includes('✓ Güncel'),'track tab reports completion');

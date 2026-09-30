@@ -104,38 +104,40 @@ function extractQueryNumber(href, names = []) {
   return null;
 }
 
-async function fetchResponse(url, accept = '*/*') {
-  const res = await fetch(url, {
-    headers: {
-      ...HEADERS,
-      Accept: accept
-    },
-    redirect: 'follow',
-    cache: 'no-store'
-  });
-
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} ${res.statusText}`);
-  }
-
-  return res;
+async function fetchData(url, accept, read) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+  try {
+    const res = await fetch(url, {
+      headers: {...HEADERS, Accept: accept},
+      redirect: 'follow',
+      cache: 'no-store',
+      signal: controller.signal
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    return await read(res);
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('TJK isteği 12 saniyede yanıt vermedi.');
+    throw error;
+  } finally { clearTimeout(timer); }
 }
 
 async function fetchText(url) {
-  const res = await fetchResponse(
+  return await fetchData(
     url,
-    'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+    'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    res => res.text()
   );
-  return await res.text();
 }
 
 async function fetchCsvText(url) {
-  const res = await fetchResponse(
+  const data = await fetchData(
     url,
-    'text/csv,text/plain,application/octet-stream,*/*'
+    'text/csv,text/plain,application/octet-stream,*/*',
+    res => res.arrayBuffer()
   );
 
-  const buf = Buffer.from(await res.arrayBuffer());
+  const buf = Buffer.from(data);
 
   // TJK CSV'leri tarihsel olarak Windows-1254 / UTF-8 karışık görülebiliyor.
   // Önce UTF-8; bozuk karakter yoğunluğu varsa latin1 tabanlı geri dönüş.
@@ -1843,6 +1845,11 @@ export default async function handler(req, res) {
   const isoDate =
     toIsoDate(req.query?.date) ||
     new Date().toISOString().slice(0, 10);
+  const cityId = String(req.query?.cityId || '');
+  const catalogOnly = req.query?.catalog === '1';
+  if (cityId && !/^\d+$/.test(cityId)) {
+    return res.status(400).json({ok: false, error: 'Geçersiz şehir ID.'});
+  }
 
   const rootUrl =
     `${TJK_ROOT}?QueryParameter_Tarih=` +
@@ -1853,6 +1860,12 @@ export default async function handler(req, res) {
   try {
     const rootHtml = await fetchText(rootUrl);
     const cities = extractCities(rootHtml, isoDate);
+    if (catalogOnly) {
+      return res.status(200).json({ok: true, parserVersion: VERSION, date: isoDate, catalogOnly: true, scope: 'catalog', cityCount: cities.length, cities, raceCount: 0, horseCount: 0, racesByCity: {}, programs: {}, sourceUrl: rootUrl});
+    }
+    if (cityId && !cities.some(city => String(city.id) === cityId)) {
+      return res.status(404).json({ok: false, date: isoDate, error: 'Seçilen şehir bu tarihin TJK programında bulunamadı.'});
+    }
 
     if (!cities.length) {
       return res.status(200).json({
@@ -1880,33 +1893,37 @@ export default async function handler(req, res) {
     const errors = [];
     const parserAudit = {};
 
-    /*
-      CDN ve TJK'yı gereksiz yüklememek için şehirleri sıralı alıyoruz.
-      Türkiye'de aynı gün şehir sayısı düşüktür.
-    */
-    for (const city of cities) {
+    // A selected city never waits for unrelated pages. Whole-day requests use
+    // three workers; slow overseas pages cannot serialize the domestic program.
+    const selected = cityId ? cities.filter(city => String(city.id) === cityId) : cities;
+    const loadedByIndex = new Array(selected.length);
+    let cursor = 0;
+    async function worker() { for (;;) {
+      const index = cursor++;
+      if (index >= selected.length) return;
+      const city = selected[index];
       try {
         const loaded = await loadCityProgram(
           city,
           isoDate
         );
-
-        /*
-          V7: Şehri CSV/at parserı yüzünden ASLA silme.
-          Root TJK programında şehir varsa şehir listesinde kalır.
-        */
-        racesByCity[String(city.id)] = loaded.races || [];
-        programs[String(city.id)] = loaded.races || [];
-        okCities.push(city);
-
-        parserAudit[String(city.id)] = loaded.audit;
+        if (!loaded.audit.cityPageFetched) throw new Error(loaded.audit.htmlError || 'TJK şehir sayfası alınamadı.');
+        loadedByIndex[index] = loaded;
       } catch (e) {
-        errors.push({
-          city: city.name,
-          cityId: city.id,
-          error: String(e?.message || e)
-        });
+        loadedByIndex[index] = {error: String(e?.message || e)};
       }
+    } }
+    await Promise.all(Array.from({length: Math.min(3, selected.length)}, worker));
+    for (let index = 0; index < selected.length; index++) {
+      const city = selected[index], loaded = loadedByIndex[index];
+      if (loaded.error) { errors.push({city: city.name, cityId: city.id, error: loaded.error}); continue; }
+      racesByCity[String(city.id)] = loaded.races || [];
+      programs[String(city.id)] = loaded.races || [];
+      okCities.push(city);
+      parserAudit[String(city.id)] = loaded.audit;
+    }
+    if (cityId && errors.length) {
+      return res.status(502).json({ok: false, date: isoDate, error: errors[0].city + ': ' + errors[0].error, audit: {failedCityCount: errors.length, errors}});
     }
 
     const raceCount = Object.values(racesByCity)
@@ -1928,11 +1945,13 @@ export default async function handler(req, res) {
       version: VERSION,
       date: isoDate,
 
-      cityCount: okCities.length,
+      scope: cityId ? 'city' : 'all',
+      loadedCityIds: okCities.map(city => String(city.id)),
+      cityCount: cities.length,
       raceCount,
       horseCount,
 
-      cities: okCities,
+      cities,
       racesByCity,
       programs,
 
