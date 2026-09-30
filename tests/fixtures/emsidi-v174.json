@@ -1,0 +1,25 @@
+{
+  "date":"2026-09-29","city":"Adana",
+  "race":{"no":6,"class":"ŞARTLI 4/DHÖW","distance":1500,"track":"Sentetik"},
+  "rows":[
+    {"no":6,"name":"KADER GÜCÜ","F":76.3,"O":62.5,"G":71.2,"D":99.7,"J":100,"S":69.8,"A":65.3,"E":83.6,"T":82.9},
+    {"no":7,"name":"ALKANLI","F":87.5,"O":54.3,"G":57,"D":97.5,"J":93.6,"S":54.3,"A":78.2,"E":81.1,"T":80.9},
+    {"no":5,"name":"IRMAK SU","F":66.3,"O":65.9,"G":73.3,"D":99.7,"J":46.1,"S":54.6,"A":56.5,"E":50.9,"T":77.7},
+    {"no":8,"name":"DELİKANLI POYRAZ","F":67.5,"O":50.7,"G":null,"D":96.7,"J":51.1,"S":51.5,"A":41.9,"E":48.4,"T":74.1},
+    {"no":4,"name":"FUNDO","F":71.3,"O":66,"G":79.4,"D":68.7,"J":43.3,"S":49.2,"A":42.5,"E":44.2,"T":70.5},
+    {"no":1,"name":"MİRŞEŞEN","F":55,"O":58.8,"G":51.3,"D":99.7,"J":74.1,"S":53.8,"A":41.9,"E":60.4,"T":69.4},
+    {"no":3,"name":"EMSİDİ","F":58.8,"O":55.4,"G":57.5,"D":86.8,"J":51.4,"S":50.9,"A":53.5,"E":51.9,"T":66.5},
+    {"no":9,"name":"JÜLİDEKIZ","F":32.5,"O":57.4,"G":68.4,"D":99.7,"J":39.8,"S":52.8,"A":71.1,"E":51.8,"T":65},
+    {"no":2,"name":"DUMAN","F":12.5,"O":58.5,"G":94.4,"D":50.5,"J":40.1,"S":47.7,"A":34.6,"E":40,"T":48.5}
+  ],
+  "history":[
+    {"date":"2026-09-29","city":"Adana","distance":1500,"track":"S:Normal","finish":1,"degree":"1.43.40","weight":59.5},
+    {"date":"2026-09-13","city":"Adana","distance":1500,"track":"K:Normal","finish":9,"degree":"1.52.24","weight":56.5},
+    {"date":"2026-09-06","city":"Adana","distance":1200,"track":"S:Normal","finish":4,"degree":"1.22.68","weight":56},
+    {"date":"2026-08-26","city":"Elazığ","distance":1700,"track":"K:Normal","finish":16,"degree":"2.40.58","weight":56},
+    {"date":"2026-01-31","city":"İstanbul","distance":1500,"track":"S:Normal","finish":4,"degree":"1.42.00","weight":58},
+    {"date":"2026-01-03","city":"İstanbul","distance":1500,"track":"S:Normal","finish":1,"degree":"1.41.95","weight":57},
+    {"date":"2024-10-20","city":"İstanbul","distance":1400,"track":"S:Normal","finish":3,"degree":"1.34.66","weight":58.5},
+    {"date":"2024-08-28","city":"İstanbul","distance":1300,"track":"S:Normal","finish":2,"degree":"1.27.52","weight":60}
+  ]
+}

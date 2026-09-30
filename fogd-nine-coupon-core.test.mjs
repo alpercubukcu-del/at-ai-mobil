@@ -130,9 +130,9 @@ test('all-races critical cut can make a safe single without an official bet plan
   assert.match(template.legs[0].cut.reason,/güvenli tek/);
 });
 
-test('browser runtime replaces the legacy menu route and renders nine all-races templates',async()=>{
+test('browser runtime preserves nine templates and adds a separate tenth method',async()=>{
   const runtimeSource=fs.readFileSync(new URL('./fogd-nine-coupon-v173.js',import.meta.url),'utf8');
-  assert.match(runtimeSource,/FOGD-NINE-COUPON-V17\.3/);
+  assert.match(runtimeSource,/FOGD-COUPON-V17\.4/);
   assert.match(runtimeSource,/fogdAllRacesBuildV173/);
   assert.match(runtimeSource,/9 BAĞIMSIZ TÜM-KOŞU ŞABLONU/);
   assert.match(runtimeSource,/F · O · G · D · J · S · E · A · T/);
@@ -206,10 +206,13 @@ test('browser runtime replaces the legacy menu route and renders nine all-races 
   };
   const indexedDB={open(){const q={result:fakeDb};queueMicrotask(()=>q.onsuccess?.());return q}};
   const listeners={};let alertCount=0;
-  const runtime={document,console,indexedDB,alert(){alertCount++},state:{date:'2026-09-29',city:'34',cities:[{id:'34',name:'İstanbul'}],races:[{no:1,time:'14:00',class:'ŞARTLI',distance:1400,track:'Kum',horses:[{no:1},{no:2},{no:3}]},{no:2,time:'14:30',class:'HANDİKAP',distance:1600,track:'Çim',horses:[{no:1},{no:2},{no:3}]}],analyses:{}},getCityName:()=> 'İstanbul'};
+  const runtime={document,console,indexedDB,setTimeout,clearTimeout,alert(){alertCount++},state:{date:'2026-09-29',city:'34',cities:[{id:'34',name:'İstanbul'}],races:[{no:1,time:'14:00',class:'ŞARTLI',distance:1400,track:'Kum',horses:[{no:1},{no:2},{no:3}]},{no:2,time:'14:30',class:'HANDİKAP',distance:1600,track:'Çim',horses:[{no:1},{no:2},{no:3}]}],analyses:{}},getCityName:()=> 'İstanbul'};
   runtime.window=runtime;runtime.addEventListener=(type,handler)=>{(listeners[type]||=[]).push(handler)};
-  vm.createContext(runtime);vm.runInContext(source,runtime);vm.runInContext(runtimeSource,runtime);
-  assert.equal(runtime.ATFogdNineCouponV173.models.length,9);
+  vm.createContext(runtime);vm.runInContext(source,runtime);
+  for(const name of['fogd-condition-core.js','fogd-condition-coupon-v174.js'])vm.runInContext(fs.readFileSync(new URL(`./${name}`,import.meta.url),'utf8'),runtime);
+  vm.runInContext(runtimeSource,runtime);
+  assert.equal(runtime.ATFogdNineCouponCoreV1.MODELS.length,9);
+  assert.equal(runtime.ATFogdNineCouponV173.models.length,10);
   assert.equal(document.getElementById('buildAllBtn'),null);
   assert.ok(document.getElementById('fogdAllRacesBuildV173'));
   assert.match(document.getElementById('couponCenterDialog').innerHTML,/YARIŞ DNA · KUPON ŞABLONLARI/);
@@ -217,10 +220,17 @@ test('browser runtime replaces the legacy menu route and renders nine all-races 
   assert.equal(document.getElementById('couponCenterDialog').open,true);
   assert.equal(document.documentElement.classList.contains('fogd-coupon-full-open'),true);
   const templates=await runtime.ATFogdNineCouponV173.build();
-  assert.equal(templates.length,9);
-  assert.deepEqual(Array.from(templates,x=>x.modelKey),['F','O','G','D','J','S','E','A','T']);
+  assert.equal(templates.length,10);
+  assert.deepEqual(Array.from(templates,x=>x.modelKey),['F','O','G','D','J','S','E','A','T','C']);
+  for(const model of runtime.ATFogdNineCouponCoreV1.MODELS){
+    const expected=core.buildAllRacesTemplate({modelId:model.id,races:runtime.state.races,snapshotsByRace:new Map(stored.map(s=>[String(s.raceNo),s])),profiles:{}});
+    const actual=templates.find(t=>t.modelId===model.id);
+    assert.deepEqual(JSON.parse(JSON.stringify(actual.legs)),JSON.parse(JSON.stringify(expected.legs)));
+  }
   assert.equal(templates.every(x=>x.legs.length===2),true);
-  assert.match(document.getElementById('fogdCouponStatusV173').textContent,/9\/9 sütun şablonu/);
+  assert.match(document.getElementById('fogdCouponStatusV173').textContent,/9\/9 bağımsız sütun şablonu/);
+  assert.match(document.getElementById('fogdCouponTabsV173').innerHTML,/10 · KOŞUL/);
+  assert.equal(runtime.state.analyses.fogdCouponV173.models.length,10);
   assert.match(document.getElementById('fogdCouponTabsV173').innerHTML,/data-fogd-tab-v173="dna-f"/);
   assert.match(document.getElementById('fogdCouponTemplatesV173').innerHTML,/1\. Koşu/);
   assert.match(document.getElementById('fogdCouponTemplatesV173').innerHTML,/2\. Koşu/);
