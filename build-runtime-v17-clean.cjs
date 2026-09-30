@@ -46,12 +46,13 @@ binding=binding.replace('try{const hub=','if(window.ATM8F48?.open){window.ATM8F4
 app=app.slice(0,doorBind)+binding+app.slice(doorBindEnd);
 if(!app.includes('FOGD-DNA-ENGINE-V17.0-REBUILD'))throw new Error('[V17 CLEAN] V17 DNA was not emitted by production build chain');
 if((app.match(/FOGD-DNA-ENGINE-V17\.0-REBUILD/g)||[]).length!==1)throw new Error('[V17 CLEAN] duplicate V17 DNA engine');
+for(const token of['FOGD-STABLE-INPUTS-V17.4.3','DEGREE-STABLE-INPUTS-V17.4.3'])if(!app.includes(token))throw Error('[V17 CLEAN] stable calculation missing '+token);
 app+='\n\n'+couponCore.trim()+'\n\n'+conditionCore.trim()+'\n\n'+condition.trim()+'\n\n'+coupon.trim()+'\n';
 for(const token of['FOGD-NINE-COUPON-CORE-V17.3','FOGD-ALL-RACES-TEMPLATE-V17.3','FOGD-CONDITION-CORE-V17.4','FOGD-CONDITION-COUPON-V17.4','FOGD-COUPON-V17.4','FOGD_ALL_RACES_V173','fogdAllRacesBuildV173','9 BAĞIMSIZ TÜM-KOŞU ŞABLONU','10 · Koşul Uyumlu Yakınlık'])if(!app.includes(token))throw new Error('[V17 CLEAN] coupon invariant missing '+token);
 for(const forbidden of['id="buildAllBtn"','Kupon kaynağı: Kariyer/Hazırlık'])if(coupon.includes(forbidden))throw new Error('[V17 CLEAN] legacy coupon route leaked into V17.3 runtime: '+forbidden);
 new Function(app);
 fs.writeFileSync(APP,app,'utf8');
 for(const token of['ARCHIVE-PROGRAM-V17.4.2','ARCHIVE-DIRECTORY-V17.4.1','ARCHIVE-MENU-V17.4.2','TRACK-LONGTERM-ARCHIVE-V17.4.1','TRACK-MAINT-ARCHIVE-V17.4.1'])if(!app.includes(token))throw Error('[V17 CLEAN] archive menu fix missing '+token);
-let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1700402');
+let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1700403');
 fs.writeFileSync(INDEX,html,'utf8');
-console.log('[AT AI] V17.4 verified: one V17 DNA engine + nine independent column templates + isolated condition-aware tenth method');
+console.log('[AT AI] V17.4.3 verified: completed degree inputs + one V17 DNA engine + nine independent column templates + isolated condition-aware tenth method');
