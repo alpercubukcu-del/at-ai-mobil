@@ -188,3 +188,36 @@ test('surface correction cannot turn a missing residual into a fabricated zero r
   await r.window.ATDegreeSpeedSurfaceF6091.recalc({result:state.analyses.current,programRaces:state.races,resultRows:[{date:'2026-09-01',city,race:{distance:1400,track:'Sentetik',class:'ŞARTLI 4',winner:{degree:'1.30.00'}}}],trackContext:null,city,date,deferPublish:true});
   assert.equal(state.analyses.current.races[0].horses[0].degreeModel.predictedSec,97);
 });
+
+test('first DNA analysis retries temporary workout failures before saving', async () => {
+  const attempts = new Map();
+  const r = runtime({fetchContext: async url => {
+    const name=url.searchParams.get('horse'), n=(attempts.get(name)||0)+1;attempts.set(name,n);
+    return {ok:true,connections:{attempted:true},errors:{workout:n<3?'temporary timeout':null},workout:n<3?{workouts:[]}:{workouts:[{date:'2026-09-27',splits:{600:43.6},daysBeforeRace:3}],latest:{date:'2026-09-27',splits:{600:43.6},daysBeforeRace:3},bestByDistance:{600:43.6}}};
+  }});
+  await r.api.compute(1);
+  assert.equal(r.saved.length,1);
+  assert.ok(r.saved[0].rows.every(x=>x.gMeta.latest.date==='2026-09-27'));
+  assert.ok([...attempts.values()].every(x=>x===3));
+});
+
+test('exhausted workout failures do not save a final DNA analysis', async () => {
+  const r=runtime({fetchContext:async()=>({ok:true,connections:{attempted:true},errors:{workout:'timeout'},workout:{workouts:[]}})});
+  await r.api.compute(1);
+  assert.equal(r.saved.length,0);
+  assert.ok(r.messages.some(x=>x.includes('Galop alınamadı')));
+});
+
+test('successful empty workout response is accepted without invented data', async () => {
+  let calls=0;
+  const r=runtime({fetchContext:async()=>{calls++;return {ok:true,connections:{attempted:true},errors:{workout:null},workout:{workouts:[],latest:null}};}});
+  await r.api.compute(1);
+  assert.equal(calls,3);assert.equal(r.saved.length,1);
+  assert.ok(r.saved[0].rows.every(x=>x.G===null&&x.gMeta.status==='empty'));
+});
+
+test('fresh workout cannot be overwritten by older local archive', () => {
+  const r=runtime();
+  const result=vm.runInContext(`(()=>{${dnaSource.slice(dnaSource.indexOf('function workoutHasRows'),dnaSource.indexOf('async function requestHorseContext'))}return mergeLocalContext({workout:{workouts:[{}],latest:{date:'2026-09-26'}}},{data:{workout:{workouts:[{}],latest:{date:'2026-08-30'}}}},null)})()`,r.context);
+  assert.equal(result.workout.latest.date,'2026-09-26');
+});
