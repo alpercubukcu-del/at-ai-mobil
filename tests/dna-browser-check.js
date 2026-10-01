@@ -5,8 +5,8 @@
  const assert = (condition, label) => {if (!condition) throw Error(label); checks.push(label);};
  const until = async (fn, label) => {const end = Date.now() + 12000; while (Date.now() < end) {if (fn()) return; await new Promise(resolve => setTimeout(resolve, 25));} throw Error('Timeout: ' + label);};
  const api = window.ATFogdScoreCenterF609431;
- assert(api.calculationVersion === 'FOGD-STABLE-INPUTS-V17.4.3', 'production bundle exposes V17.4.3 calculation');
- assert(window.ATDegreeSpeedF6090.calculationVersion === 'DEGREE-STABLE-INPUTS-V17.4.3', 'production degree engine is current');
+ assert(api.calculationVersion === 'FOGD-STABLE-INPUTS-V17.4.4', 'production bundle exposes V17.4.4 calculation');
+ assert(window.ATDegreeSpeedF6090.calculationVersion === 'DEGREE-STABLE-INPUTS-V17.4.4', 'production degree engine is current');
  window.AT_AI_LOCAL_ARCHIVE.saveFogdAnalysis = async snapshot => {t.saved.push(structuredClone(snapshot)); return true;};
  let releaseTrack, trackCalls = 0;
  const gate = new Promise(resolve => {releaseTrack = resolve;});
