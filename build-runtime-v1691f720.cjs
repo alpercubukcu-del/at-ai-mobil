@@ -10,7 +10,7 @@ const INDEX=path.join(ROOT,'public','index.html');
 for(const f of[BASE,HISTORY,DEGREE])if(!fs.existsSync(f))throw new Error('[F60.94.30] missing '+path.basename(f));
 const history=fs.readFileSync(HISTORY,'utf8'),degree=fs.readFileSync(DEGREE,'utf8');
 for(const t of['REAL-DAY-HISTORY-V16.9.1F60.94.30','at_ai_tjk_real_day_index_v2','TJK_KOSU_SORGULAMA_DAY_INDEX','KOSU_SORGULAMA_DAY_ARCHIVE','LOCAL_REAL_RESULTS_F60.94.30','annualProgramArchive:false'])if(!history.includes(t))throw new Error('[F60.94.30] history invariant missing: '+t);
-for(const t of['DEGREE-PREDICTION-AUDIT-V16.9.1F60.94.30','at_ai_degree_predictions_v1','TAHMİN / GERÇEK KARŞILAŞTIRMA','data-degree-actual','YARIS_MEDYAN_FALLBACK'])if(!degree.includes(t))throw new Error('[F60.94.30] degree invariant missing: '+t);
+for(const t of['DEGREE-PREDICTION-AUDIT-V16.9.1F60.94.30','at_ai_degree_predictions_v1','TAHMİN / GERÇEK KARŞILAŞTIRMA','data-degree-actual','referenceOnly'])if(!degree.includes(t))throw new Error('[F60.94.30] degree invariant missing: '+t);
 for(const mod of[history,degree])for(const bad of['new MutationObserver','setInterval(','document.addEventListener(\'touchend\'','document.addEventListener(\'pointerup\''])if(mod.includes(bad))throw new Error('[F60.94.30] forbidden reactive/global loop: '+bad);
 new Function(history);new Function(degree);
 execFileSync(process.execPath,[BASE],{cwd:ROOT,stdio:'inherit'});
