@@ -13,16 +13,14 @@ const distance=r=>finite(r?.distance??r?.mesafe??r?.mes);
 const surface=v=>{const x=fold(v);return x.includes('SENTETIK')?'SENTETIK':x.includes('KUM')?'KUM':x.includes('CIM')?'CIM':x};
 const level=r=>fold(r?.class||r?.raceClass||r?.yaradi1||'');
 const group=r=>fold(r?.ageGroup||r?.yaradi2||'');
-function createReferenceIndex(records){
- const buckets=new Map(),historical=new Map();
- for(const rec of records){
-  const key=JSON.stringify([fold(rec.city),distance(rec.race),surface(rec.race?.track||rec.race?.pist)]);
-  if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push({date:rec.date,level:level(rec.race),group:group(rec.race),winnerSec:sec(rec.race?.winner?.degree)});
-  const id=JSON.stringify([rec.date,fold(rec.city),Number(rec.race?.no||rec.raceNo)]);
-  if(!historical.has(id))historical.set(id,rec);
- }
- return {buckets,historical,references:new Map()};
+function addReference(index,rec){
+ const key=JSON.stringify([fold(rec.city),distance(rec.race),surface(rec.race?.track||rec.race?.pist)]);
+ if(!index.buckets.has(key))index.buckets.set(key,[]);index.buckets.get(key).push({date:rec.date,level:level(rec.race),group:group(rec.race),winnerSec:sec(rec.race?.winner?.degree)});
+ const id=JSON.stringify([rec.date,fold(rec.city),Number(rec.race?.no||rec.raceNo)]);
+ if(!index.historical.has(id))index.historical.set(id,rec);
 }
+function createReferenceIndex(records){const index={buckets:new Map(),historical:new Map(),references:new Map()};for(const rec of records)addReference(index,rec);return index;}
+
 function reference(records,race,city,cutoff,index){
  const d=distance(race),s=surface(race.track||race.pist),l=level(race),g=group(race);
  if(!(d>0&&s&&g))return {sec:null,dispersion:null,n:0,exact:false,dates:[]};
@@ -49,9 +47,8 @@ function workoutChange(workouts,from,to){
  return {fraction:median(changes.map(x=>x.fraction)),comparisons:changes.length,changes};
 }
 function weighted(a){const total=a.reduce((s,x)=>s+x.weight,0);return total?a.reduce((s,x)=>s+x.value*x.weight,0)/total:null}
-function weightEvidence(records,cutoff){
- const horses=new Map();
- for(const rec of records.filter(r=>r.date&&r.date<cutoff))for(const row of rec.race?.rows||[]){const id=row.horseId||fold(row.horseName),own=sec(row.degree),win=sec(rec.race.winner?.degree),kg=finite(row.actualWeight??row.weight);if(!id||!(own>0&&win>0&&kg>0))continue;const key=[id,fold(rec.city),surface(rec.race.track),distance(rec.race),level(rec.race),group(rec.race)].join('|');if(!horses.has(key))horses.set(key,[]);horses.get(key).push({date:rec.date,value:own-win,kg,id})}
+function collectWeightRows(rec,horses){for(const row of rec.race?.rows||[]){const id=row.horseId||fold(row.horseName),own=sec(row.degree),win=sec(rec.race.winner?.degree),kg=finite(row.actualWeight??row.weight);if(!id||!(own>0&&win>0&&kg>0))continue;const key=[id,fold(rec.city),surface(rec.race.track),distance(rec.race),level(rec.race),group(rec.race)].join('|');if(!horses.has(key))horses.set(key,[]);horses.get(key).push({date:rec.date,value:own-win,kg,id})}}
+function weightSummary(horses){
  const pairs=[];
  for(const rows of horses.values()){rows.sort((a,b)=>a.date.localeCompare(b.date));for(let i=1;i<rows.length;i++){const a=rows[i-1],b=rows[i],delta=b.kg-a.kg;if(days(a.date,b.date)>0&&days(a.date,b.date)<=45&&Math.abs(delta)>=1&&Math.abs(delta)<=5)pairs.push({value:(b.value-a.value)/delta,id:b.id})}}
  const identities=new Set(pairs.map(x=>x.id)).size;
@@ -60,6 +57,13 @@ function weightEvidence(records,cutoff){
  const active=pairs.length>=30&&identities>=10&&raw>0&&raw<=.5&&spread(pairs.map(x=>x.value))<.6;
  return {active,coefficient:active?raw*Math.min(1,pairs.length/100):0,pairs:pairs.length,horses:identities};
 }
+function weightEvidence(records,cutoff){const horses=new Map();for(const rec of records)if(rec.date&&rec.date<cutoff)collectWeightRows(rec,horses);return weightSummary(horses);}
+async function prepareAsync(records,cutoff){
+ const referenceIndex={buckets:new Map(),historical:new Map(),references:new Map()},horses=new Map();
+ for(let i=0;i<records.length;i++){if(i%50===0)await new Promise(resolve=>setTimeout(resolve,0));const rec=records[i];addReference(referenceIndex,rec);if(rec.date&&rec.date<cutoff)collectWeightRows(rec,horses)}
+ return{referenceIndex,weightModel:weightSummary(horses)};
+}
+
 function predict({row,program,race,records,city,date,workout,weightModel,referenceIndex}){
  if(!referenceIndex)records=records.filter(x=>x.date&&x.date<date);
  const target=reference(records,race,city,date,referenceIndex),d=distance(race),s=surface(race.track||race.pist),kg=finite(program.weight??program.kilo);
@@ -97,5 +101,5 @@ function attachWorkouts(model,history,workout,date){
  model.rangeText=Number.isFinite(model.predictedSec)?`${text(Math.max(0,model.predictedSec-model.uncertaintySec))}–${text(model.predictedSec+model.uncertaintySec)}`:'—';
  return model;
 }
-window.ATDegreeHistoryV1746={version,predict,attachWorkouts,reference,createReferenceIndex,workoutsAt,workoutChange,weightEvidence};
+window.ATDegreeHistoryV1746={version,predict,attachWorkouts,reference,createReferenceIndex,prepareAsync,workoutsAt,workoutChange,weightEvidence};
 })();
