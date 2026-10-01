@@ -253,3 +253,21 @@ test('degree enrichment never waits on network workout requests from any race',a
  assert.equal(calls,0);assert.equal(requests.length,0);
  await r.api.compute(1);assert.equal(r.saved.length,1);assert.equal(requests.length,3);assert.ok(requests.every(name=>!name.startsWith('OTHER')));
 });
+
+
+test('background parser provenance refresh does not cancel the same race', async () => {
+  const gate=deferred(),r=runtime({enrich:async()=>{await gate.promise;}});
+  r.state.races[0].source='TJK HTML TABLE LOCK';
+  const pending=r.api.compute(1);await tick();
+  r.state.races[0].source='TJK bağımsız tablo parserı';r.state.races[0].foreignFallbackUsed=false;
+  gate.release();await pending;assert.equal(r.saved.length,1);
+});
+
+for(const change of ['weight','horseId','distance'])test(`an in-flight ${change} change still cancels DNA`,async()=>{
+  const gate=deferred(),r=runtime({enrich:async()=>{await gate.promise;}});
+  const pending=r.api.compute(1);await tick();
+  if(change==='distance')r.state.races[0].distance=1500;
+  else if(change==='weight')r.state.races[0].horses[0].weight=58;
+  else r.state.races[0].horses[0].id='another-horse';
+  gate.release();await pending;assert.equal(r.saved.length,0);assert.match(r.messages.at(-1),/Program.*değişti/i);
+});
