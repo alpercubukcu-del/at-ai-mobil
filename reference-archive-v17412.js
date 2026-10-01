@@ -42,18 +42,34 @@ window.addEventListener('click',e=>{const b=e.target?.closest?.('#annualArchiveB
 // Keep the shared result store, but route archive downloads through the existing
 // day-by-day fast engine so no page=2 dependency can stop a long archive run.
 async function runSafe(start,end,{resume=false}={}){
- const fast=window.ATFastArchiveProgressHotfixF60943125;
- if(!fast?.run)return run(start,end,{resume});
- if(resume){
-   const old=await getJob().catch(()=>null);
-   if(old?.start&&old?.end){start=old.start;end=old.end}
- }
- if(!validRange(start,end))throw Error('Başlangıç ve bitiş tarihlerini seçin.');
- const a=Number(start.slice(0,4)),b=Number(end.slice(0,4));
- const yf=$('rrFastYearFromF60943121'),yt=$('rrFastYearToF60943121');
- if(yf)yf.value=String(a);if(yt)yt.value=String(b);
- status(`${start} → ${end} · güvenli gün-gün Koşu Sorgulama motoruna aktarılıyor; tekrar eden sayfa kullanılmayacak.`);
- return fast.run();
+ if(busy)return;busy=true;stopped=false;setBusy(true);let job=null;
+ try{
+  const old=await getJob().catch(()=>null);
+  if(resume&&old){start=old.start;end=old.end}
+  if(!validRange(start,end))throw Error('Başlangıç ve bitiş tarihlerini seçin.');
+  job=old&&old.start===start&&old.end===end&&old.status!=='complete'?old:{key:JOB,start,end,cursor:start,processed:0,status:'running'};
+  // Old paged jobs may be parked on page 2. Resume from the same DATE, but reset paging.
+  job={...job,page:0,total:0,seen:0,pageSize:0,fingerprints:[],windowEnd:job.cursor,status:'running',error:''};
+  while(job.cursor<=end&&!stopped){
+   status(`${job.cursor} · gün-gün güvenli sorgu · ${job.processed||0} yarış kaydedildi`);
+   const data=await fetchPage(job.cursor,job.cursor,0);
+   if(stopped)break;
+   const raw=Array.isArray(data.rows)?data.rows:[];
+   if(data.filterMatched===false||raw.some(r=>r.date!==job.cursor))throw Error('TJK seçili gün dışında kayıt döndürdü. Gün kaydedilmedi.');
+   const records=raw.map(normalize);
+   if(new Set(records.map(r=>r.key)).size!==records.length)throw Error('Aynı gün içinde yarış kimliği tekrarı bulundu. Gün kaydedilmedi.');
+   const nextDay=addDays(job.cursor,1);
+   const next={...job,cursor:nextDay,windowEnd:nextDay,page:0,processed:(job.processed||0)+records.length,status:nextDay>end?'complete':'running',error:''};
+   await savePage(records,next);job=next;
+   await new Promise(r=>setTimeout(r,0));
+  }
+  if(stopped){job={...job,status:'paused'};await savePage([],job);status(`Duraklatıldı · ${job.processed||0} yarış kaydedildi. Kaldığı yerden devam edebilirsiniz.`)}
+  else status(`Tamamlandı · ${job.processed||0} yarış işlendi. Sayfa 2 kullanılmadı.`);
+  return job;
+ }catch(e){
+  if(job){job={...job,status:stopped?'paused':'error',error:stopped?'':e.message};await savePage([],job).catch(()=>{})}
+  status(stopped?'Duraklatıldı. Kaldığı yer korunuyor.':`İndirme durdu: ${e.message}`);if(!stopped)throw e;return job;
+ }finally{busy=false;setBusy(false);if(job?.processed)window.dispatchEvent(new CustomEvent('at-ai:real-race-archive-updated',{detail:{source:VERSION+'+SAFE-DAY-V17.4.13B'}}));await refresh().catch(()=>{})}
 }
 function claimSafeButtons(){
  const a=$('refRun17412'),b=$('refResume17412');
