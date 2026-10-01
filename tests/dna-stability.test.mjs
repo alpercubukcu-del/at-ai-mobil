@@ -244,3 +244,12 @@ test('later local archive workouts cannot leak into historical G or D inputs',()
  const r=runtime();const safe=vm.runInContext(`(()=>{${dnaSource.slice(dnaSource.indexOf('function beforeRaceContext'),dnaSource.indexOf('async function horseContext'))}return beforeRaceContext({workout:{workouts:[{date:'2026-09-25',splits:{600:42}},{date:'2026-10-01',splits:{600:30}}],latest:{date:'2026-10-01',splits:{600:30}},bestByDistance:{600:30}}},'2026-10-01')})()`,r.context);
  assert.equal(safe.workout.latest.date,'2026-09-25');assert.equal(safe.workout.bestByDistance[600],42);assert.equal(safe.workout.archiveWorkouts.length,1);
 });
+
+test('degree enrichment never waits on network workout requests from any race',async()=>{
+ const state=fixture();const other=copy(state.races[0]);other.no=2;other.horses=other.horses.map(h=>({...h,no:h.no,name:'OTHER '+h.name,id:'OTHER'+h.id}));state.races.push(other);state.analyses.current.races.push({no:2,horses:other.horses.map(h=>({...h,history:{degreeSamples:[]}}))});
+ const requests=[];const r=runtime({state,loadCore:true,loadDegree:true,fetchContext:async url=>{requests.push(url.searchParams.get('horse'));return{ok:true,connections:{attempted:true},workout:null}}});
+ let calls=0;r.api.horseContext=async()=>{calls++;return new Promise(()=>{})};
+ await Promise.race([r.window.ATDegreeSpeedF6090.enrichCurrent(),new Promise((_,reject)=>{const timer=setTimeout(()=>reject(Error('degree must not await workouts')),500);timer.unref()})]);
+ assert.equal(calls,0);assert.equal(requests.length,0);
+ await r.api.compute(1);assert.equal(r.saved.length,1);assert.equal(requests.length,3);assert.ok(requests.every(name=>!name.startsWith('OTHER')));
+});
