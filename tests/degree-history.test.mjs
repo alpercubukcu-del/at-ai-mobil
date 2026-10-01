@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import fs from 'node:fs';
-const window={};vm.runInNewContext(fs.readFileSync(new URL('../degree-history-core-v1746.js',import.meta.url),'utf8'),{window});
+const window={};vm.runInNewContext(fs.readFileSync(new URL('../degree-history-core-v1746.js',import.meta.url),'utf8'),{window,setTimeout});
 const core=window.ATDegreeHistoryV1746;
 const race={distance:1400,track:'Kum',class:'ŞARTLI 4',ageGroup:'3 Yaşlı Araplar'};
 const record=(date,city,d,time,cl='ŞARTLI 4')=>({date,city,race:{distance:d,track:'Kum',class:cl,ageGroup:race.ageGroup,winner:{degree:time},rows:[]}});
@@ -35,4 +35,9 @@ test('indexed reference yields the identical forecast and excludes future record
  const x={...input,records:[...input.records,record('2026-10-01','Kocaeli',1400,'1.20.00'),record('2026-09-11','Ankara',1500,'1.20.00')]};
  assert.deepEqual(copy(core.predict(x)),copy(core.predict({...x,referenceIndex:core.createReferenceIndex(x.records)})));
  const many=copy(x);many.row.history.degreeSamples.push({...many.row.history.degreeSamples[0],date:'2026-09-20',sec:108});assert.deepEqual(copy(core.predict(many)),copy(core.predict({...many,referenceIndex:core.createReferenceIndex(many.records)})));
+});
+
+test('yielding archive preparation preserves exact predictions and kilo evidence',async()=>{
+ const rows=Array.from({length:160},(_,i)=>({...record(`2026-08-${String(i%28+1).padStart(2,'0')}`,'Kocaeli',1400,'1.35.00'),raceNo:i+1}));rows.forEach((r,i)=>{r.race.rows=Array.from({length:12},(_,h)=>({horseId:String(h),horseName:'AT '+h,degree:'1.36.00',weight:54+i%4}))});
+ let ticks=0;const timer=setInterval(()=>ticks++,0);const prepared=await core.prepareAsync(rows,input.date);clearInterval(timer);assert.ok(ticks>=3,'the main thread yields between archive batches');assert.deepEqual(prepared.weightModel,core.weightEvidence(rows,input.date));const indexed=core.createReferenceIndex(rows);assert.deepEqual(core.predict({...input,records:rows,...prepared}),core.predict({...input,records:rows,referenceIndex:indexed,weightModel:core.weightEvidence(rows,input.date)}));
 });

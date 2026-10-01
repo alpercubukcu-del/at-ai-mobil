@@ -275,3 +275,23 @@ for(const change of ['weight','horseId','distance'])test(`an in-flight ${change}
 test('missing current career is not promoted into a completed DNA snapshot',async()=>{
  const r=runtime();r.state.analyses.current.races[0].horses[0].careerError='Kariyer isteği tamamlanmadı';await r.api.compute(1);assert.equal(r.saved.length,0);assert.match(r.messages.at(-1),/Kariyer verisi eksik/);
 });
+
+test('all races share degree reference preparation and do not wait for a calibration rebuild', async () => {
+ const state=fixture();state.races.push({...copy(state.races[0]),no:2});state.analyses.current.races.push({...copy(state.analyses.current.races[0]),no:2});
+ const r=runtime({state,loadCore:true,loadDegree:true,loadSurface:true});const core=r.window.ATDegreeHistoryV1746;let preparations=0,rebuilds=0;
+ const prepare=core.prepareAsync;core.prepareAsync=(...args)=>{preparations++;return prepare(...args)};
+ r.window.ATDegreeCalibrationF6094315={rebuildSamples:()=>{rebuilds++;return new Promise(()=>{})}};
+ await r.window.ATDegreeSpeedF6090.enrichCurrent();assert.equal(preparations,1);assert.equal(rebuilds,0);assert.equal(state.analyses.current.races.length,2);assert.equal(state.analyses.current.degreeSpeed.surfaceAware,true);
+});
+
+test('surface adapter preserves modern reference metadata without legacy archive queries', async () => {
+ const r=runtime({loadCore:true,loadDegree:true,loadSurface:true});let queries=0;r.context.indexedDB.open=()=>{queries++;throw Error('unexpected archive scan')};r.window.ATTrackMaintenanceV1={get:()=>{queries++;throw Error('unexpected maintenance query')}};
+ const result={races:[{no:1,degreeModel:{referenceCount:42,leader:'AT 1'},horses:[{name:'AT 1',degreeModel:{version:'DEGREE-HISTORY-CORE-V17.4.6',predictedSec:90,rank:1,baselineSamples:42}}]}]};const original=copy(result.races);
+ await r.window.ATDegreeSpeedSurfaceF6091.recalc({result,programRaces:r.state.races,city,date,resultRows:[],deferPublish:true});assert.equal(queries,0);assert.deepEqual(result.races,original);assert.equal(result.degreeSpeed.surfaceAware,true);
+});
+
+test('explicit maintenance application enriches only once', async () => {
+ let calls=0;const r=runtime({enrich:async()=>{calls++}});r.window.ATDegreeSpeedSurfaceF6091={recalc:async()=>{calls++}};
+ vm.runInContext(fs.readFileSync(new URL('../track-maintenance-real-door-v1691f707.js',import.meta.url),'utf8'),r.context);
+ await r.window.ATTrackMaintenanceRealDoorF609416.applyToCurrentAnalysis();assert.equal(calls,1);
+});
