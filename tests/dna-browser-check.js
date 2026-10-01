@@ -5,10 +5,12 @@
  const assert = (condition, label) => {if (!condition) throw Error(label); checks.push(label);};
  const until = async (fn, label) => {const end = Date.now() + 12000; while (Date.now() < end) {if (fn()) return; await new Promise(resolve => setTimeout(resolve, 25));} throw Error('Timeout: ' + label);};
  const api = window.ATFogdScoreCenterF609431;
- assert(window.ATDegreeHistoryV1746?.version==='DEGREE-HISTORY-CORE-V17.4.6','normalized history core is present in production bundle');
+ assert(window.ATDegreeHistoryV1746?.version==='DEGREE-HISTORY-CORE-V17.4.13','normalized history core is present in production bundle');
  assert(api.calculationVersion === 'FOGD-STABLE-INPUTS-V17.4.4', 'production bundle exposes V17.4.4 calculation');
  assert(window.ATDegreeSpeedF6090.calculationVersion === 'DEGREE-STABLE-INPUTS-V17.4.4', 'production degree engine is current');
  window.AT_AI_LOCAL_ARCHIVE.saveFogdAnalysis = async snapshot => {t.saved.push(structuredClone(snapshot)); return true;};
+ // Settle any automatic startup enrichment before inserting the controlled delay.
+ await window.ATDegreeSpeedF6090.enrichCurrent();
  let releaseTrack, trackCalls = 0;
  const gate = new Promise(resolve => {releaseTrack = resolve;});
  window.ATTrackMaintenanceV1.infer = async () => {trackCalls++; await gate; return {source: 'EXACT_TJK', confidence: 1, weather: {temperatureAnomaly: 0}, maintenance: {signalCount: 5}};};

@@ -31,7 +31,7 @@ function isoDate(d){
 }
 function addDays(iso,n){const [y,m,d]=String(iso).split('-').map(Number),x=new Date(y,m-1,d);x.setDate(x.getDate()+n);return isoDate(x)}
 function monthOf(iso){return Number(String(iso||'').slice(5,7))||0}
-function median(values){const a=values.map(Number).filter(Number.isFinite).sort((x,y)=>x-y);if(!a.length)return null;const m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2}
+function median(values){const a=values.filter(v=>v!==null&&v!==undefined&&String(v).trim()!=='').map(Number).filter(Number.isFinite).sort((x,y)=>x-y);if(!a.length)return null;const m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2}
 function mode(values){const m=new Map();for(const v of values){const k=String(v);m.set(k,(m.get(k)||0)+1)}return [...m].sort((a,b)=>b[1]-a[1])[0]?.[0]??null}
 function windParts(raw=''){
   const t=clean(raw),u=fold(t);const m=t.replace(',','.').match(/(\d+(?:\.\d+)?)\s*(?:KM\s*\/?\s*(?:SA|S)|KM\/H|KPH)?/i);const speed=m?Number(m[1]):null;
@@ -75,8 +75,8 @@ async function saveRows(rows,{loadReports=true,onProgress=null}={}){
   const list=(Array.isArray(rows)?rows:[]).map(normalizeRow);let done=0;
   await mapLimit(list,DETAIL_CONCURRENCY,async row=>{
     const old=await dbGet(STORE,row.key);let merged={...old,...row};
-    if(loadReports&&row.reportUrl&&(!old?.maintenance||old?.reportUrl!==row.reportUrl)){
-      try{const detail=await fetchDetail(row.reportUrl);merged={...merged,maintenance:detail?.maintenance||null,reportPages:detail?.pages||0,reportParsedAt:new Date().toISOString()}}catch(e){merged.reportError=e?.message||String(e)}
+    if(loadReports&&row.reportUrl&&(old?.maintenance?.observationKind!=='DOCUMENTED_SCHEDULE'||!old?.maintenanceAvailableAt||old?.reportUrl!==row.reportUrl)){
+      try{const detail=await fetchDetail(row.reportUrl);merged={...merged,maintenance:detail?.maintenance||null,maintenanceAvailableAt:new Date().toISOString(),maintenanceAvailabilitySource:'FIRST_VERIFIED_DOWNLOAD',reportPages:detail?.pages||0,reportError:null,reportParsedAt:new Date().toISOString()}}catch(e){merged.reportError=e?.message||String(e)}
     }
     if(!await dbPut(STORE,merged))throw Error('Pist arşivi kaydı yazılamadı. Tarayıcı depolama iznini kontrol edin.');
     await dbPut(META,{key:`city:${merged.cityKey}`,city:merged.city,cityKey:merged.cityKey,lastDate:merged.date,updatedAt:new Date().toISOString()});
@@ -84,18 +84,35 @@ async function saveRows(rows,{loadReports=true,onProgress=null}={}){
   });
   return list.length;
 }
-async function syncRange(start,end,{loadReports=true,label='Pist bilgileri'}={}){
-  const first=await fetchPage(start,end,0),total=Number(first?.total||0),pages=Math.max(1,Math.min(MAX_PAGES,Math.ceil(Math.max(total,(first?.rows||[]).length)/PAGE_SIZE)));
-  let rows=[...(first?.rows||[])];
-  if(pages>1){const pageNos=Array.from({length:pages-1},(_,i)=>i+1);let pageDone=0;const chunks=await mapLimit(pageNos,PAGE_CONCURRENCY,async p=>{const d=await fetchPage(start,end,p);pageDone++;setStatus(`${label}: ${pageDone+1}/${pages} sayfa alındı…`,Math.round((pageDone+1)/pages*45));return d?.rows||[]});for(const part of chunks)rows.push(...(part||[]))}
-  const uniq=[...new Map(rows.map(r=>[reportKey(r.date,r.city),r])).values()].filter(r=>r.date>=start&&r.date<=end);
-  await saveRows(uniq,{loadReports,onProgress:(done,n,row)=>setStatus(`${label}: ${done}/${n} rapor · ${row.city} ${row.date}`,45+Math.round(done/Math.max(1,n)*50))});
-  if(!await dbPut(META,{key:'sync:last',lastDate:end,startDate:start,rowCount:uniq.length,updatedAt:new Date().toISOString(),version:VERSION}))throw Error('Pist arşivi güncelleme kaydı saklanamadı. Tekrar deneyin.');
-  setStatus(`${label} tamamlandı · ${uniq.length} gün/hipodrom`,100);
-  return uniq;
+async function syncWindow(start,end,{loadReports=true,label='Pist bilgileri'}={}){
+ const first=await fetchPage(start,end,0),total=Number(first?.total||0),size=(first?.rows||[]).length||PAGE_SIZE,pages=Math.max(1,Math.ceil(total/size));
+ if(pages>MAX_PAGES)throw Error('Pist arşivi pencere sınırını aşıyor; eksik indirme tamamlandı sayılmadı.');
+ const rows=[],seen=new Set();
+ for(let page=0;page<pages;page++){
+  const data=page===0?first:await fetchPage(start,end,page),part=data?.rows||[];
+  if(part.some(r=>!r.city||!r.date||r.date<start||r.date>end))throw Error('Pist sayfası tarih aralığı dışında; ilerleme kaydedilmedi.');
+  if(!part.length&&rows.length<total)throw Error('Pist arşivinde beklenen sayfa boş; ilerleme kaydedilmedi.');
+  for(const r of part){const key=reportKey(r.date,r.city);if(seen.has(key))throw Error('TJK aynı pist kaydını tekrar döndürdü; indirme tamamlandı sayılmadı.');seen.add(key);rows.push(r)}
+  setStatus(`${label}: ${page+1}/${pages} sayfa alındı…`,Math.round((page+1)/pages*45));
+ }
+ if(rows.length<total)throw Error(`Pist arşivi eksik (${rows.length}/${total}); ilerleme kaydedilmedi.`);
+ await saveRows(rows,{loadReports,onProgress:(done,n,row)=>setStatus(`${label}: ${done}/${n} rapor · ${row.city} ${row.date}`,45+Math.round(done/Math.max(1,n)*50))});
+ return rows;
 }
-async function syncYear(year){const y=Number(year),start=`${y}-01-01`,end=`${y}-12-31`,saved=await dbGet(META,`year:${y}:progress`),resume=saved?.lastDate&&saved.lastDate>=start&&saved.lastDate<end?addDays(saved.lastDate,1):start;if(resume>end){await dbPut(META,{key:`year:${y}`,year:y,rowCount:Number(saved?.rowCount||0),status:'complete',updatedAt:new Date().toISOString(),version:VERSION});return[]}setStatus(`${y} pist/bakım/hava arşivi ${resume} tarihinden devam ediyor…`,0);const rows=await syncRange(resume,end,{loadReports:true,label:String(y)});const all=(await rowsByIndex('year',y)).filter(r=>r.date>=start&&r.date<=end);await dbPut(META,{key:`year:${y}:progress`,year:y,lastDate:end,rowCount:all.length,updatedAt:new Date().toISOString(),version:VERSION});await dbPut(META,{key:`year:${y}`,year:y,rowCount:all.length,status:'complete',updatedAt:new Date().toISOString(),version:VERSION});return rows}
-async function backfillYears(from,to,{throwIfBusy=false}={}){if(busy){if(throwIfBusy)throw Error('Pist verileri zaten güncelleniyor. Tamamlanmasını bekleyin.');return}busy=true;try{const a=Math.min(Number(from),Number(to)),b=Math.max(Number(from),Number(to));for(let y=a;y<=b;y++){const done=await dbGet(META,'year:'+y);if(done?.status==='complete'&&Number(done?.rowCount||0)>0){setStatus(y+' arşivde mevcut · TJK indirmesi atlandı',Math.round((y-a+1)/Math.max(1,b-a+1)*100));continue}const existing=(await rowsByIndex('year',y)).filter(r=>r?.date&&String(r.date).startsWith(String(y)+'-')).sort((x,z)=>String(x.date).localeCompare(String(z.date)));if(existing.length){const last=existing.at(-1)?.date||'';await dbPut(META,{key:`year:${y}:progress`,year:y,lastDate:last,rowCount:existing.length,updatedAt:new Date().toISOString(),version:VERSION});setStatus(y+' mevcut '+existing.length+' kayıt bulundu · '+last+' sonrasından devam',Math.round((y-a)/Math.max(1,b-a+1)*100))}await syncYear(y)}await refreshUi()}finally{busy=false}}
+async function syncRangeInternal(start,end,options={}){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end)||start>end)throw Error('Geçerli pist arşivi tarih aralığı seçin.');
+ const key=`verified-range:${start}:${end}`,saved=await dbGet(META,key),rows=[];if(end>=isoDate(new Date())&&saved?.nextDate>end)saved.nextDate=end;
+ let cursor=saved?.validationVersion===17413?saved.nextDate:start;
+ while(cursor<=end){const last=[addDays(cursor,6),end].sort()[0];rows.push(...await syncWindow(cursor,last,options));const next=addDays(last,1);
+  if(!await dbPut(META,{key,startDate:start,lastDate:last,nextDate:next,validationVersion:17413,updatedAt:new Date().toISOString()}))throw Error('Pist arşivi ilerlemesi kaydedilemedi.');cursor=next;await new Promise(resolve=>setTimeout(resolve,0));
+ }
+ const archived=(await allRows()).filter(r=>r.date>=start&&r.date<=end),repairs=options.loadReports===false?[]:archived.filter(r=>r.reportUrl&&(r.maintenance?.observationKind!=='DOCUMENTED_SCHEDULE'||!r.maintenanceAvailableAt||r.reportError));if(repairs.length)await saveRows(repairs,{loadReports:true});
+ if(!await dbPut(META,{key:'sync:last',lastDate:end,startDate:start,rowCount:rows.length,validationVersion:17413,updatedAt:new Date().toISOString(),version:VERSION}))throw Error('Pist arşivi güncelleme kaydı saklanamadı.');
+ setStatus(`${options.label||'Pist bilgileri'} tamamlandı · doğrulanmış aralık ${start} → ${end}`,100);return rows;
+}
+async function syncRange(start,end,options={}){if(busy)throw Error('Pist verileri zaten güncelleniyor.');busy=true;try{return await syncRangeInternal(start,end,options)}finally{busy=false}}
+async function syncYear(year){const y=Number(year),start=`${y}-01-01`,end=`${y}-12-31`,saved=await dbGet(META,`year:${y}:progress`),resume=start;if(resume>end){await dbPut(META,{key:`year:${y}`,year:y,rowCount:Number(saved?.rowCount||0),status:'complete',validationVersion:17413,updatedAt:new Date().toISOString(),version:VERSION});return[]}setStatus(`${y} pist/bakım/hava arşivi ${resume} tarihinden devam ediyor…`,0);const rows=await syncRangeInternal(resume,end,{loadReports:true,label:String(y)});const all=(await rowsByIndex('year',y)).filter(r=>r.date>=start&&r.date<=end);await dbPut(META,{key:`year:${y}:progress`,year:y,lastDate:end,rowCount:all.length,updatedAt:new Date().toISOString(),version:VERSION});await dbPut(META,{key:`year:${y}`,year:y,rowCount:all.length,status:'complete',validationVersion:17413,updatedAt:new Date().toISOString(),version:VERSION});return rows}
+async function backfillYears(from,to,{throwIfBusy=false}={}){if(busy){if(throwIfBusy)throw Error('Pist verileri zaten güncelleniyor. Tamamlanmasını bekleyin.');return}busy=true;try{const a=Math.min(Number(from),Number(to)),b=Math.max(Number(from),Number(to));for(let y=a;y<=b;y++){const done=await dbGet(META,'year:'+y);if(done?.status==='complete'&&done.validationVersion===17413&&Number(done?.rowCount||0)>0){setStatus(y+' arşivde mevcut · TJK indirmesi atlandı',Math.round((y-a+1)/Math.max(1,b-a+1)*100));continue}await syncYear(y)}await refreshUi()}finally{busy=false}}
 async function autoSync(targetDate,{throwOnError=false}={}){
   if(window.__AT_REAL_RANGE_UPDATE_ACTIVE_F609426__){if(throwOnError)throw Error('Başka bir arşiv güncellemesi sürüyor. Tamamlanmasını bekleyin.');return}
   if(busy){if(throwOnError)throw Error('Pist verileri zaten güncelleniyor. Tamamlanmasını bekleyin.');return}
@@ -105,7 +122,7 @@ async function autoSync(targetDate,{throwOnError=false}={}){
     const meta=await dbGet(META,'sync:last'),all=await allRows(),dates=all.map(r=>r?.date).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(String(d))&&d<=targetDate).sort(),localLast=dates.at(-1)||'',last=[meta?.lastDate||'',localLast].sort().at(-1)||'';
     let start=last&&last<targetDate?addDays(last,1):targetDate;
     if(start>targetDate)start=targetDate;
-    await syncRange(start,targetDate,{loadReports:true,label:'Otomatik pist güncellemesi'});
+    await syncRangeInternal(start,targetDate,{loadReports:true,label:'Otomatik pist güncellemesi'});
     const city=typeof getCityName==='function'?getCityName():'';
     if(city){lastContext=await infer(targetDate,city);window.__AT_TRACK_CONTEXT_F6089__=lastContext;}
     await refreshUi();
@@ -127,7 +144,7 @@ async function infer(date,city){
   const rows=(await cityRows(city)).filter(r=>r.date<date).sort((a,b)=>b.date.localeCompare(a.date));const last=rows[0]||null;
   const env=exact||last||{};
   const z=(v,med,scale)=>Number.isFinite(v)&&Number.isFinite(med)?Number(((v-med)/scale).toFixed(3)):null;
-  const inferredMaintenance=exact?.maintenance?.signalCount?exact.maintenance:(p?{inferred:true,probabilities:p.probabilities,barrierMeters:Number.isFinite(Number(p.barrierMedian))?[Number(p.barrierMedian)]:[],penetrometer:Number.isFinite(Number(p.penetrometerMedian))?[Number(p.penetrometerMedian)]:[],signalCount:0}:null);
+  const inferredMaintenance=exact?.maintenance?.signalCount?exact.maintenance:(p?{inferred:true,probabilities:p.probabilities,barrierMeters:Number.isFinite(p.barrierMedian)?[Number(p.barrierMedian)]:[],penetrometer:Number.isFinite(p.penetrometerMedian)?[Number(p.penetrometerMedian)]:[],signalCount:0}:null);
   return{date,city,source:exact?'EXACT_TJK':(last?'LAST_KNOWN_PLUS_SEASONAL':'SEASONAL_ONLY'),confidence:exact?.maintenance?.signalCount?1:(last&&p?.sampleCount>=5?.72:p?.sampleCount>=5?.55:.25),record:exact||null,lastKnown:last,maintenance:inferredMaintenance,weather:{temperature:env.temperature??null,humidity:env.humidity??null,pressure:env.pressure??null,sky:env.sky||'',wind:env.wind||'',windSpeedKmh:env.windSpeedKmh??null,windDirection:env.windDirection||'',temperatureAnomaly:z(env.temperature,p?.temperatureMedian,8),humidityAnomaly:z(env.humidity,p?.humidityMedian,20),pressureAnomaly:z(env.pressure,p?.pressureMedian,15),windAnomaly:z(env.windSpeedKmh,p?.windSpeedMedian,15)},profile:p};
 }
 
@@ -158,7 +175,7 @@ function installPanel(){
 }
 function installWhenReady(){if(installPanel())return;let n=0;const t=setInterval(()=>{n++;if(installPanel()||n>60)clearInterval(t)},500)}
 
-window.ATTrackMaintenanceV1={version:VERSION,get:getReport,profile,infer,syncRange,backfillYears,autoSync,detailedSurface,windParts,getLastContext:()=>lastContext,isBusy:()=>busy,initialize:openDb,setProgressListener:fn=>{progressListener=typeof fn==='function'?fn:null}};
+window.ATTrackMaintenanceV1={version:VERSION,get:getReport,allRows,profile,infer,syncRange,backfillYears,autoSync,detailedSurface,windParts,getLastContext:()=>lastContext,isBusy:()=>busy,initialize:openDb,setProgressListener:fn=>{progressListener=typeof fn==='function'?fn:null}};
 installWhenReady();
 console.info('[AT AI]',VERSION,'aktif');
 })();

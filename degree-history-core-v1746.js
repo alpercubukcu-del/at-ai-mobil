@@ -1,7 +1,7 @@
 /* DEGREE-HISTORY-CORE-V17.4.6: pre-race comparable performance; evidence scores are not probabilities. */
 (()=>{
 'use strict';
-const version='DEGREE-HISTORY-CORE-V17.4.6';
+const version='DEGREE-HISTORY-CORE-V17.4.13';
 const finite=v=>v===null||v===undefined||v===''?null:Number.isFinite(Number(v))?Number(v):null;
 const fold=v=>String(v??'').toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/İ/g,'I').replace(/[^A-Z0-9]/g,'');
 const median=a=>{const x=a.filter(Number.isFinite).sort((a,b)=>a-b);return x.length?(x[Math.floor((x.length-1)/2)]+x[Math.floor(x.length/2)])/2:null};
@@ -15,16 +15,17 @@ const level=r=>fold(r?.class||r?.raceClass||r?.yaradi1||'');
 const group=r=>fold(r?.ageGroup||r?.yaradi2||'');
 function addReference(index,rec){
  const key=JSON.stringify([fold(rec.city),distance(rec.race),surface(rec.race?.track||rec.race?.pist)]);
- if(!index.buckets.has(key))index.buckets.set(key,[]);index.buckets.get(key).push({date:rec.date,level:level(rec.race),group:group(rec.race),winnerSec:sec(rec.race?.winner?.degree)});
+ if(!index.buckets.has(key))index.buckets.set(key,[]);index.buckets.get(key).push({date:rec.date,level:level(rec.race),group:group(rec.race),winnerSec:sec(rec.race?.winner?.degree),record:rec});
  const id=JSON.stringify([rec.date,fold(rec.city),Number(rec.race?.no||rec.raceNo)]);
  if(!index.historical.has(id))index.historical.set(id,rec);
 }
 function createReferenceIndex(records){const index={buckets:new Map(),historical:new Map(),references:new Map()};for(const rec of records)addReference(index,rec);return index;}
 
-function reference(records,race,city,cutoff,index){
+function reference(records,race,city,cutoff,index,conditions){
+ const tracker=window.ATVerifiedTrackV17413,ctx=tracker?.context(conditions,cutoff,city,race);
  const d=distance(race),s=surface(race.track||race.pist),l=level(race),g=group(race);
  if(!(d>0&&s&&g))return {sec:null,dispersion:null,n:0,exact:false,dates:[]};
- const cacheKey=JSON.stringify([fold(city),d,s,l,g,cutoff]);
+ const cacheKey=JSON.stringify([fold(city),d,s,l,g,cutoff,ctx?.observationTime||null,ctx?.weather||null,ctx?.maintenance||null]);
  if(index?.references.has(cacheKey))return index.references.get(cacheKey);
  const candidates=index?.buckets.get(JSON.stringify([fold(city),d,s]))|| (index?[]:records);
  const all=index?candidates.filter(x=>x.date&&x.date<cutoff&&x.winnerSec>0):candidates.filter(x=>x.date&&x.date<cutoff&&fold(x.city)===fold(city)&&distance(x.race)===d&&surface(x.race?.track||x.race?.pist)===s&&sec(x.race?.winner?.degree)>0);
@@ -33,7 +34,10 @@ function reference(records,race,city,cutoff,index){
  const relaxed=all.filter(x=>!g||(index?x.group:group(x.race))===g);
  const selected=(exact.length>=3?exact:relaxed).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,100);
  const values=selected.map(x=>index?x.winnerSec:sec(x.race.winner.degree));
- const answer={sec:median(values),dispersion:spread(values),n:values.length,exact:exact.length>=3&&!!l&&!!g,dates:selected.map(x=>x.date)};
+ const compared=selected.map((x,i)=>{const rec=index?x.record:x,c=tracker?.context(conditions,rec.date,rec.city,rec.race,'reference',cutoff,race.time||race.saat||race.raceTime),match=tracker?.similarity(ctx,c);return{value:values[i],weight:match?.weight??1,fields:match?.fields||0,maintenanceComparable:!!match?.maintenanceComparable}});
+ const matched=compared.filter(x=>x.fields>0).length,active=matched>=3&&matched/Math.max(1,values.length)>=.5;
+ let baseline=median(values);if(active){const known=compared.filter(x=>x.fields>0),neutral=known.reduce((sum,x)=>sum+x.weight,0)/known.length;for(const x of compared)if(!x.fields)x.weight=neutral;const a=compared.slice().sort((a,b)=>a.value-b.value),half=a.reduce((sum,x)=>sum+x.weight,0)/2;let cumulative=0;for(const x of a){cumulative+=x.weight;if(cumulative>half){baseline=x.value;break}if(cumulative===half){baseline=(x.value+(a[a.indexOf(x)+1]?.value??x.value))/2;break}}}
+ const answer={sec:baseline,dispersion:spread(values),n:values.length,exact:exact.length>=3&&!!l&&!!g,dates:selected.map(x=>x.date),conditions:{version:tracker?.version||null,active,matched,total:values.length,source:ctx?.source||'VERIFIED_CONDITIONS_MISSING',missing:ctx?.missing||['Pist/hava arşivi bağlı değil'],weather:ctx?.weather||{},maintenanceComparable:compared.filter(x=>x.maintenanceComparable).length}};
  if(index)index.references.set(cacheKey,answer);return answer;
 }
 function workoutsAt(workout,cutoff){const seen=new Set();return [...(workout?.workouts||[]),...(workout?.archiveWorkouts||[])].filter(w=>w.date&&w.date<cutoff).sort((a,b)=>a.date.localeCompare(b.date)).filter(w=>{const k=JSON.stringify([w.date,w.city||w.hippodrome||w.hipodrome,w.track,w.type,w.splits]);if(seen.has(k))return false;seen.add(k);return true})}
@@ -64,15 +68,15 @@ async function prepareAsync(records,cutoff){
  return{referenceIndex,weightModel:weightSummary(horses)};
 }
 
-function predict({row,program,race,records,city,date,workout,weightModel,referenceIndex}){
+function predict({row,program,race,records,city,date,workout,weightModel,referenceIndex,conditions}){
  if(!referenceIndex)records=records.filter(x=>x.date&&x.date<date);
- const target=reference(records,race,city,date,referenceIndex),d=distance(race),s=surface(race.track||race.pist),kg=finite(program.weight??program.kilo);
+ const target=reference(records,race,city,date,referenceIndex,conditions),d=distance(race),s=surface(race.track||race.pist),kg=finite(program.weight??program.kilo);
  const samples=(row.history?.degreeSamples||[]).filter(x=>x.date&&x.date<date&&finite(x.sec)>0&&distance(x)>0&&Math.abs(distance(x)-d)<=200&&surface(x.track||x.pist)===s).sort((a,b)=>a.date.localeCompare(b.date));
  const ws=workoutsAt(workout,date),wm=weightModel||weightEvidence(records,date),converted=[];
  for(const h of samples){
-  const historic=referenceIndex?referenceIndex.historical.get(JSON.stringify([h.date,fold(h.city),Number(h.raceNo)])):records.find(r=>r.date===h.date&&fold(r.city)===fold(h.city)&&Number(r.race?.no||r.raceNo)===Number(h.raceNo));const historicalRace={distance:distance(h),track:h.track,class:h.class||historic?.race?.class,ageGroup:h.ageGroup||historic?.race?.ageGroup||race.ageGroup};
+  const historic=referenceIndex?referenceIndex.historical.get(JSON.stringify([h.date,fold(h.city),Number(h.raceNo)])):records.find(r=>r.date===h.date&&fold(r.city)===fold(h.city)&&Number(r.race?.no||r.raceNo)===Number(h.raceNo));const historicalRace={distance:distance(h),track:h.track,class:h.class||historic?.race?.class,ageGroup:h.ageGroup||historic?.race?.ageGroup||race.ageGroup,time:h.time||historic?.race?.time};
   // A historical par uses only results preceding that historical race, never its outcome.
-  const par=reference(records,historicalRace,h.city,h.date,referenceIndex);
+  const par=reference(records,historicalRace,h.city,h.date,referenceIndex,conditions);
   if(!(target.sec>0&&par.sec>0&&par.n>=3))continue;
   const value=target.sec+(h.sec-par.sec)*d/distance(h);
   const priorKg=finite(h.weight),weightSec=wm.active&&kg!==null&&priorKg!==null?Math.max(-1.5,Math.min(1.5,(kg-priorKg)*wm.coefficient)):0;
@@ -87,9 +91,9 @@ function predict({row,program,race,records,city,date,workout,weightModel,referen
  // Workout effort/tempo is unknown: observed improvement supports uncertainty, not invented seconds.
  const n=converted.length||samples.length,transfer=converted.some(x=>fold(x.sourceCity)!==fold(city));
  const dispersion=spread(converted.map(x=>x.value));
- const half=Math.max(1.5,(dispersion??1.5)*1.5)+3/Math.sqrt(Math.max(1,n))+(transfer?1:0)+(fallback?2:0)+(!target.exact?1.5:0)+(training.fraction!==null?Math.min(1,Math.abs(training.fraction)*20):.5);
+ const half=Math.max(1.5,(dispersion??1.5)*1.5)+3/Math.sqrt(Math.max(1,n))+(transfer?1:0)+(fallback?2:0)+(!target.exact?1.5:0)+(training.fraction!==null?Math.min(1,Math.abs(training.fraction)*20):.5)+(target.conditions?.active?0:1);
  const evidence=Math.min(85,Math.round(n*8+Math.min(25,target.n)+(target.exact?10:0)-(fallback?15:0)));
- return {version,personalPrediction:predicted!==null,referenceOnly:predicted===null,fallback,method,predictedSec:predicted,uncalibratedSec:predicted,predictedText:text(predicted),rangeText:predicted===null?'—':`${text(Math.max(0,predicted-half))}–${text(predicted+half)}`,uncertaintySec:half,workoutUncertaintySec:training.fraction!==null?Math.min(1,Math.abs(training.fraction)*20):.5,confidence:Math.max(0,evidence),confidenceKind:'EVIDENCE_SCORE_NOT_PROBABILITY',baselineSec:target.sec,baselineText:text(target.sec),baselineSamples:target.n,horseSamples:n,horseResidual:null,normalization:{reference:target,samples:converted,transfer},development:{growthSec,youngHorse:finite(program.age)<=4},weightEffect:{...wm,currentKg:kg,seconds:weighted(converted.map(x=>({...x,value:x.weightSec})))},workoutDevelopment:training,tempo:{available:false,seconds:0},cutoff:date};
+ return {version,personalPrediction:predicted!==null,referenceOnly:predicted===null,fallback,method,predictedSec:predicted,uncalibratedSec:predicted,predictedText:text(predicted),rangeText:predicted===null?'—':`${text(Math.max(0,predicted-half))}–${text(predicted+half)}`,uncertaintySec:half,workoutUncertaintySec:training.fraction!==null?Math.min(1,Math.abs(training.fraction)*20):.5,confidence:Math.max(0,evidence),confidenceKind:'EVIDENCE_SCORE_NOT_PROBABILITY',baselineSec:target.sec,baselineText:text(target.sec),baselineSamples:target.n,horseSamples:n,horseResidual:null,trackContext:window.ATVerifiedTrackV17413?.context(conditions,date,city,race)||null,normalization:{reference:target,samples:converted,transfer},development:{growthSec,youngHorse:finite(program.age)<=4},weightEffect:{...wm,currentKg:kg,seconds:weighted(converted.map(x=>({...x,value:x.weightSec})))},workoutDevelopment:training,tempo:{available:false,seconds:0},cutoff:date};
 }
 function attachWorkouts(model,history,workout,date){
  if(model?.version!==version)return model;

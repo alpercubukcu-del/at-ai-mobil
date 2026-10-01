@@ -230,7 +230,7 @@ test('normalized engine and DNA keep missing personal history unranked across re
  await r.api.compute(1);await r.api.compute(1);
  assert.equal(r.saved.length,2);assert.deepEqual(predictions(r.saved[0]),predictions(r.saved[1]));
  const empty=r.saved[0].rows.find(h=>h.no===1);assert.equal(empty.D,null);assert.equal(empty.predictedSec,null);assert.equal(empty.degreeRank,undefined);assert.equal(empty.dMeta.model.referenceOnly,true);
- assert.ok(r.saved[0].rows.filter(h=>h.no!==1).every(h=>h.dMeta.model.version==='DEGREE-HISTORY-CORE-V17.4.6'));
+ assert.ok(r.saved[0].rows.filter(h=>h.no!==1).every(h=>h.dMeta.model.version==='DEGREE-HISTORY-CORE-V17.4.13'));
 });
 
 test('normalized enrichment retries workout failure and includes only historical workout comparisons',async()=>{
@@ -286,7 +286,7 @@ test('all races share degree reference preparation and do not wait for a calibra
 
 test('surface adapter preserves modern reference metadata without legacy archive queries', async () => {
  const r=runtime({loadCore:true,loadDegree:true,loadSurface:true});let queries=0;r.context.indexedDB.open=()=>{queries++;throw Error('unexpected archive scan')};r.window.ATTrackMaintenanceV1={get:()=>{queries++;throw Error('unexpected maintenance query')}};
- const result={races:[{no:1,degreeModel:{referenceCount:42,leader:'AT 1'},horses:[{name:'AT 1',degreeModel:{version:'DEGREE-HISTORY-CORE-V17.4.6',predictedSec:90,rank:1,baselineSamples:42}}]}]};const original=copy(result.races);
+ const result={races:[{no:1,degreeModel:{referenceCount:42,leader:'AT 1'},horses:[{name:'AT 1',degreeModel:{version:'DEGREE-HISTORY-CORE-V17.4.13',predictedSec:90,rank:1,baselineSamples:42}}]}]};const original=copy(result.races);
  await r.window.ATDegreeSpeedSurfaceF6091.recalc({result,programRaces:r.state.races,city,date,resultRows:[],deferPublish:true});assert.equal(queries,0);assert.deepEqual(result.races,original);assert.equal(result.degreeSpeed.surfaceAware,true);
 });
 
