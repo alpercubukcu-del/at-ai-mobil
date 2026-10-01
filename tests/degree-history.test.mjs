@@ -30,3 +30,9 @@ test('late workout attachment is idempotent and preserves predicted seconds and 
  core.attachWorkouts(model,input.row.history.degreeSamples,{workouts},input.date);
  assert.equal(model.predictedSec,before);assert.equal(model.rank,3);assert.equal(model.uncertaintySec,half);assert.equal(model.rangeText,range);assert.equal(model.workoutDevelopment.comparisons,1);assert.equal(model.autoCalibration.seconds,1);
 });
+
+test('indexed reference yields the identical forecast and excludes future records at every cutoff',()=>{
+ const x={...input,records:[...input.records,record('2026-10-01','Kocaeli',1400,'1.20.00'),record('2026-09-11','Ankara',1500,'1.20.00')]};
+ assert.deepEqual(copy(core.predict(x)),copy(core.predict({...x,referenceIndex:core.createReferenceIndex(x.records)})));
+ const many=copy(x);many.row.history.degreeSamples.push({...many.row.history.degreeSamples[0],date:'2026-09-20',sec:108});assert.deepEqual(copy(core.predict(many)),copy(core.predict({...many,referenceIndex:core.createReferenceIndex(many.records)})));
+});

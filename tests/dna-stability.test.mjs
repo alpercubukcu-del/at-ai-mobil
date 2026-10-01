@@ -271,3 +271,7 @@ for(const change of ['weight','horseId','distance'])test(`an in-flight ${change}
   else r.state.races[0].horses[0].id='another-horse';
   gate.release();await pending;assert.equal(r.saved.length,0);assert.match(r.messages.at(-1),/Program.*değişti/i);
 });
+
+test('missing current career is not promoted into a completed DNA snapshot',async()=>{
+ const r=runtime();r.state.analyses.current.races[0].horses[0].careerError='Kariyer isteği tamamlanmadı';await r.api.compute(1);assert.equal(r.saved.length,0);assert.match(r.messages.at(-1),/Kariyer verisi eksik/);
+});

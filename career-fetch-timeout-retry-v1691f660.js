@@ -4,9 +4,10 @@ if (window.__AT_CAREER_FETCH_TIMEOUT_RETRY_V1691F660__) return;
 window.__AT_CAREER_FETCH_TIMEOUT_RETRY_V1691F660__ = true;
 
 const VERSION = 'CAREER-FETCH-TIMEOUT-RETRY-V16.9.1F60.60';
-const TIMEOUT_MS = 15000;
+const TIMEOUT_MS = 45000;
 const MAX_ATTEMPTS = 2;
 const RETRY_WAIT_MS = 250;
+const inFlight=new Map(), cache=new Map(), CACHE_MS=5*60*1000;
 
 function wait(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -55,7 +56,7 @@ try {
   }
 
   const baseFetchCareerF660 = fetchCareer;
-  fetchCareer = async function(horseId, before, ...rest) {
+  async function loadCareer(horseId, before, ...rest) {
     let lastError = null;
     let lastResult = null;
 
@@ -96,13 +97,26 @@ try {
     return lastResult || emptyCareer(lastError, horseId, before);
   };
 
+  fetchCareer=async function(horseId,before,...rest){
+    const key=JSON.stringify([String(horseId||''),String(before||''),rest]);
+    const hit=cache.get(key);if(hit&&Date.now()-hit.at<CACHE_MS)return structuredClone(hit.value);
+    if(!inFlight.has(key)){
+      const task=loadCareer.call(this,horseId,before,...rest).then(value=>{
+        if(value?.ok===true)cache.set(key,{at:Date.now(),value:structuredClone(value)});
+        return value;
+      }).finally(()=>inFlight.delete(key));
+      inFlight.set(key,task);
+    }
+    return structuredClone(await inFlight.get(key));
+  };
+
   window.ATCareerFetchTimeoutRetryV1691F660 = {
     version:VERSION,
     timeoutMs:TIMEOUT_MS,
     maxAttempts:MAX_ATTEMPTS,
     concurrency:4
   };
-  console.info('[AT AI]', VERSION, 'aktif — 4 paralel Kariyer istegi korunur; tek istek 15 sn sonra bir kez yeniden denenir ve sonsuz bekleme yapmaz.');
+  console.info('[AT AI]', VERSION, 'aktif — 4 paralel Kariyer istegi korunur; tek istek 45 sn sonra bir kez yeniden denenir ve sonsuz bekleme yapmaz.');
 } catch (error) {
   console.warn('[AT AI]', VERSION, 'guard kurulamadı', error);
 }

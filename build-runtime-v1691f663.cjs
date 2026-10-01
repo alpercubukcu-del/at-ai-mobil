@@ -120,8 +120,8 @@ currentSource=mustReplace(
 // F60.65 used a whole-document observer. Keep its behavior, but only react to the Analysis dialog itself.
 outlierSource=mustReplace(
   outlierSource,
-  "const mo=new MutationObserver(()=>queueMicrotask(reconcile));\n  try{mo.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['data-view','hidden','open']});}catch{}",
-  "const mo=new MutationObserver(()=>queueMicrotask(reconcile));\n  const target=$('analysisDialog');\n  try{if(target)mo.observe(target,{attributes:true,attributeFilter:['data-view','open']});}catch{}",
+  "let queued=false;\n  const mo=new MutationObserver(()=>{if(queued)return;queued=true;setTimeout(()=>{queued=false;reconcile();},0);});\n  try{mo.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['data-view','hidden','open']});}catch{}",
+  "let queued=false;\n  const mo=new MutationObserver(()=>{if(queued)return;queued=true;setTimeout(()=>{queued=false;reconcile();},0);});\n  const target=$('analysisDialog');\n  try{if(target)mo.observe(target,{attributes:true,attributeFilter:['data-view','open']});}catch{}",
   'scope outlier observer'
 );
 
