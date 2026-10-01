@@ -1,0 +1,77 @@
+
+
+TÜRKİYE JOKEY KULÜBÜ
+PİST BİLGİLENDİRME FORMU
+06/09/2026 gün saat 17:00 itibarı ile
+(Adana Yeşiloba Hipodrom)
+         Sıcaklık (°C)
+               Nem (%)
+         Basınç (hPa)
+Gökyüzü
+     Rüzgar (km/sa)
+Meteorolojik verilerde değişiklik olmadığı takdirde
+ 36,00
+ 55
+ 1.008,00
+Az Bulutlu
+15
+Çim Pist Bakım Programı
+BakımTarihSaatAçıklama
+Sulama
+Hedeflenen Pen. Ölçüm (1)
+Hedeflenen Pen. Ölçüm (2)
+Çim Biçimi
+Bariyer Konumu
+Silindir Uygulaması
+Verti Drain
+Yarış Kum Pist Bakım Programı
+BakımTarihSaatAçıklama
+Sulama (1)6.09.2026  00:00:0012:00
+Sulama (2)6.09.2026  00:00:0014:00
+Synchrogerm6.09.2026  00:00:0015:00
+Synchrogerm
+Synchrogerm
+Rotavatör
+Reglaj
+Silindir Uygulaması
+Tırmık Uygulaması6.09.2026  00:00:0017:30
+Diskaro Uygulaması
+Reglaj Uygulaması
+Gallop Master6.09.2026  00:00:0012:30
+Power Harrow
+Stone Burier
+İdman Kum Pist Bakım Programı
+BakımTarihSaatAçıklama
+Reglaj
+Synchorogerm
+Synchorogerm
+Synchorogerm
+Rotavatör
+Silindir
+Sulama6.09.2026  00:00:0014:00
+Tırmık Uygulaması6.09.2026  00:00:0015:00
+Sentetik Bakım Programı
+BakımTarihSaatAçıklama
+Gallop Master
+Stone Burrier
+Power Harrow
+
+         Sıcaklık (°C)
+               Nem (%)
+         Basınç (hPa)
+Gökyüzü
+     Rüzgar (km/sa)
+Meteorolojik verilerde değişiklik olmadığı takdirde
+ 36,00
+ 55
+ 1.008,00
+Az Bulutlu
+15
+Reglaj
+07/09/2026 Tarihi tahmini hava durumu
+Sıcaklık (°C)
+Gökyüzü
+ 31
+Az Bulutlu
+TÜRKİYE JOKEY KULÜBÜ
+Adana Yeşiloba Hipodrom Müdürlüğü
