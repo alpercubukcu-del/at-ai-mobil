@@ -132,7 +132,9 @@ async function compute(no){
  if(busy)return;busy=true;setButtons(true);
  try{
   const date=dateNow(),city=cityNow(),cityId=cityIdNow(),program=programRaceFor(no);if(!date||!city||!program)throw new Error('Önce günün programını yükleyin ve bir koşu seçin.');
-  const programKey=JSON.stringify(program),pr=copyInputs(program),checkProgram=()=>{if(dateNow()!==date||cityIdNow()!==cityId||fold(cityNow())!==fold(city)||JSON.stringify(programRaceFor(no))!==programKey)throw new Error('Program analiz sırasında değişti. Seçili programı tekrar analiz edin.')};
+  // Parser provenance may refresh without changing any race or horse input.
+  const programSignature=value=>{if(!value)return '';const {source,foreignFallbackUsed,...inputs}=value;return JSON.stringify(inputs)};
+  const programKey=programSignature(program),pr=copyInputs(program),checkProgram=()=>{if(dateNow()!==date||cityIdNow()!==cityId||fold(cityNow())!==fold(city)||programSignature(programRaceFor(no))!==programKey)throw new Error('Program analiz sırasında değişti. Seçili programı tekrar analiz edin.')};
   setPanelStatus(`${no}. Koşu · Güncel Analiz kontrol ediliyor…`);const ready=await ensureAnalysis(no);checkProgram();const cr=(ready.races||[]).find(r=>Number(r.no)===Number(no));if(!cr)throw new Error(`${no}. Koşu Güncel Analiz içinde bulunamadı.`);
   const horses=(pr.horses||[]).map(h=>({program:h,analysis:matchAnalysisHorse(cr,h),name:h.name,no:h.no,currentRank:null,F:formScore(h.last6),O:null,G:null,D:null,J:null,S:null,A:null,E:null,TBase:null,T:null,context:null}));
   const order=[...(cr.horses||[])];for(const r of horses){const ix=order.findIndex(x=>Number(x?.no)===Number(r.no)||fold(x?.name)===fold(r.name));r.currentRank=ix>=0?ix+1:null}
