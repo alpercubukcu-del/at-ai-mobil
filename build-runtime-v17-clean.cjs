@@ -17,7 +17,8 @@ new Function(condition);
 new Function(coupon);
 execFileSync(process.execPath,[BASE],{cwd:R,stdio:'inherit'});
 const calibration=fs.readFileSync(path.join(R,'degree-calibration-v1744.js'),'utf8');new Function(calibration);
-let app=calibration.trim()+'\n\n'+directory.trim()+'\n\n'+program.trim()+'\n\n'+fs.readFileSync(APP,'utf8');
+const degreeHistory=fs.readFileSync(path.join(R,'degree-history-core-v1746.js'),'utf8');new Function(degreeHistory);
+let app=degreeHistory.trim()+'\n\n'+calibration.trim()+'\n\n'+directory.trim()+'\n\n'+program.trim()+'\n\n'+fs.readFileSync(APP,'utf8');
 // Capture official main-page payloads before normalization discards their scope.
 const programAnchor='function getCurrentRaceList(data,cityId){';
 if(!app.includes(programAnchor))throw Error('[V17 CLEAN] main program capture boundary missing');
@@ -55,6 +56,6 @@ new Function(app);
 for(const token of ['DEGREE-AUTO-CALIBRATION-V17.4.4','DEGREE-STABLE-INPUTS-V17.4.4','uncalibratedSec'])if(!app.includes(token))throw Error('[V17 CLEAN] calibration missing '+token);
 fs.writeFileSync(APP,app,'utf8');
 for(const token of['ARCHIVE-PROGRAM-V17.4.2','ARCHIVE-DIRECTORY-V17.4.1','ARCHIVE-MENU-V17.4.2','TRACK-LONGTERM-ARCHIVE-V17.4.1','TRACK-MAINT-ARCHIVE-V17.4.1'])if(!app.includes(token))throw Error('[V17 CLEAN] archive menu fix missing '+token);
-let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1700405');
+let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1700406');
 fs.writeFileSync(INDEX,html,'utf8');
-console.log('[AT AI] V17.4.4 verified: completed degree inputs + one V17 DNA engine + nine independent column templates + isolated condition-aware tenth method');
+console.log('[AT AI] V17.4.6 verified: completed degree inputs + one V17 DNA engine + nine independent column templates + isolated condition-aware tenth method');

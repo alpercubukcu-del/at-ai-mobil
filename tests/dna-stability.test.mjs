@@ -16,7 +16,7 @@ function fixture() {
   const current = {date, city: '3', cityName: city, races: [{no: 1, horses: horses.map((h, i) => ({...h, history: {degreeSamples: []}, degreeModel: {predictedSec: 90 + i}}))}]};
   return {date, city: '3', cityName: city, races: [race], analyses: {current}};
 }
-function runtime({state = fixture(), enrich, run, track, fetchContext, loadDegree = false, loadSurface = false, calibration = []} = {}) {
+function runtime({state = fixture(), enrich, run, track, fetchContext, loadDegree = false, loadSurface = false, loadCore = false, calibration = []} = {}) {
   const saved = [], messages = [], elements = new Map();
   elements.set('fogdStatusF609431', {set textContent(value) {messages.push(value);}});
   elements.set('analysisRace', {value: 'all', options: [{value: 'all'}, {value: '1'}]});
@@ -42,6 +42,7 @@ function runtime({state = fixture(), enrich, run, track, fetchContext, loadDegre
       return {ok: true, json: async () => data};
     }, location: {origin: 'https://test.invalid'}
   });
+  if (loadCore) vm.runInContext(fs.readFileSync(new URL('../degree-history-core-v1746.js', import.meta.url), 'utf8'), context);
   if (loadDegree) vm.runInContext(degreeSource, context);
   if (loadSurface) vm.runInContext(surfaceSource, context);
   vm.runInContext(dnaSource, context);
@@ -220,4 +221,26 @@ test('fresh workout cannot be overwritten by older local archive', () => {
   const r=runtime();
   const result=vm.runInContext(`(()=>{${dnaSource.slice(dnaSource.indexOf('function workoutHasRows'),dnaSource.indexOf('async function requestHorseContext'))}return mergeLocalContext({workout:{workouts:[{}],latest:{date:'2026-09-26'}}},{data:{workout:{workouts:[{}],latest:{date:'2026-08-30'}}}},null)})()`,r.context);
   assert.equal(result.workout.latest.date,'2026-09-26');
+});
+
+
+test('normalized engine and DNA keep missing personal history unranked across repeated runs', async()=>{
+ const state=fixture();state.analyses.current.races[0].horses.forEach((h,i)=>{h.history.degreeSamples=i===0?[]:[{date:'2026-09-10',city,distance:1400,track:'Sentetik',sec:92-i}];});
+ const r=runtime({state,loadCore:true,loadDegree:true,loadSurface:true});
+ await r.api.compute(1);await r.api.compute(1);
+ assert.equal(r.saved.length,2);assert.deepEqual(predictions(r.saved[0]),predictions(r.saved[1]));
+ const empty=r.saved[0].rows.find(h=>h.no===1);assert.equal(empty.D,null);assert.equal(empty.predictedSec,null);assert.equal(empty.degreeRank,undefined);assert.equal(empty.dMeta.model.referenceOnly,true);
+ assert.ok(r.saved[0].rows.filter(h=>h.no!==1).every(h=>h.dMeta.model.version==='DEGREE-HISTORY-CORE-V17.4.6'));
+});
+
+test('normalized enrichment retries workout failure and includes only historical workout comparisons',async()=>{
+ const state=fixture();state.analyses.current.races[0].horses.forEach(h=>{h.history.degreeSamples=[{date:'2026-09-10',city,distance:1400,track:'Sentetik',sec:92}];});let count=0;
+ const r=runtime({state,loadCore:true,loadDegree:true,fetchContext:async()=>{count++;return{ok:true,connections:{attempted:true},errors:{workout:count===1?'temporary':null},workout:{workouts:[{date:'2026-09-05',city,track:'Sentetik',type:'Galop',splits:{600:42}},{date:'2026-09-25',city,track:'Sentetik',type:'Galop',splits:{600:41}}]}}}});
+ await r.api.compute(1);assert.equal(r.saved.length,1);assert.ok(count>=4);assert.ok(r.saved[0].rows.every(h=>h.dMeta.model.workoutDevelopment.fraction>0));
+});
+
+
+test('later local archive workouts cannot leak into historical G or D inputs',()=>{
+ const r=runtime();const safe=vm.runInContext(`(()=>{${dnaSource.slice(dnaSource.indexOf('function beforeRaceContext'),dnaSource.indexOf('async function horseContext'))}return beforeRaceContext({workout:{workouts:[{date:'2026-09-25',splits:{600:42}},{date:'2026-10-01',splits:{600:30}}],latest:{date:'2026-10-01',splits:{600:30}},bestByDistance:{600:30}}},'2026-10-01')})()`,r.context);
+ assert.equal(safe.workout.latest.date,'2026-09-25');assert.equal(safe.workout.bestByDistance[600],42);assert.equal(safe.workout.archiveWorkouts.length,1);
 });

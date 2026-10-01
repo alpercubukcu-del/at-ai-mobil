@@ -11,7 +11,7 @@ const esc=v=>clean(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 
 function fifthRowHtml(h){
   const m=h?.degreeModel||{};
-  return `<tr data-degree-top5-f60945="1"><td style="padding:5px;text-align:center"><b>${esc(m.rank||5)}</b></td><td style="padding:5px"><b>${esc(h?.no)}. ${esc(h?.name)}</b></td><td style="padding:5px;text-align:center"><b>${esc(m.predictedText||'—')}</b></td><td style="padding:5px;text-align:center">${esc(m.rangeText||'—')}</td><td style="padding:5px;text-align:center">%${esc(m.confidence??'—')}</td><td style="padding:5px;text-align:center">${esc(m.horseSamples??0)}/${esc(m.baselineSamples??0)}</td><td style="padding:5px;text-align:center">${esc(m.pedigree?.level||'—')} (${esc(m.pedigree?.examples||0)})</td></tr>`;
+  return `<tr data-degree-top5-f60945="1"><td style="padding:5px;text-align:center"><b>${esc(m.rank||5)}</b></td><td style="padding:5px"><b>${esc(h?.no)}. ${esc(h?.name)}</b></td><td style="padding:5px;text-align:center"><b>${esc(m.predictedText||'—')}</b></td><td style="padding:5px;text-align:center">${esc(m.rangeText||'—')}</td><td style="padding:5px;text-align:center">${esc(m.confidence??'—')}</td><td style="padding:5px;text-align:center">${esc(m.horseSamples??0)}/${esc(m.baselineSamples??0)}</td><td style="padding:5px;text-align:center">${esc(m.pedigree?.level||'—')} (${esc(m.pedigree?.examples||0)})</td></tr>`;
 }
 
 function applyTop5(){

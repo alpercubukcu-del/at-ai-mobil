@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const horses = [1, 2, 3].map(no => ({id: String(900200 + no), no, name: `DENEME AT ${no}`, last6: '333333', origin: ''}));
 const race = {no: 1, distance: 1400, track: 'Sentetik', class: 'ŞARTLI 4', name: 'ŞARTLI 4', horses};
-const current = {date: '2026-09-30', city: '3', cityName: 'İstanbul', races: [{no: 1, horses: horses.map((h, i) => ({...h, history: {degreeSamples: [{sec: 93 - i, distance: 1400}]}, degreeModel: {predictedSec: 91 + i}}))}]};
+const current = {date: '2026-09-30', city: '3', cityName: 'İstanbul', races: [{no: 1, horses: horses.map((h, i) => ({...h, history: {degreeSamples: [{date:'2026-09-10',city:'İstanbul',track:'Sentetik',sec: 93 - i, distance: 1400}]}, degreeModel: {predictedSec: 91 + i}}))}]};
 const state = {date: current.date, city: '3', cities: [{id: '3', name: 'İstanbul'}], races: [race], selectedRace: 'all', analyses: {current}};
 const init = `<script>
 localStorage.setItem('at_ai_mobil_state_v2', ${JSON.stringify(JSON.stringify(state))});

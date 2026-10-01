@@ -14,7 +14,7 @@ function clock(now=new Date()){const parts=Object.fromEntries(new Intl.DateTimeF
 function eligible(date,race,now=new Date(),finished=false){if(finished)return false;const current=clock(now);if(date>current.date)return true;if(date!==current.date)return false;const m=clean(race.time||race.saat||race.raceTime).match(/^(\d{1,2}):(\d{2})/);return !!m&&Number(m[1])<24&&Number(m[2])<60&&current.minute<Number(m[1])*60+Number(m[2])}
 function forecast(result,race,program,{date,city,now=new Date(),finished=false}={}){
  const context=JSON.parse(JSON.stringify(result.degreeSpeed?.trackContext||{}));
- context.surface=surface(program.track||program.pist);context.trackCondition=clean(program.trackCondition||program.pistDurumu);context.distance=finite(program.distance||program.mesafe||program.mes);context.raceClass=clean(program.class||program.yaradi1);
+ context.surface=surface(program.track||program.pist);context.trackCondition=clean(program.trackCondition||program.pistDurumu);context.distance=finite(program.distance||program.mesafe||program.mes);context.raceClass=clean(program.class||program.yaradi1);context.degreeModelVersion=race.horses?.[0]?.degreeModel?.version||'LEGACY';
  const horses=(race.horses||[]).map(h=>{const d=h.degreeModel||{},correction=d.autoCalibration?.active?finite(d.autoCalibration.seconds)||0:0,predicted=finite(d.predictedSec);return{no:h.no,name:h.name,predictedSec:predicted,uncalibratedSec:finite(d.uncalibratedSec)??(predicted===null?null:predicted-correction),rank:finite(d.rank),method:d.method||'',fallback:!!d.fallback||/FALLBACK/.test(d.method||''),predictedText:d.predictedText||'',rangeText:d.rangeText||'',confidence:d.confidence||0}});
  const canTrain=eligible(date,program,now,finished)&&!!context.surface;
  return{key:key({date,city,raceNo:race.no}),date,city,raceNo:Number(race.no),year:Number(date.slice(0,4)),trackContext:context,horses,eligibleForCalibration:canTrain,locked:canTrain,schema:SCHEMA,version:VERSION,generatedAt:now.toISOString(),updatedAt:now.toISOString()};
@@ -30,7 +30,7 @@ function buildSamples(predictions,results){
 }
 function adjustment(samples,city,race,ctx={},cutoff){
  const target=surface(race.track||race.pist),distance=finite(race.distance||race.mesafe||race.mes);
- const rows=samples.filter(s=>s.schema===SCHEMA&&s.date&&cutoff&&s.date<cutoff&&fold(s.city)===fold(city)&&target&&surface(s.trackContext?.surface)===target&&distance>0&&finite(s.trackContext?.distance)>0&&Math.abs(s.trackContext.distance-distance)<=200&&finite(s.rawErrorSec)!==null);
+ const rows=samples.filter(s=>(!window.ATDegreeHistoryV1746||s.trackContext?.degreeModelVersion===window.ATDegreeHistoryV1746.version)&&s.schema===SCHEMA&&s.date&&cutoff&&s.date<cutoff&&fold(s.city)===fold(city)&&target&&surface(s.trackContext?.surface)===target&&distance>0&&finite(s.trackContext?.distance)>0&&Math.abs(s.trackContext.distance-distance)<=200&&finite(s.rawErrorSec)!==null);
  const races=new Set(rows.map(s=>s.raceKey)).size,summary={samples:rows.length,races,seconds:0,active:false};if(rows.length<12||races<3)return summary;
  const weighted=rows.map(s=>{let weight=1;for(const [field,scale]of[['temperature',12],['humidity',35],['pressure',25]]){const a=finite(ctx.weather?.[field]),b=finite(s.trackContext?.weather?.[field]);if(a!==null&&b!==null)weight*=Math.exp(-Math.abs(a-b)/scale)}return{value:s.rawErrorSec,weight}}).sort((a,b)=>a.value-b.value);
  const half=weighted.reduce((sum,x)=>sum+x.weight,0)/2;let sum=0,median=0;for(const x of weighted){sum+=x.weight;if(sum>=half){median=x.value;break}}
