@@ -12,12 +12,14 @@ function apply(detail=last){
   if(!detail)return;
   last={...last,...detail,at:Date.now()};
   window.__AT_TRACK_MAINT_STATUS_F60948__=last;
-  const s=$('tmQuickStatusF60947');if(s&&last.text)s.textContent=String(last.text);
-  const b=$('tmQuickBarF60947');if(b&&last.pct!==null&&last.pct!==undefined){const p=Math.max(0,Math.min(100,Number(last.pct)||0));b.style.width=`${p}%`;b.setAttribute('aria-valuenow',String(p));}
+  const s=$('tmQuickStatusF60947');if(s&&last.text&&s.textContent!==String(last.text))s.textContent=String(last.text);
+  const b=$('tmQuickBarF60947');if(b&&last.pct!==null&&last.pct!==undefined){const p=Math.max(0,Math.min(100,Number(last.pct)||0));if(b.style.width!==`${p}%`)b.style.width=`${p}%`;if(b.getAttribute('aria-valuenow')!==String(p))b.setAttribute('aria-valuenow',String(p));}
 }
 window.addEventListener('at-ai:track-maintenance-status',e=>apply(e.detail||{}),{passive:true});
-const mo=new MutationObserver(()=>{if($('tmQuickDialogF60947'))apply(last)});
+// Only initialize newly inserted controls; text updates must never observe themselves.
+const mo=new MutationObserver(ms=>{if(ms.some(m=>Array.from(m.addedNodes||[]).some(n=>n.id==='tmQuickDialogF60947'||n.id==='tmQuickStatusF60947'||n.querySelector?.('#tmQuickStatusF60947'))))apply(last)});
 try{mo.observe(document.documentElement,{childList:true,subtree:true})}catch{}
+if($('tmQuickDialogF60947'))apply(last);
 window.ATTrackMaintenanceProgressF60948={version:VERSION,apply,getLast:()=>({...last})};
 console.info('[AT AI]',VERSION,'active — real maintenance progress is mirrored to quick dialog.');
 })();

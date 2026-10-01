@@ -16,7 +16,7 @@ function updateBatchState(){
   const shown=[...document.querySelectorAll('#f62aaList [data-f62-row]')];
   const selected=shown.filter(x=>x.checked).length;
   const total=selectionSet()?.size||0;
-  host.textContent=`Gösterilen ${shown.length} yarış · gösterilende ${selected} seçili · toplam ${total} seçili`;
+  const label=`Gösterilen ${shown.length} yarış · gösterilende ${selected} seçili · toplam ${total} seçili`;if(host.textContent!==label)host.textContent=label;
 }
 function applyShown(checked){
   const sel=selectionSet();
@@ -39,7 +39,7 @@ function install(){
   // F60.62 düğmesi gerçek kullanıcı düğmesidir; alttaki V14 düğmesi yalnız mevcut motor köprüsü olarak DOM'da kalır.
   const run=$('f62aaRun');
   if(run){
-    run.textContent='Seçilen Yarışlarla Kariyer Analizi';
+    if(run.textContent!=='Seçilen Yarışlarla Kariyer Analizi')run.textContent='Seçilen Yarışlarla Kariyer Analizi';
     run.classList.add('aa-btn','warn');
   }
 
@@ -83,7 +83,11 @@ function install(){
   return true;
 }
 function schedule(){for(const ms of[0,60,180,500,1200])setTimeout(install,ms);}
-const mo=new MutationObserver(()=>setTimeout(install,0));
+let queued=false;
+const mo=new MutationObserver(ms=>{
+ const relevant=ms.some(m=>m.target?.closest?.('#f62ArchiveSearch')||Array.from(m.addedNodes||[]).some(n=>n.id==='f62ArchiveSearch'||n.querySelector?.('#f62ArchiveSearch')));
+ if(!relevant||queued)return;queued=true;setTimeout(()=>{queued=false;install();},0);
+});
 try{mo.observe(document.documentElement,{subtree:true,childList:true})}catch{}
 window.addEventListener('at-ai:annual-archive-open',schedule);
 document.addEventListener('click',e=>{if(e.target?.closest?.('#annualArchiveBtn,#tjkAnnualArchiveButton,#annualArchiveButton'))schedule()},true);
