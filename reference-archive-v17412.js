@@ -37,5 +37,31 @@ function ensure(){if($(HOST))return $(HOST);const style=document.createElement('
 function open(){try{window.closeDrawer?.()}catch{}$('drawer')?.classList.remove('open');$('overlay')?.classList.remove('show');for(const id of ['tjkAnnualArchiveDialog','rrDialogF6093'])if($(id)?.open)$(id).close();const d=ensure();if(!d.open)d.showModal();void refresh().catch(e=>status(e.message));return d}
 // Window capture precedes the old document handlers; Menu 7 has exactly one owner.
 window.addEventListener('click',e=>{const b=e.target?.closest?.('#annualArchiveBtn,#annualArchiveBtnSafeF60943122');if(!b)return;e.preventDefault();e.stopImmediatePropagation();open()},true);
-window.ATReferenceArchiveV17412={version:VERSION,normalize,mergeRecord,advance,validRange,run,pause,list,stats,getJob,open,refresh};
+
+// V17.4.13: TJK can repeat page 1 when a narrow date query asks for page 2.
+// Keep the shared result store, but route archive downloads through the existing
+// day-by-day fast engine so no page=2 dependency can stop a long archive run.
+async function runSafe(start,end,{resume=false}={}){
+ const fast=window.ATFastArchiveProgressHotfixF60943125;
+ if(!fast?.run)return run(start,end,{resume});
+ if(resume){
+   const old=await getJob().catch(()=>null);
+   if(old?.start&&old?.end){start=old.start;end=old.end}
+ }
+ if(!validRange(start,end))throw Error('Başlangıç ve bitiş tarihlerini seçin.');
+ const a=Number(start.slice(0,4)),b=Number(end.slice(0,4));
+ const yf=$('rrFastYearFromF60943121'),yt=$('rrFastYearToF60943121');
+ if(yf)yf.value=String(a);if(yt)yt.value=String(b);
+ status(`${start} → ${end} · güvenli gün-gün Koşu Sorgulama motoruna aktarılıyor; tekrar eden sayfa kullanılmayacak.`);
+ return fast.run();
+}
+function claimSafeButtons(){
+ const a=$('refRun17412'),b=$('refResume17412');
+ if(a&&!a.dataset.safeDay17413){a.dataset.safeDay17413='1';a.onclick=()=>void runSafe($('refStart17412').value,$('refEnd17412').value).catch(e=>status('İndirme durdu: '+e.message))}
+ if(b&&!b.dataset.safeDay17413){b.dataset.safeDay17413='1';b.onclick=()=>void runSafe('','',{resume:true}).catch(e=>status('İndirme durdu: '+e.message))}
+}
+const _ensure17413=ensure;
+ensure=function(){const d=_ensure17413();claimSafeButtons();return d};
+
+window.ATReferenceArchiveV17412={version:VERSION+'+SAFE-DAY-V17.4.13',normalize,mergeRecord,advance,validRange,run:runSafe,pause,list,stats,getJob,open,refresh};
 })();
