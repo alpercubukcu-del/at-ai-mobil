@@ -20,6 +20,10 @@ window.fetch = async (input, options) => {
  window.__dnaTest.requests.push(u.pathname + u.search);
  let value = {ok: true, races: [], rows: [], cities: [], total: 0};
  if (u.pathname === '/api/tjk-program') value = {ok: true, date: ${JSON.stringify(state.date)}, scope: 'all', cities: ${JSON.stringify(state.cities)}, racesByCity: {'3': [${JSON.stringify(race)}]}};
+ if (u.pathname.includes('tjk-career')) {
+  value={ok:true,history:[],roadmap:[],top5:[],summary:{totalTop5:0}};
+  if(${process.env.SLOW_CAREER==='1'}) await new Promise(resolve=>setTimeout(resolve,16000));
+ }
  if (u.pathname.includes('fog-horse')) value = {ok: true, connections: {attempted: true}, origin: null, workout: null};
  if (u.pathname.includes('horse-history')) value = {...value, atId: u.searchParams.get('atId')};
  return new Response(JSON.stringify(value), {status: 200, headers: {'Content-Type': 'application/json'}});

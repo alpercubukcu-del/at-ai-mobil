@@ -435,6 +435,7 @@ function gRenderCurrentV1657(result, raceFilter='all') {
   content.innerHTML=`
     <div style="margin-bottom:12px;font-size:12px;line-height:1.55">
       <b>GÜNCEL HESAPLA · TEK ÖNCELİK</b><br>
+      ${shown.some(r=>r.horses.some(h=>h.careerError))?'<b>Kariyer verisi eksik. Bu sonuç tamamlanmış analiz değildir; Analizi Hesapla ile tekrar deneyin.</b><br>':''}
       <span style="opacity:.75">Kaynak model: ${escapeHtml(CURRENT_GUNCEL_SOURCE_V1657)}. Sıralama; son 10 form, tüm kariyerde pist/±200 m/sınıf ilk-3 kanıtı, HP, kilo, KGS, S20 ve düşük ağırlıklı AGF/Gny desteğini birlikte kullanır. Sonuç verisi çağrılmaz.</span>
     </div>
     ${shown.map(r=>`
@@ -476,7 +477,9 @@ async function gRunCurrentV1657() {
     const ranked=gProgramRankV1657(race,map);
     const difficulty=gDifficultyV1657(race,ranked);
     const result={no:race.no,time:race.time||'',class:race.class||'',ageGroup:race.ageGroup||'',distance:race.distance||'',track:race.track||'',agfReal:ranked.agfReal,difficulty,horses:ranked.rows};
-    result.tek=gTekInfoV1657(result);
+    result.failedCareerCount=ranked.rows.filter(h=>h.careerError).length;
+    result.completion=result.failedCareerCount?'partial':'complete';
+    result.tek=result.failedCareerCount?null:gTekInfoV1657(result);
     return result;
   });
 
@@ -491,10 +494,10 @@ async function gRunCurrentV1657() {
     type:'current',version:CURRENT_GUNCEL_VERSION_V1657,sourceModel:CURRENT_GUNCEL_SOURCE_V1657,
     date:state.date,city:state.city,cityName:getCityName(),coverage:raceValue==='all'?'all':(previous?.coverage==='all'?'all':'partial'),calculatedRace:raceValue,
     rule:'LIVE_PROGRAM_PLUS_PRE_RACE_CAREER',agfPolicy:'DESTEK_PUANI_MAX_15; ANA_SIRALAMA_GECMIS_FORM_PIST_MESAFE_SINIF_HP_KILO_KGS_S20',
-    resultApiCalled:false,resultDataLoaded:false,races:merged,generatedAt:new Date().toISOString()
+    resultApiCalled:false,resultDataLoaded:false,completion:merged.some(r=>r.horses.some(h=>h.careerError))?'partial':'complete',races:merged,generatedAt:new Date().toISOString()
   };
   state.analyses.current=result; save(); gRenderCurrentV1657(result,raceValue);
-  status(`Güncel Hesapla tamamlandı · ${calculated.length} koşu`);
+  status(result.completion==='partial'?'Güncel Analiz eksik · Kariyer alınamayan atlar var. Analizi tekrar çalıştırın.':`Güncel Hesapla tamamlandı · ${calculated.length} koşu`);
 }
 
 const runAnalysisBeforeV1657 = runAnalysis;

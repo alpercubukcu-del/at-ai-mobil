@@ -121,6 +121,8 @@ async function ensureAnalysis(no){
   checkProgram();c=currentResult();
  }
  if(!sameContext(c)||!hasTarget(c))throw new Error(`${targetNo?`${targetNo}. Koşu `:''}Güncel Analiz sonucu oluşmadı.`);
+ const incomplete=(c.races||[]).filter(r=>!targetNo||Number(r.no)===targetNo).flatMap(r=>r.horses||[]).filter(h=>h.careerError);
+ if(incomplete.length)throw new Error('Kariyer verisi eksik: '+incomplete.map(h=>h.name).join(', ')+'. Önce Güncel Analizi tekrar çalıştırın. Analiz tamamlanmış olarak kaydedilmedi.');
  if(degree?.enrichCurrent&&(!generated||!c.degreeSpeed)){
   setPanelStatus(`${no}. Koşu · Derece-Hız verilerinin tamamlanması bekleniyor…`);
   await waitForInputs(degree.enrichCurrent({result:c,programRaces:copyInputs(programRaces()),city,date}),'Derece-Hız');

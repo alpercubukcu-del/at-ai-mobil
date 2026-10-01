@@ -126,7 +126,7 @@ async function saveResult(result, raceValue = 'all') {
   let saved = 0;
   for (const race of races) {
     const no = Number(race?.no ?? race?.raceNo ?? 0) || 0;
-    if (!no) continue;
+    if (!no || (race.horses||[]).some(h=>h.careerError)) continue;
     const rec = {
       key:`current|${clean(result.date || s.date)}|${clean(result.city || s.city)}|${no}`,
       kind:'current-race',

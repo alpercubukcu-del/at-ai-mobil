@@ -81,19 +81,20 @@ function ensureFilterShells(){
   const host=$('f63Picks');if(!host||host.children.length)return;
   host.innerHTML=`<div class="f6065-loading-grid">${['İl','Yaş / Grup','Koşu Cinsi','Mesafe','Pistler'].map(x=>`<div><div class="f6065-loading-label">${x}</div><div class="f6065-loading-box">Seçenekler hazırlanıyor…</div></div>`).join('')}</div>`;
 }
+function textIfChanged(el,value){if(el&&el.textContent!==value)el.textContent=value;}
 function relabelSwitch(){
   const input=$('f63DropBad');if(!input)return;
   const box=input.closest('.f63-rowbox');if(!box)return;
   const title=box.querySelector('.f63-rowbox-title'),note=box.querySelector('.f63-rowbox-note');
-  if(title)title.textContent='Aşırı Sapma Gösteren Yarışları At';
-  if(note)note.textContent='Derecesiz/bozuk kayıtları ve aynı pist + yakın mesafe geçmişine göre aşırı hızlı/yavaş derece sapmalarını analizden çıkarır.';
+  textIfChanged(title,'Aşırı Sapma Gösteren Yarışları At');
+  textIfChanged(note,'Derecesiz/bozuk kayıtları ve aynı pist + yakın mesafe geçmişine göre aşırı hızlı/yavaş derece sapmalarını analizden çıkarır.');
   if(!box.querySelector('.f6065-outlier-info')){
     const info=document.createElement('div');info.className='f6065-outlier-info';info.id='f6065OutlierInfo';info.textContent='HP, ganyan veya sırf kötü bitiriş nedeniyle yarış silinmez.';
     box.querySelector('.f63-rowbox-text')?.appendChild(info);
   }
 }
 function outlierEnabled(){return !!$('f63DropBad')?.checked&&$('analysisDialog')?.dataset?.view==='current';}
-function updateInfo(stats=lastStats){const el=$('f6065OutlierInfo');if(!el)return;if(!outlierEnabled()){el.textContent='Kapalı · HP, ganyan veya sırf kötü bitiriş nedeniyle yarış silinmez.';return;}el.textContent=stats.removed?`Açık · ${stats.removed} kariyer satırı çıkarıldı (${stats.invalid} bozuk/derecesiz, ${stats.outlier} aşırı derece sapması).`:'Açık · Aşırı sapma bulunursa yalnız o kariyer satırı çıkarılır; normal kötü performans korunur.';}
+function updateInfo(stats=lastStats){const el=$('f6065OutlierInfo');if(!el)return;if(!outlierEnabled()){textIfChanged(el,'Kapalı · HP, ganyan veya sırf kötü bitiriş nedeniyle yarış silinmez.');return;}textIfChanged(el,stats.removed?`Açık · ${stats.removed} kariyer satırı çıkarıldı (${stats.invalid} bozuk/derecesiz, ${stats.outlier} aşırı derece sapması).`:'Açık · Aşırı sapma bulunursa yalnız o kariyer satırı çıkarılır; normal kötü performans korunur.');}
 
 function wrapRun(){
   if(runWrapped||typeof runAnalysis!=='function'||typeof fetchCareer!=='function')return;
@@ -111,7 +112,8 @@ function wrapRun(){
 function reconcile(){installStyle();ensureFilterShells();relabelSwitch();wrapRun();updateInfo();}
 function start(){
   reconcile();
-  const mo=new MutationObserver(()=>queueMicrotask(reconcile));
+  let queued=false;
+  const mo=new MutationObserver(()=>{if(queued)return;queued=true;setTimeout(()=>{queued=false;reconcile();},0);});
   try{mo.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['data-view','hidden','open']});}catch{}
   document.addEventListener('change',e=>{if(e.target?.id==='f63DropBad')updateInfo();},true);
   document.addEventListener('click',e=>{if(e.target?.closest?.('[data-f63-mode="custom"]'))setTimeout(reconcile,0);},true);

@@ -5,7 +5,7 @@ window.__AT_PERFORMANCE_SAFE_V1691F661__ = true;
 
 const VERSION = 'PERFORMANCE-SAFE-V16.9.1F60.61';
 const RACE_META_TTL_MS = 10 * 60 * 1000;
-const CAREER_ABORT_MS = 14500;
+const CAREER_ABORT_MS = 43000;
 const raceMetaInFlight = new Map();
 const raceMetaCache = new Map();
 
@@ -107,7 +107,11 @@ window.fetch = async function(input, init = {}) {
     const originalSignal = init?.signal || (input instanceof Request ? input.signal : null);
     const combined = combineSignal(originalSignal, CAREER_ABORT_MS);
     try {
-      return await upstreamFetch(input, { ...init, signal:combined.signal });
+      // Keep the abort active through the response body; omit only the cache-busting timestamp.
+      const url=new URL(parts.url);url.searchParams.delete('t');
+      const response=await upstreamFetch(url.href, { ...init, signal:combined.signal });
+      const body=await response.text();
+      return new Response(body,{status:response.status,statusText:response.statusText,headers:response.headers});
     } finally {
       combined.clear();
     }
