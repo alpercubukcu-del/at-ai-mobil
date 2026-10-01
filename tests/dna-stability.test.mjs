@@ -170,3 +170,21 @@ test('current-day, future and undated calibration cannot change a historical rac
   await past.window.ATDegreeSpeedF6090.enrichCurrent();
   assert.equal(past.state.analyses.current.races[0].horses[0].degreeModel.predictedSec, 90.4);
 });
+
+test('surface correction retains calibration exactly once across repeated calculations', async () => {
+  const state=fixture(),r=runtime({state,loadDegree:true,loadSurface:true});
+  state.analyses.current.races[0].horses.forEach((h,i)=>{h.degreeModel={predictedSec:93+i,horseResidual:i,autoCalibration:{active:true,seconds:2},fallback:false};});
+  const options={result:state.analyses.current,programRaces:state.races,resultRows:[{date:'2026-09-01',city,race:{distance:1400,track:'Sentetik',class:'ŞARTLI 4',winner:{degree:'1.30.00'}}}],trackContext:null,city,date,deferPublish:true};
+  await r.window.ATDegreeSpeedSurfaceF6091.recalc(options);
+  assert.deepEqual(state.analyses.current.races[0].horses.map(h=>h.degreeModel.predictedSec),[92,93,94]);
+  assert.deepEqual(state.analyses.current.races[0].horses.map(h=>h.degreeModel.uncalibratedSec),[90,91,92]);
+  await r.window.ATDegreeSpeedSurfaceF6091.recalc(options);
+  assert.deepEqual(state.analyses.current.races[0].horses.map(h=>h.degreeModel.predictedSec),[92,93,94]);
+});
+
+test('surface correction cannot turn a missing residual into a fabricated zero residual',async()=>{
+  const state=fixture(),r=runtime({state,loadDegree:true,loadSurface:true});
+  state.analyses.current.races[0].horses[0].degreeModel={predictedSec:97,horseResidual:null};
+  await r.window.ATDegreeSpeedSurfaceF6091.recalc({result:state.analyses.current,programRaces:state.races,resultRows:[{date:'2026-09-01',city,race:{distance:1400,track:'Sentetik',class:'ŞARTLI 4',winner:{degree:'1.30.00'}}}],trackContext:null,city,date,deferPublish:true});
+  assert.equal(state.analyses.current.races[0].horses[0].degreeModel.predictedSec,97);
+});
