@@ -17,3 +17,7 @@ node --test tests/*.test.mjs fogd-nine-coupon-core.test.mjs fogd-condition-core.
 ```
 
 Build from a clean source checkout: `node build-runtime-v17-clean.cjs`. The legacy build chain mutates some source inputs; do not commit those unrelated generated migrations or reuse those mutated inputs for another build.
+
+## V17.4.7 timeout correction
+
+Degree preparation no longer requests horse/workout contexts for every race. Network context requests belong to the selected DNA race's existing three-worker fetch stage, with the same retries and failure-save protection. Once contexts complete, workouts are attached idempotently to the copied final degree metadata and uncertainty interval without changing predicted seconds, calibration or rank. The degree stage retains its 60-second protection; unrelated races cannot consume that deadline with workout requests.

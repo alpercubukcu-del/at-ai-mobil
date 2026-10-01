@@ -22,3 +22,11 @@ test('surface and breed groups are not mixed into a reference',()=>{const x=copy
 test('full class level separates ŞARTLI 3 from ŞARTLI 5',()=>{const x=[...records,...['2026-08-01','2026-08-02','2026-08-03'].map(d=>record(d,'Kocaeli',1400,'1.20.00','ŞARTLI 5'))];assert.equal(core.reference(x,race,'Kocaeli',input.date).sec,95)});
 test('empirical kilo effect activates only with enough distinct comparable horses',()=>{const x=[];for(let i=0;i<12;i++)for(let j=0;j<4;j++){const r=record(`2026-07-${String(j+1).padStart(2,'0')}`,'Ankara',1500,'1.45.00');r.race.rows=[{horseId:String(i+1),horseName:'AT'+i,degree:105+1+j*.2,weight:53+j}];x.push(r)}const w=core.weightEvidence(x,input.date);assert.equal(w.active,true);assert.ok(w.coefficient>0);assert.equal(core.weightEvidence(x.slice(0,4),input.date).active,false);const m=core.predict({...input,weightModel:w});assert.ok(m.predictedSec<core.predict(input).predictedSec);assert.ok(m.weightEffect.seconds<0)});
 test('bounded development uses past normalized performances for every horse',()=>{const x=copy(input);x.row.history.degreeSamples=[['2026-08-01',113],['2026-08-20',110],['2026-09-10',109]].map(([date,sec])=>({...input.row.history.degreeSamples[0],date,sec}));const m=core.predict(x);assert.ok(m.development.growthSec<0);assert.ok(m.development.growthSec>=-.9);x.row.name='ANOTHER HORSE';assert.equal(m.predictedSec,core.predict(x).predictedSec)});
+
+test('late workout attachment is idempotent and preserves predicted seconds and ranks',()=>{
+ const model=core.predict(input);model.rank=3;model.autoCalibration={active:true,seconds:1};model.predictedSec+=1;const before=model.predictedSec;
+ const workouts=[{date:'2026-09-05',city:'Ankara',track:'Kum',type:'Galop',splits:{600:42}},{date:'2026-09-25',city:'Ankara',track:'Kum',type:'Galop',splits:{600:41}},{date:'2026-10-01',city:'Ankara',track:'Kum',type:'Galop',splits:{600:30}}];
+ core.attachWorkouts(model,input.row.history.degreeSamples,{workouts},input.date);const half=model.uncertaintySec,range=model.rangeText;
+ core.attachWorkouts(model,input.row.history.degreeSamples,{workouts},input.date);
+ assert.equal(model.predictedSec,before);assert.equal(model.rank,3);assert.equal(model.uncertaintySec,half);assert.equal(model.rangeText,range);assert.equal(model.workoutDevelopment.comparisons,1);assert.equal(model.autoCalibration.seconds,1);
+});

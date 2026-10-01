@@ -71,7 +71,17 @@ function predict({row,program,race,records,city,date,workout,weightModel}){
  const dispersion=spread(converted.map(x=>x.value));
  const half=Math.max(1.5,(dispersion??1.5)*1.5)+3/Math.sqrt(Math.max(1,n))+(transfer?1:0)+(fallback?2:0)+(!target.exact?1.5:0)+(training.fraction!==null?Math.min(1,Math.abs(training.fraction)*20):.5);
  const evidence=Math.min(85,Math.round(n*8+Math.min(25,target.n)+(target.exact?10:0)-(fallback?15:0)));
- return {version,personalPrediction:predicted!==null,referenceOnly:predicted===null,fallback,method,predictedSec:predicted,uncalibratedSec:predicted,predictedText:text(predicted),rangeText:predicted===null?'—':`${text(Math.max(0,predicted-half))}–${text(predicted+half)}`,uncertaintySec:half,confidence:Math.max(0,evidence),confidenceKind:'EVIDENCE_SCORE_NOT_PROBABILITY',baselineSec:target.sec,baselineText:text(target.sec),baselineSamples:target.n,horseSamples:n,horseResidual:null,normalization:{reference:target,samples:converted,transfer},development:{growthSec,youngHorse:finite(program.age)<=4},weightEffect:{...wm,currentKg:kg,seconds:weighted(converted.map(x=>({...x,value:x.weightSec})))},workoutDevelopment:training,tempo:{available:false,seconds:0},cutoff:date};
+ return {version,personalPrediction:predicted!==null,referenceOnly:predicted===null,fallback,method,predictedSec:predicted,uncalibratedSec:predicted,predictedText:text(predicted),rangeText:predicted===null?'—':`${text(Math.max(0,predicted-half))}–${text(predicted+half)}`,uncertaintySec:half,workoutUncertaintySec:training.fraction!==null?Math.min(1,Math.abs(training.fraction)*20):.5,confidence:Math.max(0,evidence),confidenceKind:'EVIDENCE_SCORE_NOT_PROBABILITY',baselineSec:target.sec,baselineText:text(target.sec),baselineSamples:target.n,horseSamples:n,horseResidual:null,normalization:{reference:target,samples:converted,transfer},development:{growthSec,youngHorse:finite(program.age)<=4},weightEffect:{...wm,currentKg:kg,seconds:weighted(converted.map(x=>({...x,value:x.weightSec})))},workoutDevelopment:training,tempo:{available:false,seconds:0},cutoff:date};
 }
-window.ATDegreeHistoryV1746={version,predict,reference,workoutsAt,workoutChange,weightEvidence};
+function attachWorkouts(model,history,workout,date){
+ if(model?.version!==version)return model;
+ const samples=(history||[]).filter(h=>h.date&&h.date<date&&finite(h.sec)>0).sort((a,b)=>a.date.localeCompare(b.date)),ws=workoutsAt(workout,date);
+ const training=samples.length?workoutChange(ws,samples.at(-1).date,date):{fraction:null,comparisons:0,changes:[]};
+ training.history=samples.slice(1).map((h,i)=>({from:samples[i].date,to:h.date,...workoutChange(ws,samples[i].date,h.date)}));
+ const extra=training.fraction!==null?Math.min(1,Math.abs(training.fraction)*20):.5;
+ model.uncertaintySec=Math.max(0,model.uncertaintySec-(model.workoutUncertaintySec??.5)+extra);model.workoutUncertaintySec=extra;model.workoutDevelopment=training;
+ model.rangeText=Number.isFinite(model.predictedSec)?`${text(Math.max(0,model.predictedSec-model.uncertaintySec))}–${text(model.predictedSec+model.uncertaintySec)}`:'—';
+ return model;
+}
+window.ATDegreeHistoryV1746={version,predict,attachWorkouts,reference,workoutsAt,workoutChange,weightEvidence};
 })();
