@@ -56,8 +56,19 @@ async function runSafe(start,end,{resume=false}={}){
    if(stopped)break;
    const raw=Array.isArray(data.rows)?data.rows:[];
    if(data.filterMatched===false||raw.some(r=>r.date!==job.cursor))throw Error('TJK seçili gün dışında kayıt döndürdü. Gün kaydedilmedi.');
-   const records=raw.map(normalize);
-   if(new Set(records.map(r=>r.key)).size!==records.length)throw Error('Aynı gün içinde yarış kimliği tekrarı bulundu. Gün kaydedilmedi.');
+   // TJK occasionally emits the same race row more than once for a single day.
+   // This is harmless when the normalized race key is identical: keep one copy
+   // instead of stopping a multi-year archive job.
+   const normalized=raw.map(normalize),byKey=new Map();
+   for(const record of normalized){
+    const prev=byKey.get(record.key);
+    if(!prev){byKey.set(record.key,record);continue}
+    // Prefer the richer duplicate, while preserving a deterministic single row.
+    const prevScore=JSON.stringify(prev.referenceQuery||{}).length+JSON.stringify(prev.race||{}).length;
+    const nextScore=JSON.stringify(record.referenceQuery||{}).length+JSON.stringify(record.race||{}).length;
+    if(nextScore>prevScore)byKey.set(record.key,record);
+   }
+   const records=[...byKey.values()];
    const nextDay=addDays(job.cursor,1);
    const next={...job,cursor:nextDay,windowEnd:nextDay,page:0,processed:(job.processed||0)+records.length,status:nextDay>end?'complete':'running',error:''};
    await savePage(records,next);job=next;
@@ -69,7 +80,7 @@ async function runSafe(start,end,{resume=false}={}){
  }catch(e){
   if(job){job={...job,status:stopped?'paused':'error',error:stopped?'':e.message};await savePage([],job).catch(()=>{})}
   status(stopped?'Duraklatıldı. Kaldığı yer korunuyor.':`İndirme durdu: ${e.message}`);if(!stopped)throw e;return job;
- }finally{busy=false;setBusy(false);if(job?.processed)window.dispatchEvent(new CustomEvent('at-ai:real-race-archive-updated',{detail:{source:VERSION+'+SAFE-DAY-V17.4.13B'}}));await refresh().catch(()=>{})}
+ }finally{busy=false;setBusy(false);if(job?.processed)window.dispatchEvent(new CustomEvent('at-ai:real-race-archive-updated',{detail:{source:VERSION+'+SAFE-DAY-V17.4.14'}}));await refresh().catch(()=>{})}
 }
 function claimSafeButtons(){
  const a=$('refRun17412'),b=$('refResume17412');
