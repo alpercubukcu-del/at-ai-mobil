@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION='TJK-RACE-QUERY-V17.4.12';
+const VERSION='TJK-RACE-QUERY-V17.4.14';
 const TJK='https://www.tjk.org';
 const PAGE='/TR/YarisSever/Query/Page/KosuSorgulama';
 const FILTER='/TR/YarisSever/Query/Data/KosuSorgulama';
@@ -46,9 +46,18 @@ export default async function handler(req,res){
   try{
     const start=clean(req.query?.start||req.query?.date||''),end=clean(req.query?.end||start),page=Math.max(0,Number(req.query?.page||0));
     if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end))return res.status(400).json({ok:false,version:VERSION,error:'start/end YYYY-MM-DD biçiminde gerekli.'});
-    const d=await fetchList(start,end,page),rows=d.rows.filter(x=>x.date>=start&&x.date<=end);
-    if(new Set(rows.map(r=>r.key)).size!==rows.length)throw Error('Koşu Sorgulama aynı yarış kimliğini birden fazla kez döndürdü.');
+    const d=await fetchList(start,end,page),filtered=d.rows.filter(x=>x.date>=start&&x.date<=end);
+    // TJK can return the same race row more than once. Do not fail the whole
+    // archive request: collapse exact race identities deterministically.
+    const byKey=new Map();
+    for(const row of filtered){
+      const prev=byKey.get(row.key);
+      if(!prev){byKey.set(row.key,row);continue}
+      const score=x=>[x.winnerDegree,x.winner,x.origin,x.raceType,x.group,x.track,x.distance].filter(v=>clean(v)!=='').length;
+      if(score(row)>score(prev))byKey.set(row.key,row);
+    }
+    const rows=[...byKey.values()],duplicateRows=filtered.length-rows.length;
     const invalidRows=rows.filter(x=>!x.key||!x.date||!x.city||!x.winner).length;
-    return res.status(200).json({ok:true,version:VERSION,start,end,page,tjkPage:page+1,total:d.total,rows,rawRowCount:d.rows.length,invalidRows,queryKeyVersion:'F60.94.33',filterMatched:rows.length>0||d.rows.length===0,sourceUrl:d.sourceUrl});
+    return res.status(200).json({ok:true,version:VERSION,start,end,page,tjkPage:page+1,total:d.total,rows,rawRowCount:d.rows.length,duplicateRows,invalidRows,queryKeyVersion:'F60.94.33',filterMatched:rows.length>0||d.rows.length===0,sourceUrl:d.sourceUrl});
   }catch(e){const status=e?.name==='AbortError'?504:502;return res.status(status).json({ok:false,version:VERSION,error:e?.name==='AbortError'?'TJK Koşu Sorgulama zaman aşımına uğradı.':(e?.message||String(e))})}
 }
