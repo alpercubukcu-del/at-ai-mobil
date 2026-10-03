@@ -1,7 +1,7 @@
 /* Menu 7: actual Koşu Sorgulama summaries feed the shared degree reference store. */
 (()=>{'use strict';
 if(window.ATReferenceArchiveV17412)return;
-const VERSION='REFERENCE-ARCHIVE-V17.4.12',DB='at_ai_tjk_annual_results_v1',JOB='reference-query:job',HOST='referenceArchiveV17412';
+const VERSION='REFERENCE-ARCHIVE-V17.4.15',DB='at_ai_tjk_annual_results_v1',JOB='reference-query:job',HOST='referenceArchiveV17412';
 const clean=v=>String(v??'').replace(/\s+/g,' ').trim(),fold=v=>clean(v).toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/İ/g,'I').replace(/[^A-Z0-9]/g,'');
 const esc=v=>clean(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $=id=>document.getElementById(id),iso=v=>/^\d{4}-\d{2}-\d{2}$/.test(v)&&new Date(v+'T12:00:00Z').toISOString().slice(0,10)===v;
@@ -59,28 +59,32 @@ async function runSafe(start,end,{resume=false}={}){
    // TJK occasionally emits the same race row more than once for a single day.
    // This is harmless when the normalized race key is identical: keep one copy
    // instead of stopping a multi-year archive job.
-   const normalized=raw.map(normalize),byKey=new Map();
+   const normalized=raw.map(normalize),byKey=new Map(),dayConflicts=[];
    for(const record of normalized){
     const prev=byKey.get(record.key);
     if(!prev){byKey.set(record.key,record);continue}
+    const prevSig=clean(prev.referenceQuery?.sourceSignature),nextSig=clean(record.referenceQuery?.sourceSignature);
+    if(prevSig&&nextSig&&prevSig!==nextSig)dayConflicts.push(record.key);
     // Prefer the richer duplicate, while preserving a deterministic single row.
     const prevScore=JSON.stringify(prev.referenceQuery||{}).length+JSON.stringify(prev.race||{}).length;
     const nextScore=JSON.stringify(record.referenceQuery||{}).length+JSON.stringify(record.race||{}).length;
     if(nextScore>prevScore)byKey.set(record.key,record);
    }
    const records=[...byKey.values()];
+   const duplicates=Math.max(0,normalized.length-records.length)+Number(data.duplicateRows||0);
+   const conflicts=dayConflicts.length+Number(data.conflictRows||0);
    const nextDay=addDays(job.cursor,1);
-   const next={...job,cursor:nextDay,windowEnd:nextDay,page:0,processed:(job.processed||0)+records.length,status:nextDay>end?'complete':'running',error:''};
+   const next={...job,cursor:nextDay,windowEnd:nextDay,page:0,processed:(job.processed||0)+records.length,duplicates:(job.duplicates||0)+duplicates,conflicts:(job.conflicts||0)+conflicts,status:nextDay>end?'complete':'running',error:''};
    await savePage(records,next);job=next;
    await new Promise(r=>setTimeout(r,0));
   }
   if(stopped){job={...job,status:'paused'};await savePage([],job);status(`Duraklatıldı · ${job.processed||0} yarış kaydedildi. Kaldığı yerden devam edebilirsiniz.`)}
-  else status(`Tamamlandı · ${job.processed||0} yarış işlendi. Sayfa 2 kullanılmadı.`);
+  else status(`Tamamlandı · ${job.processed||0} yarış işlendi · ${job.duplicates||0} tekrar güvenli atlandı${job.conflicts?` · ${job.conflicts} çakışma zengin kayıtla çözüldü`:''}.`);
   return job;
  }catch(e){
   if(job){job={...job,status:stopped?'paused':'error',error:stopped?'':e.message};await savePage([],job).catch(()=>{})}
   status(stopped?'Duraklatıldı. Kaldığı yer korunuyor.':`İndirme durdu: ${e.message}`);if(!stopped)throw e;return job;
- }finally{busy=false;setBusy(false);if(job?.processed)window.dispatchEvent(new CustomEvent('at-ai:real-race-archive-updated',{detail:{source:VERSION+'+SAFE-DAY-V17.4.14'}}));await refresh().catch(()=>{})}
+ }finally{busy=false;setBusy(false);if(job?.processed)window.dispatchEvent(new CustomEvent('at-ai:real-race-archive-updated',{detail:{source:VERSION+'+SAFE-DAY-V17.4.15'}}));await refresh().catch(()=>{})}
 }
 function claimSafeButtons(){
  const a=$('refRun17412'),b=$('refResume17412');
@@ -90,5 +94,5 @@ function claimSafeButtons(){
 const _ensure17413=ensure;
 ensure=function(){const d=_ensure17413();claimSafeButtons();return d};
 
-window.ATReferenceArchiveV17412={version:VERSION+'+SAFE-DAY-V17.4.13',normalize,mergeRecord,advance,validRange,run:runSafe,pause,list,stats,getJob,open,refresh};
+window.ATReferenceArchiveV17412={version:VERSION+'+SAFE-DAY-V17.4.15',normalize,mergeRecord,advance,validRange,run:runSafe,pause,list,stats,getJob,open,refresh};
 })();
