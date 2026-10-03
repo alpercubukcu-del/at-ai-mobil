@@ -7,7 +7,7 @@
 'use strict';
 if (window.__AT_CAREER_PATH_EXPLAIN_STATE_FIX_V1691F14__) return;
 window.__AT_CAREER_PATH_EXPLAIN_STATE_FIX_V1691F14__=true;
-const VERSION='CAREER-SEASON-WINNER-PATH-V16.9.1F15';
+const VERSION='CAREER-PATH-EXPLAIN-STATE-FIX-V16.9.1F14';
 const GAP=-0.18, MATCH_BASE=0.35, MAX_SHOW=5;
 const clean=v=>String(v??'').replace(/\s+/g,' ').trim();
 const esc=v=>typeof escapeHtml==='function'?escapeHtml(v):String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
