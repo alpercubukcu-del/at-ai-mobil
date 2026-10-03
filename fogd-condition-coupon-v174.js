@@ -88,6 +88,17 @@ async function enrichSnapshots(snapshots,races,{date,city,onProgress=()=>{}}={})
   const standards=core.buildStandards(recordsBefore,date);
   return{map,standards,date,city};
 }
-window.ATFogdConditionCouponV174={version:'FOGD-CONDITION-COUPON-V17.4',enrichSnapshots,
-  build:args=>core.buildAllRacesTemplate(args)};
+function ku2(template){
+  for(const leg of template?.legs||[])for(const row of leg?.ranking||[]){
+    const h=row.history||{},parts=[];if(Number.isFinite(h.top4Rate))parts.push(Math.max(0,Math.min(1,h.top4Rate))*2);
+    if(Number(h.starts)>0)parts.push(Math.max(0,Math.min(1,Number(h.sameCityStarts||0)/Number(h.starts))));
+    if(Number(h.wins)>0)parts.push(Math.min(1,Number(h.wins)/2));
+    const score=parts.length?Number((5*parts.reduce((a,b)=>a+b,0)/parts.length/2).toFixed(2)):null;h.conditionScore=score;h.kuVersion='KU-V2';
+    if(row.group==='condition'&&(!(Number(row.score)>0)||score===null||score<2.5))row.group='outside';
+  }
+  for(const leg of template?.legs||[])leg.selections=(leg.ranking||[]).filter(x=>x.group!=='outside');
+  template.kuVersion='KU-V2';return template;
+}
+window.ATFogdConditionCouponV174={version:'FOGD-CONDITION-COUPON-V17.4+KU-V2',enrichSnapshots,
+  build:args=>ku2(core.buildAllRacesTemplate(args))};
 })();

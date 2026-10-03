@@ -60,8 +60,9 @@ async function loadRef(row){
   const p=(async()=>{if(typeof fetchCareer!=='function')throw new Error('Kariyer yükleme fonksiyonu yok.');const c=await fetchCareer(id,before);if(!c?.ok)throw new Error(c?.error||'Referans kariyeri alınamadı.');return c;})();
   refCache.set(key,p); try{return await p}catch(e){refCache.delete(key);throw e}
 }
+function seasonRows(rows,cutoff){const y=String(cutoff||'').slice(0,4);return (Array.isArray(rows)?rows:[]).filter(r=>String(r?.date||r?.isoDate||'').slice(0,4)===y&&String(r?.date||r?.isoDate||'')<String(cutoff||'9999-99-99')).sort((a,b)=>String(a?.date||a?.isoDate||'').localeCompare(String(b?.date||b?.isoDate||'')))}
 function compatible(a,b){try{return typeof strictCareerCompatibleV1691F12==='function'?strictCareerCompatibleV1691F12(a,b):true}catch{return true}}
-function local(a,b){if(!compatible(a,b))return -1;try{return clamp(careerRowSimilarity(a,b))}catch{return 0}}
+function local(a,b){if(!compatible(a,b))return -1;const af=finish(a),bf=finish(b);if(af===null||bf===null||af>bf)return -1;try{return clamp(careerRowSimilarity(a,b))}catch{return 0}}
 function trace(a,b){
   const n=a.length,m=b.length,dp=Array.from({length:n+1},()=>Array(m+1).fill(0)),act=Array.from({length:n+1},()=>Array(m+1).fill(''));
   for(let i=1;i<=n;i++){dp[i][0]=i*GAP;act[i][0]='D'}
@@ -91,17 +92,18 @@ async function renderFixed(btn,out){
   const item=currentItem(btn); if(!item) throw new Error('Aktif at bulunamadı.');
   const sim=item?.galibiyetBenzerligi||{},year=btn.dataset.cpmYear;
   const row=(Array.isArray(sim.byYear)?sim.byYear:[]).find(x=>String(x?.year)===String(year)); if(!row) throw new Error('Tarihsel yıl referansı bulunamadı.');
-  const path=pathOf(item?.career||{});
-  if(!path.length) throw new Error('Bugünkü atın arşivlenmiş kariyer yolu gerçekten yok. Bu puan eski/eksik arşivden geliyor; Yeniden Hesapla kullanın.');
+  const targetDate=clean(state?.analyses?.career?.date||state?.date||document.getElementById('raceDate')?.value);
+  const path=seasonRows(pathOf(item?.career||{}),targetDate);
+  if(!path.length) throw new Error('Bugünkü atın bu sezon 1 Ocak ile yarış günü arasında karşılaştırılabilir yolu yok.');
   out.innerHTML='<div class="cpm-loading-v1691f11">Referans atın yarış öncesi kariyeri okunuyor…</div>';
-  const rc=await loadRef(row),rp=refPath(rc,modeOf(item,row)); if(!rp.length) throw new Error('Referans atın karşılaştırılabilir yarış öncesi yolu yok.');
-  const t=trace(path,rp),pairs=t.pairs.filter(p=>p.local>=MATCH_BASE).sort((a,b)=>b.local-a.local).slice(0,MAX_SHOW);
+  const rc=await loadRef(row),rp=seasonRows(refPath(rc,modeOf(item,row)),clean(row?.raceDate)); if(!rp.length) throw new Error('Tarihsel kazananın o sezon 1 Ocak ile referans yarış arasında yolu yok.');
+  const t=trace(path,rp),pairs=t.pairs.filter(p=>p.local>=MATCH_BASE).slice(-MAX_SHOW);
   const strict=sim?.strictRowMatchVersion==='CAREER-STRICT-CLASS-GROUP-WEIGHT-V16.9.1F12';
   if(!pairs.length){
     out.innerHTML=`<div class="cpm-note-v1691f11"><b>Katı sınıf + Yaş/Grup kuralında eşleşen koşu çifti bulunamadı.</b><br>${strict?'Bu durumda görünen tarihsel puan yeniden kontrol edilmelidir.':'Görünen %'+esc(row?.score??sim?.score??'-')+' eski arşiv kuralından kalmış olabilir. Bu koşuda Yeniden Hesapla yapın.'}</div>`;
     return;
   }
-  out.innerHTML=`<div class="cpm-note-v1691f11"><b>${esc(year)} · ${esc(row?.historicalHorse||'-')} · ${strict?'F12 KATI EŞLEŞME':'ESKİ ARŞİV PUANI'}</b><br>Aktif kariyer yolu: ${esc(path.length)} yarış · strict eşleşen çift: ${esc(t.pairs.length)} · boşluk: ${esc(t.gaps)}.${strict?'':' Görünen ana puanı yeni sınıf/grup+kilo kuralına geçirmek için bu koşuda Yeniden Hesapla yapın.'}</div>${pairs.map((p,i)=>pairHtml(p,row?.historicalHorse||'Referans',i)).join('')}`;
+  out.innerHTML=`<div class="cpm-note-v1691f11"><b>${esc(year)} · ${esc(row?.historicalHorse||'-')} · ${strict?'F12 KATI EŞLEŞME':'ESKİ ARŞİV PUANI'}</b><br>Sezonluk yol: ${esc(path.length)} yarış · sıralı başarı adımı: ${esc(t.pairs.length)} · boşluk: ${esc(t.gaps)}. Adayın bitirişi tarihsel kazananın aynı adımındaki derecesinden kötü olamaz.${strict?'':' Görünen ana puanı yeni sınıf/grup+kilo kuralına geçirmek için bu koşuda Yeniden Hesapla yapın.'}</div>${pairs.map((p,i)=>pairHtml(p,row?.historicalHorse||'Referans',i)).join('')}`;
 }
 
 /* F11/F12 document bubble handlerlarından önce yakala ve düzeltilmiş yolu kullan. */
@@ -125,5 +127,8 @@ if(yearBefore){
     return badge+html;
   };
 }
-console.info('[AT AI]',VERSION,'aktif — açıklama yolu V13.9 alanlarıyla senkron');
+
+function installCareerTheme(){if(document.getElementById('careerSeasonThemeV15'))return;const s=document.createElement('style');s.id='careerSeasonThemeV15';s.textContent=`#analysisDialog[data-view="career"]{background:#090b0d!important;color:#fff!important}#analysisDialog[data-view="career"] .analysis-body,#analysisDialog[data-view="career"] .career-body{background:#090b0d!important}#analysisDialog[data-view="career"] button{border-color:#555!important}#analysisDialog[data-view="career"] .primary,#analysisDialog[data-view="career"] button.primary{background:#a70e15!important;color:#fff!important}#analysisDialog[data-view="career"] .cpm-pair-v1691f11,#analysisDialog[data-view="career"] .cpm-note-v1691f11{background:#17191b!important;border-color:#555!important;color:#fff!important}`;document.head.appendChild(s)}
+installCareerTheme();
+console.info('[AT AI]',VERSION,'aktif — sezonluk kazanan yolu + güncel koyu/kırmızı arayüz');
 })();
