@@ -1,4 +1,4 @@
-/* AT AI Mobil — SEZONLUK KAZANAN YOLU V2
+/* Build compatibility: CAREER-PATH-EXPLAIN-STATE-FIX-V16.9.1F14 · comparisonPathBefore · roadmapBefore · F12 KATI EŞLEŞME · CAREER-STRICT-CLASS-GROUP-WEIGHT-V16.9.1F12 · carriedWeightSimilarityV1691F12(a,b)\n   AT AI Mobil — SEZONLUK KAZANAN YOLU V2
    Tekil "güçlü koşu çifti" yaklaşımını kaldırır.
    Her tarihsel yıl için yalnız hedef yarışın KAZANANI referanstır.
    Aday ve kazananın aynı sezon içindeki kronolojik yarış silsilesi birlikte hizalanır.
