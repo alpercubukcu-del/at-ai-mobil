@@ -127,5 +127,8 @@ if(yearBefore){
     return badge+html;
   };
 }
-console.info('[AT AI]',VERSION,'aktif — açıklama yolu V13.9 alanlarıyla senkron');
+
+function installCareerTheme(){if(document.getElementById('careerSeasonThemeV15'))return;const s=document.createElement('style');s.id='careerSeasonThemeV15';s.textContent=`#analysisDialog[data-view="career"]{background:#090b0d!important;color:#fff!important}#analysisDialog[data-view="career"] .analysis-body,#analysisDialog[data-view="career"] .career-body{background:#090b0d!important}#analysisDialog[data-view="career"] button{border-color:#555!important}#analysisDialog[data-view="career"] .primary,#analysisDialog[data-view="career"] button.primary{background:#a70e15!important;color:#fff!important}#analysisDialog[data-view="career"] .cpm-pair-v1691f11,#analysisDialog[data-view="career"] .cpm-note-v1691f11{background:#17191b!important;border-color:#555!important;color:#fff!important}`;document.head.appendChild(s)}
+installCareerTheme();
+console.info('[AT AI]',VERSION,'aktif — sezonluk kazanan yolu + güncel koyu/kırmızı arayüz');
 })();
