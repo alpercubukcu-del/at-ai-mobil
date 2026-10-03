@@ -2,13 +2,13 @@
 ((root)=>{
 'use strict';
 if(root.ATFogdConditionCoreV1)return;
-const VERSION='FOGD-CONDITION-CORE-V17.4';
+const VERSION='FOGD-CONDITION-CORE-V17.4-KU2';
 const MODEL={id:'dna-condition',key:'C',short:'10',label:'10 · Koşul Uyumlu Yakınlık'};
 const KEYS=['F','O','G','D','J','S','A'];
 // Provisional decision rules, not learned win probabilities.
 const RULES=Object.freeze({strongGap:5,followGap:10,saturation:.4,saturatedWeight:.25,
   main:2.5,watch:1.75,single:3.5,strongSources:3,nearDistance:200,
-  protectionStarts:2,protectionTop4:.5,recentDays:365,standardStarts:3});
+  protectionStarts:2,protectionTop4:.5,recentDays:365,standardStarts:3,conditionMinScore:3,conditionMinProximity:.125});
 const clean=v=>String(v??'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim();
 const fold=v=>clean(v).toLocaleUpperCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/İ/g,'I').replace(/[^A-Z0-9]+/g,'');
 const finite=v=>{
@@ -72,7 +72,7 @@ function normalizeHistory(payload,cutoff){
   }).sort((a,b)=>b.date.localeCompare(a.date));
 }
 const daysBetween=(a,b)=>(Date.parse(b+'T00:00:00Z')-Date.parse(a+'T00:00:00Z'))/86400000;
-function contextFor(race,date,city){return{date:isoDate(date),city:clean(city),distance:finite(race?.distance??race?.mesafe??race?.mes),surface:surface(race?.track??race?.pist),breed:breed(race)}}
+function contextFor(race,date,city){return{date:isoDate(date),city:clean(city),distance:finite(race?.distance??race?.mesafe??race?.mes),surface:surface(race?.track??race?.pist),breed:breed(race),raceClass:clean(race?.class??race?.raceClass),currentWeight:finite(race?.weight??race?.kilo)}}
 function breed(race){
   const key=fold([race?.breed,race?.ageGroup,race?.yaradi2,race?.class,race?.raceClass].filter(Boolean).join(' '));
   if(key.includes('ARAP')||key.includes('DHO'))return'ARAP';
@@ -90,9 +90,20 @@ function conditionHistory(payload,context){
   const top4=compatible.filter(r=>r.finish<=4).length,wins=compatible.filter(r=>r.finish===1).length;
   const recentSuccess=compatible.some(r=>r.finish<=4&&daysBetween(r.date,context.date)<=RULES.recentDays);
   const protectedCandidate=compatible.length>=RULES.protectionStarts&&top4>=2&&top4/compatible.length>=RULES.protectionTop4&&recentSuccess;
+  const recent=rows.slice(0,5),recentScores=recent.map(r=>finishScore(r.finish));
+  const trend=recentScores.length>=2?Math.max(0,Math.min(1,(recentScores[0]-recentScores.at(-1)+50)/100)):null;
+  const sameCity=compatible.filter(r=>fold(r.city)===fold(context.city));
+  const distanceFit=compatible.length?weighted.reduce((s,x)=>s+x.weight*Math.max(0,1-Math.abs(x.row.distance-context.distance)/Math.max(1,RULES.nearDistance)),0)/Math.max(.0001,totalWeight):null;
+  const cityFit=compatible.length?sameCity.length/compatible.length:null;
+  const classRows=context.raceClass?rows.filter(r=>fold(r.raceClass)===fold(context.raceClass)):[],classFit=context.raceClass&&rows.length?Math.min(1,classRows.length/2):null;
+  const weightRows=context.currentWeight!==null?rows.filter(r=>r.weight!==null).slice(0,5):[],weightFit=weightRows.length?weightRows.reduce((s,r)=>s+Math.exp(-Math.abs(r.weight-context.currentWeight)/4),0)/weightRows.length:null;
+  const components={surfaceDistance:distanceFit,sameCity:cityFit,recentTrend:trend,classTransition:classFit,weightFit,headToHead:null,paceStyle:null};
+  const weights={surfaceDistance:2,sameCity:1,recentTrend:1.25,classTransition:.75,weightFit:.5};let fitSum=0,fitWeight=0;
+  for(const[k,w]of Object.entries(weights)){const v=components[k];if(v===null)continue;fitSum+=v*w;fitWeight+=w}
+  const conditionScore=fitWeight?Number((5*fitSum/fitWeight).toFixed(2)):null;
   return{rows,compatible,form:form===null?null:Number(form.toFixed(1)),starts:compatible.length,top4,wins,
-    top4Rate:compatible.length?top4/compatible.length:null,protectedCandidate,recentSuccess,
-    sameCityStarts:compatible.filter(r=>fold(r.city)===fold(context.city)).length,
+    top4Rate:compatible.length?top4/compatible.length:null,protectedCandidate,recentSuccess,conditionScore,components,
+    sameCityStarts:sameCity.length,
     reason:protectedCandidate?`${compatible.length} benzer pist/mesafe koşusu · ${top4} ilk 4 · ${wins} birincilik`:compatible.length?`${compatible.length} benzer pist/mesafe koşusu`:'Benzer pist/mesafe geçmişi yok.'};
 }
 function buildStandards(records,cutoff){
@@ -171,7 +182,7 @@ function assessPrepared(prepared){
       const value=key==='E'&&Number(item.row?.connectionMeta?.verified||0)<2?null:finite(item.row[key]),leader=corroboration[key];
       return[key,value!==null&&leader!==null&&leader-value<=RULES.followGap+1e-9];
     }));
-    const group=score>=RULES.main?'main':score>=RULES.watch&&(confirmations.E||confirmations.T)?'watch':item.history.protectedCandidate?'condition':'outside';
+    const group=score>=RULES.main?'main':score>=RULES.watch&&(confirmations.E||confirmations.T)?'watch':score>=RULES.conditionMinProximity&&item.history.protectedCandidate&&item.history.conditionScore!==null&&item.history.conditionScore>=RULES.conditionMinScore?'condition':'outside';
     return{no:item.row.no,name:item.row.name,id:item.row?.program?.id||null,score:Number(score.toFixed(3)),group,
       contributions,gaps,strongSources,confirmations,scores:item.scores,history:item.history,degree:item.degree,
       historyAvailable:item.historyAvailable,historyError:item.historyError,formSource:item.formSource};
