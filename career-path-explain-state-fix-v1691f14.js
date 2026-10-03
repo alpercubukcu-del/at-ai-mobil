@@ -8,7 +8,7 @@
 'use strict';
 if(window.__AT_CAREER_SEASON_SEQUENCE_V2__)return;
 window.__AT_CAREER_SEASON_SEQUENCE_V2__=true;
-const VERSION='CAREER-SEASON-WINNER-SEQUENCE-V2.1';
+const VERSION='CAREER-JOURNEY-EVIDENCE-V3';
 const clean=v=>String(v??'').replace(/\s+/g,' ').trim();
 const esc=v=>typeof escapeHtml==='function'?escapeHtml(v):String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=v=>{if(v===null||v===undefined||v==='')return null;const n=Number(String(v).replace(',','.').match(/-?\d+(?:[.,]\d+)?/)?.[0]?.replace(',','.')??v);return Number.isFinite(n)?n:null};
@@ -67,6 +67,18 @@ function calc(currentPath,roadmapData){
 calculateGalibiyetBenzerligi=calc;
 
 function rowText(r){return `${esc(dateOf(r)||'-')} · ${esc(r?.city||r?.sehir||'-')} · ${esc(r?.class||r?.raceClass||'-')} · ${esc(dist(r)??'-')} ${esc(r?.track||r?.pist||'-')} · ${esc(finish(r)??'-')}. · ${esc(weight(r)??'-')} kg · HP ${esc(hp(r)??'-')}`}
+function signed(v,unit=''){if(v===null||!Number.isFinite(v))return'—';return (v>0?'+':'')+Number(v.toFixed(1))+unit}
+function journeyEvidence(row){
+ const ps=Array.isArray(row?.sequencePairs)?row.sequencePairs:[];if(ps.length<2)return'Bu yol için henüz yeterli ortak sınav yok.';
+ let table=0,wins=0,better=0;for(const p of ps){const a=finish(p.a),b=finish(p.b);if(a!==null&&a<=4)table++;if(a===1)wins++;if(a!==null&&b!==null&&a<b)better++}
+ const first=ps[0],last=ps[ps.length-1],cw=weight(last.a)-weight(first.a),rw=weight(last.b)-weight(first.b),ch=hp(last.a)-hp(first.a),rh=hp(last.b)-hp(first.b);
+ const bits=[`Geçmiş kazananın ${row.historicalPathCount} adımlık hazırlık yolunun ${ps.length} adımı bugünkü adayda kronolojik olarak karşılık buldu.`];
+ bits.push(`Aday bu ortak sınavlarda ${table} kez ilk 4 yaptı${wins?', '+wins+' kez kazandı':''}; ${better} adımda tarihsel kazananın o aşamadaki derecesinden daha iyi bitirdi.`);
+ if(Number.isFinite(cw)&&Number.isFinite(rw))bits.push(`Sıklet yolculuğu adayda ${signed(cw,' kg')}, tarihsel kazananın yolunda ${signed(rw,' kg')} değişti.`);
+ if(Number.isFinite(ch)&&Number.isFinite(rh))bits.push(`Handikap puanı adayda ${signed(ch)}, tarihsel kazananın yolunda ${signed(rh)} değişti.`);
+ bits.push(`Sonuç: “Biz bu yarışı kazanmak için ne yarışlar gördük?” sorusunda bu yol %${row.score} benzerlik gösteriyor.`);
+ return bits.join(' ');
+}
 function trendLabel(pairs){
  if(pairs.length<2)return'Yetersiz adım';
  let w=0,h=0,f=0,cw=0,ch=0,cf=0;for(let k=1;k<pairs.length;k++){const x=pairs[k-1],y=pairs[k];const vals=[[weight(x.a),weight(y.a),weight(x.b),weight(y.b),'w'],[hp(x.a),hp(y.a),hp(x.b),hp(y.b),'h'],[finish(x.a),finish(y.a),finish(x.b),finish(y.b),'f']];for(const [a1,a2,b1,b2,t]of vals){if([a1,a2,b1,b2].some(v=>v===null))continue;const ok=dir(a2-a1)===dir(b2-b1);if(t==='w'){cw++;if(ok)w++}if(t==='h'){ch++;if(ok)h++}if(t==='f'){cf++;if(ok)f++}}}
@@ -74,7 +86,7 @@ function trendLabel(pairs){
 }
 yearSimilarityHtml=function(sim){
  const rows=Array.isArray(sim?.byYear)?sim.byYear:[];if(!rows.length)return'<div class="season-empty-v2">Tarihsel kazanan sezonu bulunamadı.</div>';
- return `<div class="season-years-v2"><div class="season-title-v2">SEZONLUK KAZANAN YOL HARİTASI <small>· tek yarış değil, yarış silsilesi</small></div>${rows.map(row=>{const ok=Number.isFinite(Number(row.score)),pairs=Array.isArray(row.sequencePairs)?row.sequencePairs:[];return `<details class="season-year-v2" ${ok&&row===sim.strongest?'open':''}><summary><span><b>${esc(row.year||'-')}</b> · 🏆 ${esc(row.historicalHorse||'Kazanan alınamadı')}</span><strong>${ok?'%'+esc(row.score):'—'}</strong></summary><div class="season-body-v2"><div class="season-metrics-v2"><span>Eşleşen adım <b>${esc(row.matchedSteps??0)}/${esc(row.historicalPathCount??0)}</b></span><span>Kapsama <b>%${esc(row.coveragePct??0)}</b></span><span>Koşul kalitesi <b>%${esc(row.pairQualityPct??0)}</b></span><span>Gelişim yönü <b>%${esc(row.trendPct??0)}</b></span></div><div class="season-note-v2">${ok?`Bu yüzde ${esc(row.matchedSteps)} kronolojik yarış adımının birlikte örtüşmesinden oluşur. ${esc(trendLabel(pairs))}.`:`⚠ ${esc(row.error||'Yeterli yarış silsilesi yok.')}`}</div>${pairs.length?`<div class="season-grid-head-v2"><b>Bugünkü adayın sezon yolu</b><b>${esc(row.year)} kazananının sezon yolu</b></div>${pairs.map((p,i)=>`<div class="season-grid-v2"><div><em>Adım ${i+1}</em>${rowText(p.a)}</div><div><em>Adım ${i+1}</em>${rowText(p.b)}</div><div class="season-match-v2">Koşul %${Math.round(p.quality*100)} · bitiriş kapısı ✓</div></div>`).join('')}`:''}</div></details>`}).join('')}</div>`;
+ return `<div class="season-years-v2"><div class="season-title-v2">BU YARIŞI KAZANANLAR BURAYA NASIL GELDİ? <small>· bugünkü atlardan hangileri aynı yollardan geçti?</small></div>${rows.map(row=>{const ok=Number.isFinite(Number(row.score)),pairs=Array.isArray(row.sequencePairs)?row.sequencePairs:[];return `<details class="season-year-v2" ${ok&&row===sim.strongest?'open':''}><summary><span><b>${esc(row.year||'-')}</b> · 🏆 ${esc(row.historicalHorse||'Kazanan alınamadı')}</span><strong>${ok?'%'+esc(row.score):'—'}</strong></summary><div class="season-body-v2"><div class="season-metrics-v2"><span>Eşleşen adım <b>${esc(row.matchedSteps??0)}/${esc(row.historicalPathCount??0)}</b></span><span>Kapsama <b>%${esc(row.coveragePct??0)}</b></span><span>Koşul kalitesi <b>%${esc(row.pairQualityPct??0)}</b></span><span>Gelişim yönü <b>%${esc(row.trendPct??0)}</b></span></div><div class="season-note-v2">${ok?`${esc(journeyEvidence(row))} ${esc(trendLabel(pairs))}.`:`⚠ ${esc(row.error||'Yeterli yarış silsilesi yok.')}`}</div>${pairs.length?`<div class="season-grid-head-v2"><b>Bugünkü adayın sezon yolu</b><b>${esc(row.year)} kazananının sezon yolu</b></div>${pairs.map((p,i)=>`<div class="season-grid-v2"><div><em>Adım ${i+1}</em>${rowText(p.a)}</div><div><em>Adım ${i+1}</em>${rowText(p.b)}</div><div class="season-match-v2">Koşul %${Math.round(p.quality*100)} · bitiriş kapısı ✓</div></div>`).join('')}`:''}</div></details>`}).join('')}</div>`;
 };
 
 /* Eski "güçlü koşu çifti" açıklama tıklamasını tamamen devre dışı bırak. */
@@ -102,5 +114,5 @@ function installTheme(){let s=document.getElementById('careerSeasonThemeV2');if(
 `;document.head.appendChild(s)}
 installTheme();
 try{if(state?.analyses?.career){state.analyses.career={};save()}}catch{}
-console.info('[AT AI]',VERSION,'aktif — kazanan-only sezon silsilesi, çoklu adım ve yeni mavi tema');
+console.info('[AT AI]',VERSION,'aktif — kariyer yolculuğu kanıtı, kazanan-only çoklu adım');
 })();
