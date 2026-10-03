@@ -53,9 +53,9 @@ for(const token of['FOGD-STABLE-INPUTS-V17.4.4','DEGREE-STABLE-INPUTS-V17.4.4'])
 app+='\n\n'+couponCore.trim()+'\n\n'+conditionCore.trim()+'\n\n'+condition.trim()+'\n\n'+coupon.trim()+'\n';
 for(const token of['FOGD-NINE-COUPON-CORE-V17.3','FOGD-ALL-RACES-TEMPLATE-V17.3','FOGD-CONDITION-CORE-V17.4','FOGD-CONDITION-COUPON-V17.4','FOGD-COUPON-V17.4','FOGD_ALL_RACES_V173','fogdAllRacesBuildV173','9 BAĞIMSIZ TÜM-KOŞU ŞABLONU','10 · Koşul Uyumlu Yakınlık'])if(!app.includes(token))throw new Error('[V17 CLEAN] coupon invariant missing '+token);
 for(const forbidden of['id="buildAllBtn"','Kupon kaynağı: Kariyer/Hazırlık'])if(coupon.includes(forbidden))throw new Error('[V17 CLEAN] legacy coupon route leaked into V17.3 runtime: '+forbidden);
-const reference=fs.readFileSync(path.join(R,'reference-archive-v17412.js'),'utf8');new Function(reference);app=reference+'\n'+app;
+const reference=fs.readFileSync(path.join(R,'reference-archive-v17412.js'),'utf8');new Function(reference);app=reference+'\n'+app;\nconst winnerJourney=fs.readFileSync(path.join(R,'career-winner-journey-menu-v1.js'),'utf8');new Function(winnerJourney);app+='\\n\\n'+winnerJourney.trim()+'\\n';
 new Function(app);
-for(const token of ['DEGREE-AUTO-CALIBRATION-V17.4.4','DEGREE-STABLE-INPUTS-V17.4.4','uncalibratedSec'])if(!app.includes(token))throw Error('[V17 CLEAN] calibration missing '+token);
+for(const token of ['CAREER-WINNER-JOURNEY-MENU-V1.0','FULL_DAY_CARD_AUDIT','WINNER_ONLY + SEASON','DEGREE-AUTO-CALIBRATION-V17.4.4','DEGREE-STABLE-INPUTS-V17.4.4','uncalibratedSec'])if(!app.includes(token))throw Error('[V17 CLEAN] calibration missing '+token);
 fs.writeFileSync(APP,app,'utf8');
 for(const token of['ARCHIVE-PROGRAM-V17.4.2','ARCHIVE-DIRECTORY-V17.4.1','ARCHIVE-MENU-V17.4.2','TRACK-LONGTERM-ARCHIVE-V17.4.1','TRACK-MAINT-ARCHIVE-V17.4.1'])if(!app.includes(token))throw Error('[V17 CLEAN] archive menu fix missing '+token);
 let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1700413');
