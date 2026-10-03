@@ -7,7 +7,7 @@
 (() => {
 'use strict';
 if(window.__AT_CAREER_SEASON_SEQUENCE_V2__)return;
-window.__AT_CAREER_SEASON_SEQUENCE_V2__=true;\nwindow.__AT_CAREER_PATH_EXPLAIN_STATE_FIX_V1691F14__=true;
+window.__AT_CAREER_SEASON_SEQUENCE_V2__=true;
 const VERSION='CAREER-SEASON-WINNER-SEQUENCE-V2.1';
 const clean=v=>String(v??'').replace(/\s+/g,' ').trim();
 const esc=v=>typeof escapeHtml==='function'?escapeHtml(v):String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
