@@ -2,7 +2,8 @@
 ((root)=>{
 'use strict';
 if(root.ATFogdConditionCoreV1)return;
-const VERSION='FOGD-CONDITION-CORE-V17.4-KU2';
+const VERSION='FOGD-CONDITION-CORE-V17.4';
+const KU_VERSION='KU-V2';
 const MODEL={id:'dna-condition',key:'C',short:'10',label:'10 · Koşul Uyumlu Yakınlık'};
 const KEYS=['F','O','G','D','J','S','A'];
 // Provisional decision rules, not learned win probabilities.
@@ -226,5 +227,5 @@ function buildAllRacesTemplate({races,snapshotsByRace,eligibleByRace,date,city,s
     selectionsTotal:legs.reduce((sum,x)=>sum+x.selections.length,0),legs,profile:null,
     warnings:['Yakınlık ve koşul uyumu kuralları deneme aşamasındadır; puanlar kazanma olasılığı değildir.'],generatedAt:new Date().toISOString()};
 }
-root.ATFogdConditionCoreV1={VERSION,MODEL,KEYS,RULES,finite,isoDate,surface,seconds,normalizeHistory,contextFor,conditionHistory,buildStandards,degreeEvidence,prepareRows,band,assessPrepared,buildAllRacesTemplate};
+root.ATFogdConditionCoreV1={VERSION,KU_VERSION,MODEL,KEYS,RULES,finite,isoDate,surface,seconds,normalizeHistory,contextFor,conditionHistory,buildStandards,degreeEvidence,prepareRows,band,assessPrepared,buildAllRacesTemplate};
 })(typeof globalThis!=='undefined'?globalThis:this);
