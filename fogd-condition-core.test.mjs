@@ -122,15 +122,15 @@ test('main/watch thresholds and corroboration are applied without first-four tru
   assert.equal(r.ranking.find(x=>x.no===1).group,'main');assert.equal(r.ranking.find(x=>x.no===2).group,'watch');
   assert.equal(r.ranking.length,5);assert.equal(r.singleQualified,false);
 });
-test('KU v2 never promotes a zero-proximity horse only from historical protection',()=>{
+test('historical condition protection retains EMSİDİ despite zero raw proximity',()=>{
   const emsidi={no:3,name:'EMSİDİ',F:58.8,O:55.4,G:57.5,D:86.8,J:51.4,S:50.9,A:53.5,E:51.9,T:66.5,historyRecords:emsidiHistory};
   const rivals=[1,2,4,5,6].map((no,i)=>({no,name:`Rakip ${no}`,F:100-i*12,O:100-i*12,G:100-i*12,D:99.7,J:100-i*12,S:100-i*12,A:100-i*12,historyRecords:[]}));
   const snapshot={rows:[emsidi,...rivals]},before=JSON.stringify(snapshot);
   const t=core.buildAllRacesTemplate({races:[race],snapshotsByRace:new Map([['6',snapshot]]),date:'2026-09-29',city:'Adana'});
-  const row=t.legs[0].ranking.find(x=>x.no===3);assert.ok(row);assert.equal(row.score,0);assert.equal(row.group,'outside');assert.ok(row.history.conditionScore!==null);
+  const pick=t.legs[0].selections.find(x=>x.no===3);assert.ok(pick);assert.equal(pick.group,'condition');
+  assert.equal(pick.history.wins,1);assert.equal(pick.history.starts,4);assert.equal(t.legs[0].single,false);
   assert.equal(JSON.stringify(snapshot),before);
 });
-
 test('empty automatic group remains manually reviewable and never manufactures a single',()=>{
   const t=core.buildAllRacesTemplate({races:[race],snapshotsByRace:new Map([['6',{rows:[{no:1,F:100},{no:2,F:100}]}]]),date:'2026-09-29',city:'Adana'});
   assert.equal(t.legs[0].available,true);assert.equal(t.legs[0].selections.length,0);assert.equal(t.legs[0].single,false);assert.equal(t.complete,false);
