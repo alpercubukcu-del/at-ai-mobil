@@ -125,7 +125,7 @@ async function applyGuard(){
 
 function installObserver(){
   const host=$('tickets');if(!host||observer)return;
-  observer=new MutationObserver(()=>{if(busy)return;const s=st();if(Array.isArray(s?.tickets)&&s.tickets.some(t=>t?.exactRankGuardVersion!==VERSION))setTimeout(()=>void applyGuard(),70)});
+  observer=new MutationObserver(()=>{if(busy)return;const s=st();if(Array.isArray(s?.tickets)&&s.tickets.some(t=>!isFogdNineTicket(t)&&t?.exactRankGuardVersion!==VERSION))setTimeout(()=>void applyGuard(),70)});
   observer.observe(host,{childList:true,subtree:true});
 }
 document.addEventListener('click',event=>{
