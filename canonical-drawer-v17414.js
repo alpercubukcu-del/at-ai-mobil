@@ -20,7 +20,8 @@ function apply(){
   const eight=$('archiveHubBtnF60943123')||$('trackMaintenanceMenuBtnF60944')||find(/Gerçek Yarış Arşivi|Pist \/ Bakım \/ Hava/i);
   const nine=find(/F\s*\/\s*O\s*\/\s*G\s*\/\s*D.*Toplam Puan/i);
   const rows=[[guide,'1. Kullanım Talimatı'],[current,'2. Güncel Analiz'],[career,'3. Kariyer Yol Haritası'],[fogd,'4. FOGD Kalibrasyon Merkezi'],[scenario,'5. Günün Koşu Kalibrasyonu'],[coupon,'6. Kupon Oluştur'],[annual,'7. Tarihsel Sonuç Arşivi'],[eight,'8. Gerçek Yarış Arşivi + Pist / Bakım / Hava'],[nine,'9. F / O / G / D Toplam Puan']];
-  if(rows.some(x=>!x[0]))return false;\n  let style=$('canonicalDrawerStyleV17415');if(!style){style=document.createElement('style');style.id='canonicalDrawerStyleV17415';style.textContent='#drawer{display:flex!important;flex-direction:column!important}#drawer>.drawer-head{order:0!important}#drawer>button{order:initial!important}#drawer>.drawer-note{order:10!important}';document.head.appendChild(style)}
+  if(rows.some(x=>!x[0]))return false;
+  let style=$('canonicalDrawerStyleV17415');if(!style){style=document.createElement('style');style.id='canonicalDrawerStyleV17415';style.textContent='#drawer{display:flex!important;flex-direction:column!important}#drawer>.drawer-head{order:0!important}#drawer>button{order:initial!important}#drawer>.drawer-note{order:10!important}';document.head.appendChild(style)}
   fogd.onclick=e=>{e.preventDefault();e.stopPropagation();close();setTimeout(()=>window.ATFogdHistoryCalibrationF60943111?.open?.(),0)};
   for(let i=0;i<rows.length;i++){const [b,label]=rows[i];b.textContent=label;b.style.setProperty('order',String(i+1),'important');b.hidden=false;b.style.removeProperty('display');b.style.removeProperty('visibility');b.style.removeProperty('pointer-events')}
   const desired=[head,...rows.map(x=>x[0]),note].filter(Boolean);
