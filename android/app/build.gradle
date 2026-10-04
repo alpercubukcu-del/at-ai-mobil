@@ -9,8 +9,8 @@ android {
   applicationId 'tr.ataimobil.app'
   minSdk 24
   targetSdk 35
-  versionCode 8
-  versionName '18.0.7-test8'
+  versionCode 9
+  versionName '18.0.8-test9'
   ndk { abiFilters (project.findProperty('testAbi') ?: 'arm64-v8a') }
   externalNativeBuild { cmake { arguments '-DANDROID_STL=c++_shared'; cppFlags '-std=c++17' } }
  }

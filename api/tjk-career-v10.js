@@ -5,7 +5,7 @@ const BASE_URL = 'https://www.tjk.org/TR/YarisSever/Query/ConnectedPage/AtKosuBi
 const PAGE_SIZE = 50;
 const TIMEOUT_MS = 20000;
 const MIN_SCAN_YEAR = 1950;
-const YEAR_RETRIES = 3;
+const YEAR_RETRIES = 2;
 
 function clean(v = '') {
   return String(v ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
@@ -97,7 +97,7 @@ async function fetchWithTimeout(url, options = {}) {
 }
 async function downloadHorsePage(session, horseId, year = null) {
   let lastError = null;
-  for (let attempt = 1; attempt <= 4; attempt++) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       const params = new URLSearchParams({ '1':'1', Era:'today', QueryParameter_AtId:String(horseId) });
       if (year) params.set('QueryParameter_Yil', String(year));
@@ -115,7 +115,7 @@ async function downloadHorsePage(session, horseId, year = null) {
       return { html, url:response.url };
     } catch (e) {
       lastError = e;
-      if (attempt < 4) await sleep(attempt * 300);
+      if (attempt < 2) await sleep(attempt * 300);
     }
   }
   throw new Error(`At sayfası indirilemedi: ${lastError?.message || lastError}`);
@@ -143,12 +143,14 @@ function extractMetadata(html) {
   const listedYears = new Set();
   $('table').each((_, table) => {
     const tableText = upper($(table).text());
-    if (!tableText.includes('INCILIK') || !tableText.includes('KAZANC')) return;
+    const headings = $(table).find('th').map((__, th) => upper($(th).text()).replace(/[^A-Z0-9]/g, '')).get();
+    if (!tableText.includes('KAZANC') || !(tableText.includes('INCIL') || headings.includes('KOSU'))) return;
+    const countIndex = headings.findIndex(h => h === 'KOSU' || h === 'KOSUSAYISI');
     $(table).find('tr').each((__, tr) => {
       const c = $(tr).find('th,td').map((___, cell) => clean($(cell).text())).get();
       if (c.length < 2) return;
       const first = upper(c[0]);
-      const count = parseIntValue(c[1]);
+      const count = parseIntValue(c[countIndex >= 0 ? countIndex : 1]);
       if (first === 'TOPLAM' && count !== null) careerTotal = count;
       const ym = first.match(/^((?:19|20)\d{2})(?: YILI)?$/);
       if (ym) {
@@ -232,7 +234,7 @@ async function readYear({ horseId, year, headers, summaryExpected, sharedSession
       if (attempt < YEAR_RETRIES) await sleep(250 * attempt);
     } catch (e) {
       last = { rows:[], rawRows:0, attempts:attempt, semanticMismatch:false, error:e?.message || String(e) };
-      if (attempt < YEAR_RETRIES) await sleep(300 * attempt);
+      return last; // Network retries already happen in downloadHorsePage; do not multiply them per year.
     }
   }
   return last;
@@ -252,10 +254,12 @@ async function collectHistory(horseId) {
 
   const sortedYears = [...years].filter(Number.isFinite).sort((a,b)=>b-a);
   for (const year of sortedYears) {
+    if (Number.isFinite(metadata.careerTotal) && union.size === metadata.careerTotal) break;
     const summaryExpected = metadata.yearTotals[String(year)];
     const currentCount = [...union.values()].filter(row => row.isoDate.startsWith(`${year}-`)).length;
     if (Number.isFinite(summaryExpected) && currentCount === summaryExpected) continue;
     const result = await readYear({ horseId, year, headers:parsedFirst.headers, summaryExpected, sharedSession:session });
+    if (result.error) throw new Error(`${year} kariyeri alınamadı: ${result.error}`);
     const beforeSize = union.size;
     for (const row of result.rows) union.set(row.uniqueKey, row);
     yearDiagnostics.push({
@@ -272,7 +276,8 @@ async function collectHistory(horseId) {
       for (let year = oldest; year >= MIN_SCAN_YEAR && union.size < metadata.careerTotal; year--) {
         if (sortedYears.includes(year)) continue;
         const result = await readYear({ horseId, year, headers:parsedFirst.headers, summaryExpected:metadata.yearTotals[String(year)], sharedSession:session });
-        const beforeSize = union.size;
+        if (result.error) throw new Error(`${year} kariyeri alınamadı: ${result.error}`);
+    const beforeSize = union.size;
         for (const row of result.rows) union.set(row.uniqueKey, row);
         yearDiagnostics.push({
           year, summaryExpected:Number.isFinite(metadata.yearTotals[String(year)]) ? metadata.yearTotals[String(year)] : null,
