@@ -140,7 +140,8 @@ async function updateRange(from,to){
   try{for(let y=a;y<=b;y++){setStatus(`${y} sonuç arşivi hazırlanıyor…`,0);await updateYear(y,{force:false})}}finally{updateBusy=false;const btn=$('aarUpdateV661');if(btn)btn.disabled=false}
 }
 async function deleteYear(year){const y=Number(year);if(!y)return false;await dbDeleteWhereYear(STORE_RACES,y);await dbDeleteWhereYear(STORE_DAYS,y);const db=await openDb();if(db){try{const tx=db.transaction(STORE_META,'readwrite');tx.objectStore(STORE_META).delete(`year:${y}`)}catch{}}await refreshMetaUi();return true}
-async function getLocalResult(date,city,raceNo){return dbGet(STORE_RACES,raceKey(date,city,raceNo))}
+async function permanentResult(date,city,raceNo){try{const q=window.ATReferenceArchiveV17412?.queryArchive;if(!q)return null;const rows=await q({start:date,end:date,city,limit:100});const ref=rows.find(r=>Number(r.raceNo)===Number(raceNo));if(!ref)return null;return{key:raceKey(date,city,raceNo),year:yearFromDate(date),date,city,raceNo:Number(raceNo),source:'PERMANENT_KOSU_SORGULAMA_ARCHIVE',referenceQuery:ref,race:{no:Number(raceNo),class:ref.race?.class||ref.referenceQuery?.raceClass||'',ageGroup:ref.race?.ageGroup||ref.referenceQuery?.ageGroup||'',distance:Number(ref.race?.distance||ref.referenceQuery?.distance)||0,track:ref.race?.track||ref.referenceQuery?.track||'',winner:{horseName:ref.race?.winner?.horseName||ref.referenceQuery?.winner||'',degree:ref.race?.winner?.degree||ref.referenceQuery?.winnerDegree||''},rows:[]}}}catch(e){console.warn('[AT AI]',VERSION,'kalıcı Koşu Sorgulama okuma:',e);return null}}
+async function getLocalResult(date,city,raceNo){return await permanentResult(date,city,raceNo)||await dbGet(STORE_RACES,raceKey(date,city,raceNo))}
 
 async function storageText(){
   try{const e=await navigator.storage?.estimate?.();if(!e)return'Depolama bilgisi alınamadı.';const mb=n=>`${(Number(n||0)/1048576).toFixed(1)} MB`;const gb=n=>`${(Number(n||0)/1073741824).toFixed(2)} GB`;return`Tarayıcı depolaması: ${mb(e.usage)} kullanılıyor · kota ${e.quota>=1073741824?gb(e.quota):mb(e.quota)}`}
@@ -205,6 +206,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 setTimeout(installHooks,400);
 setTimeout(installHooks,1200);
 window.addEventListener('at-ai:annual-archive-open',()=>setTimeout(()=>{installPanel();void refreshMetaUi()},0));
-window.ATAnnualResultsArchiveV661={version:VERSION,updateYear,updateRange,syncDay,getLocalResult,refresh:refreshMetaUi,deleteYear,isDomestic};
+window.ATAnnualResultsArchiveV661={version:VERSION,updateYear,updateRange,syncDay,getLocalResult,permanentResult,refresh:refreshMetaUi,deleteYear,isDomestic};
 console.info('[AT AI]',VERSION,'aktif — yerli yıllık sonuçlar telefonda IndexedDB arşivine yazılır; /api/tjk-history önce yerel arşivi, yoksa TJK fallback yöntemini kullanır.');
 })();
