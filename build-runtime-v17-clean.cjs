@@ -56,7 +56,7 @@ for(const forbidden of['id="buildAllBtn"','Kupon kaynağı: Kariyer/Hazırlık']
 const reference=fs.readFileSync(path.join(R,'reference-archive-v17412.js'),'utf8');new Function(reference);app=reference+'\n'+app;
 const winnerJourney=fs.readFileSync(path.join(R,'career-winner-journey-menu-v1.js'),'utf8');new Function(winnerJourney);app+=String.fromCharCode(10,10)+winnerJourney.trim()+String.fromCharCode(10);
 new Function(app);
-for(const token of ['CAREER-WINNER-JOURNEY-MENU-V1.0','FULL_DAY_CARD_AUDIT','WINNER_ONLY + SEASON','DEGREE-AUTO-CALIBRATION-V17.4.4','DEGREE-STABLE-INPUTS-V17.4.4','uncalibratedSec'])if(!app.includes(token))throw Error('[V17 CLEAN] calibration missing '+token);
+for(const token of ['CAREER-WINNER-JOURNEY-MENU-V1.0','FULL_DAY_CARD_AUDIT','queryArchive','WINNER_ONLY + SEASON','DEGREE-AUTO-CALIBRATION-V17.4.4','DEGREE-STABLE-INPUTS-V17.4.4','uncalibratedSec'])if(!app.includes(token))throw Error('[V17 CLEAN] calibration missing '+token);
 fs.writeFileSync(APP,app,'utf8');
 for(const token of['ARCHIVE-PROGRAM-V17.4.2','ARCHIVE-DIRECTORY-V17.4.1','ARCHIVE-MENU-V17.4.2','TRACK-LONGTERM-ARCHIVE-V17.4.1','TRACK-MAINT-ARCHIVE-V17.4.1'])if(!app.includes(token))throw Error('[V17 CLEAN] archive menu fix missing '+token);
 let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1700413');
