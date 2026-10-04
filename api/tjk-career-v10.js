@@ -132,7 +132,7 @@ function findHistoryTable($) {
 function extractHorseName($) {
   for (const selector of ['.horse-name','h2','h1','title']) {
     const t = clean($(selector).first().text());
-    if (t) return t;
+    if (t && !/^(?:At Koşu Bilgileri|At Bilgileri|Türkiye Jokey Kulübü|TJK)(?:\s*[-|:].*)?$/i.test(t)) return t;
   }
   return '';
 }
@@ -391,3 +391,5 @@ export default async function handler(req, res) {
     });
   }
 }
+
+export { extractHorseName };
