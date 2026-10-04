@@ -141,23 +141,34 @@ function extractMetadata(html) {
   let careerTotal = null;
   const yearTotals = {};
   const listedYears = new Set();
+  const summaryTables = [];
   $('table').each((_, table) => {
-    const tableText = upper($(table).text());
-    const headings = $(table).find('th').map((__, th) => upper($(th).text()).replace(/[^A-Z0-9]/g, '')).get();
-    if (!tableText.includes('KAZANC') || !(tableText.includes('INCIL') || headings.includes('KOSU'))) return;
-    const countIndex = headings.findIndex(h => h === 'KOSU' || h === 'KOSUSAYISI');
-    $(table).find('tr').each((__, tr) => {
-      const c = $(tr).find('th,td').map((___, cell) => clean($(cell).text())).get();
-      if (c.length < 2) return;
-      const first = upper(c[0]);
-      const count = parseIntValue(c[countIndex >= 0 ? countIndex : 1]);
+    const trs = $(table).find('tr').toArray();
+    const labels = tr => $(tr).children('th,td').map((__, cell) => upper($(cell).text()).replace(/[^A-Z0-9]/g, '')).get();
+    const countNames = ['KOSU', 'KOSUSAYISI', 'KOSUSAY', 'TOPLAMKOSU', 'TOPLAM'];
+    const header = trs.find(tr => {
+      const c = labels(tr);
+      return c.some(x => x === 'YIL' || x === 'YILLAR') && c.some(x => countNames.includes(x)) && c.some(x => x.startsWith('KAZANC'));
+    });
+    if (!header) return;
+    const headings = labels(header);
+    let countIndex = headings.findIndex(h => countNames.slice(0,-1).includes(h));
+    if (countIndex < 0) countIndex = headings.indexOf('TOPLAM');
+    const yearIndex = headings.findIndex(h => h === 'YIL' || h === 'YILLAR');
+    summaryTables.push({headings, countIndex});
+    for (const tr of trs) {
+      const c = $(tr).children('th,td').map((__, cell) => clean($(cell).text())).get();
+      if (c.length <= Math.max(yearIndex,countIndex)) continue;
+      const first = upper(c[yearIndex]).replace(/[:\s]+$/g, '');
+      const rawCount = clean(c[countIndex]).replace(/[.\s]/g, '');
+      const count = /^\d+$/.test(rawCount) ? Number(rawCount) : null;
       if (first === 'TOPLAM' && count !== null) careerTotal = count;
       const ym = first.match(/^((?:19|20)\d{2})(?: YILI)?$/);
       if (ym) {
         listedYears.add(Number(ym[1]));
         if (count !== null) yearTotals[ym[1]] = count;
       }
-    });
+    }
   });
   $('select[name="QueryParameter_Yil"] option, select#QueryParameter_Yil option').each((_, option) => {
     const value = clean($(option).attr('value'));
@@ -165,7 +176,7 @@ function extractMetadata(html) {
     const candidate = /^(?:19|20)\d{2}$/.test(value) ? value : (text.match(/(?:19|20)\d{2}/)?.[0] || '');
     if (candidate) listedYears.add(Number(candidate));
   });
-  return { careerTotal, yearTotals, listedYears:[...listedYears].filter(Number.isFinite).sort((a,b)=>b-a) };
+  return { careerTotal, yearTotals, summaryTables, listedYears:[...listedYears].filter(Number.isFinite).sort((a,b)=>b-a) };
 }
 function parseHistory(html, horseId, sourceUrl, fallbackHeaders = []) {
   const $ = cheerio.load(html);

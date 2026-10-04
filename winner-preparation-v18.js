@@ -17,7 +17,8 @@ async function resolveWinner(ref){
  if(!task){const cityId=(state.cities||[]).find(c=>fold(c.name)===fold(ref.city))?.id;task=json('/api/tjk-day-results-v1',{date:ref.date,city:ref.city,cityId});days.set(key,task);task.catch(()=>days.delete(key))}
  const data=await task,race=(data.races||[]).find(r=>Number(r.no??r.raceNo)===Number(ref.raceNo)),w=(race?.rows||[]).find(r=>Number(r.finish)===1);
  if(!w?.horseId||fold(w.horseName)!==fold(ref.winner))throw Error(ref.winner+': '+ref.date+' '+ref.city+' '+ref.raceNo+'. koşunun kazanan kimliği sonuç sayfasından doğrulanamadı.');
- if(J.hsim(J.heading(race),ref.heading||ref.programCardAudit?.targetPair?.historical)!==1)throw Error(ref.winner+': sonuç sayfasındaki yarış koşulları arşivle uyuşmuyor.');
+ const expected=ref.heading||ref.programCardAudit?.targetPair?.historical,actual=J.heading(race);
+ if(J.hsim(actual,expected)!==1){const text=h=>[h?.class,h?.group,h?.distance,h?.track].filter(v=>v!==undefined&&v!==null&&v!=='').join(' · ');throw Error(ref.winner+': '+ref.date+' '+ref.city+' '+ref.raceNo+'. koşu koşulları uyuşmuyor. Arşiv: '+text(expected)+'. Sonuç: '+text(actual)+'.');}
  return w;
 }
 function wrap(ref,value){return{...ref,ok:true,careerSource:value.source,permanentCareer:true,top3:[{...value.winner,career:value.career}],version:VERSION}}

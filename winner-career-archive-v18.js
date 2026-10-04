@@ -5,11 +5,12 @@ const clean=v=>String(v??'').replace(/\s+/g,' ').trim(),fold=v=>clean(v).toLocal
 const iso=r=>{const value=clean(r?.isoDate||r?.date);if(/^\d{4}-\d{2}-\d{2}$/.test(value))return value;const m=value.match(/^(\d{2})[./](\d{2})[./](\d{4})$/);return m?m[3]+'-'+m[2]+'-'+m[1]:''};
 const number=v=>{const m=clean(v).replace(',','.').match(/\d+(?:\.\d+)?/);return m?Number(m[0]):null};
 const classKey=v=>{const parts=clean(v).split('/').map(fold).filter(Boolean);return (parts.shift()||'')+'|'+[...new Set(parts)].sort().join('/')};
+const horseKey=v=>fold(clean(v).replace(/\s*\(\s*öldü\s*\)\s*$/i,''));
 const refKey=r=>[r.date,fold(r.city),r.raceNo,fold(r.winner)].join('|');
 function linkId(value){try{const u=new URL(value);if(u.protocol!=='https:'||!['www.tjk.org','tjk.org'].includes(u.hostname))return'';const id=u.searchParams.get('QueryParameter_AtId');return /^\d+$/.test(id||'')?id:''}catch{return''}}
 function validateCareer(ref,data,id){
- if(data?.ok!==true||String(data.horseId)!==String(id)||(clean(data.horseName)&&fold(data.horseName)!==fold(ref.winner)))throw Error('Kazananın at kimliği veya kariyer adı doğrulanamadı: '+ref.winner+' / '+clean(data?.horseName));
- if(data.before||!Array.isArray(data.history)||data.validation?.valid!==true||data.audit?.coverageStatus!=='TAM'||Number(data.audit.collectedTotal??data.history.length)!==data.history.length)throw Error(ref.winner+': tam kariyer kapsamı doğrulanamadı; eksik geçmiş tamamlandı sayılmadı.');
+ if(data?.ok!==true||String(data.horseId)!==String(id)||(clean(data.horseName)&&horseKey(data.horseName)!==horseKey(ref.winner)))throw Error('Kazananın at kimliği veya kariyer adı doğrulanamadı: '+ref.winner+' / '+clean(data?.horseName));
+ if(data.before||!Array.isArray(data.history)||data.validation?.valid!==true||data.audit?.coverageStatus!=='TAM'||Number(data.audit.collectedTotal??data.history.length)!==data.history.length){const a=data.audit||{},total=a.careerTotal,rows=a.collectedTotal??data.history?.length;const detail=[a.warning,data.before?'Yanıt tarih filtresiyle geldi: '+data.before:'',data.validation?.valid!==true?'Veri doğrulaması geçmedi':''].filter(Boolean).join(' ');throw Error(ref.winner+': tam kariyer kapsamı doğrulanamadı. TJK toplamı '+(Number.isFinite(total)?total:'okunamadı')+'; alınan '+(Number.isFinite(rows)?rows:'okunamadı')+'; durum '+(a.coverageStatus||'yok')+'. '+detail);}
  const h=ref.heading||ref.programCardAudit?.targetPair?.historical||{};
  if(!h.class||!h.group||!h.track||!(number(h.distance)>0))throw Error('Tarihsel kazananın yarış başlığı eksik.');
  const wins=data.history.filter(r=>iso(r)===ref.date&&fold(r.city)===fold(ref.city)&&Number(r.finish??r.rank)===1&&classKey(r.class||r.raceClass||r.classRaw)===classKey(h.class)&&fold(r.ageGroup||r.group||r.groupRaw)===fold(h.group)&&number(r.distance??r.mesafe)===number(h.distance)&&fold(r.track||r.pist)===fold(h.track));
@@ -35,7 +36,7 @@ async function persist(s,dir,id,ref,data,win){await serial(s,async()=>{
  });return win}
 async function load(s,ref,{resolveWinner,fetchCareer,localOnly=false}){
  const dir=await folder(s),idx=await index(s,dir);let id=linkId(ref.winnerUrl)||clean(ref.horseId)||clean(idx.entries?.[refKey(ref)]?.horseId);
- if(!/^\d+$/.test(id)){if(localOnly)return null;const winner=await resolveWinner(ref);if(fold(winner?.horseName)!==fold(ref.winner)||!/^\d+$/.test(clean(winner?.horseId)))throw Error('Tarihsel kazanan kimliği doğrulanamadı.');id=String(winner.horseId)}
+ if(!/^\d+$/.test(id)){if(localOnly)return null;const winner=await resolveWinner(ref);if(horseKey(winner?.horseName)!==horseKey(ref.winner)||!/^\d+$/.test(clean(winner?.horseId)))throw Error('Tarihsel kazanan kimliği doğrulanamadı.');id=String(winner.horseId)}
  let data,source='phone';let snapshot=s.snapshots.get(id);if(!snapshot){const existing=await read(dir,id+'.json');snapshot=existing?.verifiedCareer;if(snapshot)s.snapshots.set(id,snapshot)}
  if(snapshot?.version===VERSION&&snapshot.fetchedAt?.slice(0,10)>=ref.date){data=snapshot.data;validateCareer(ref,data,id)}
  else{if(localOnly)return null;source='tjk';let task=s.horses.get(id);if(!task){task=Promise.resolve().then(()=>fetchCareer(id)).then(value=>{validateCareer(ref,value,id);return value});s.horses.set(id,task);task.catch(()=>s.horses.delete(id))}data=await task;const win=validateCareer(ref,data,id);await persist(s,dir,id,ref,data,win);s.snapshots.set(id,{version:VERSION,fetchedAt:new Date().toISOString(),data})}
