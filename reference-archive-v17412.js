@@ -165,5 +165,5 @@ const _ensure17413=ensure;
 ensure=function(){const d=_ensure17413();claimSafeButtons();return d};
 
 window.addEventListener('at-ai:real-race-archive-updated',()=>{invalidateComparison();if($(HOST)?.open)void refresh().catch(e=>status(e.message))});
-window.ATReferenceArchiveV17412={version:VERSION+'+PERMANENT-BACKUP-V17.4.16',normalize,mergeRecord,savePermanentPage,comparisonRow,comparisonMatches,comparisonTable,sortComparison,invalidateComparison,advance,validRange,run:runSafe,pause,list,queryArchive,readPermanent,allRows,stats,getJob,open,refresh,backupPermanent,restorePermanent};
+window.ATReferenceArchiveV17412={version:VERSION+'+PERMANENT-BACKUP-V17.4.16',normalize,mergeRecord,savePermanentPage,comparisonScope:()=>$('refCityScope17418')?.value==='all'?'all':'same',comparisonRow,comparisonMatches,comparisonTable,sortComparison,invalidateComparison,advance,validRange,run:runSafe,pause,list,queryArchive,readPermanent,allRows,stats,getJob,open,refresh,backupPermanent,restorePermanent};
 })();
