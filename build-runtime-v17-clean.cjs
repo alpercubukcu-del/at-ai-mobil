@@ -49,7 +49,7 @@ binding=binding.replace('try{const hub=','if(window.ATM8F48?.open){window.ATM8F4
 app=app.slice(0,doorBind)+binding+app.slice(doorBindEnd);
 if(!app.includes('FOGD-DNA-ENGINE-V17.0-REBUILD'))throw new Error('[V17 CLEAN] V17 DNA was not emitted by production build chain');
 if((app.match(/FOGD-DNA-ENGINE-V17\.0-REBUILD/g)||[]).length!==1)throw new Error('[V17 CLEAN] duplicate V17 DNA engine');
-for(const token of['FOGD-STABLE-INPUTS-V17.4.4','DEGREE-STABLE-INPUTS-V17.4.4'])if(!app.includes(token))throw Error('[V17 CLEAN] stable calculation missing '+token);
+for(const token of['FOGD-STABLE-INPUTS-V18.0.7','DEGREE-STABLE-INPUTS-V17.4.4'])if(!app.includes(token))throw Error('[V17 CLEAN] stable calculation missing '+token);
 app+='\n\n'+couponCore.trim()+'\n\n'+conditionCore.trim()+'\n\n'+condition.trim()+'\n\n'+coupon.trim()+'\n';
 for(const token of['FOGD-NINE-COUPON-CORE-V17.3','FOGD-ALL-RACES-TEMPLATE-V17.3','FOGD-CONDITION-CORE-V17.4','FOGD-CONDITION-COUPON-V17.4','FOGD-COUPON-V17.4','FOGD_ALL_RACES_V173','fogdAllRacesBuildV173','9 BAĞIMSIZ TÜM-KOŞU ŞABLONU','10 · Koşul Uyumlu Yakınlık'])if(!app.includes(token))throw new Error('[V17 CLEAN] coupon invariant missing '+token);
 for(const forbidden of['id="buildAllBtn"','Kupon kaynağı: Kariyer/Hazırlık'])if(coupon.includes(forbidden))throw new Error('[V17 CLEAN] legacy coupon route leaked into V17.3 runtime: '+forbidden);

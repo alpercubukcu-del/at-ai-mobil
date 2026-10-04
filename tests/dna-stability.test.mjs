@@ -295,3 +295,20 @@ test('explicit maintenance application enriches only once', async () => {
  vm.runInContext(fs.readFileSync(new URL('../track-maintenance-real-door-v1691f707.js',import.meta.url),'utf8'),r.context);
  await r.window.ATTrackMaintenanceRealDoorF609416.applyToCurrentAnalysis();assert.equal(calls,1);
 });
+
+test('verified connection inputs produce J/S/A/E and null scores never become zero',async()=>{
+ const r=runtime({fetchContext:async()=>({ok:true,connections:{attempted:true,jockey:{verified:true,score:80},owner:{verified:true,score:60},trainer:{verified:true,score:40}},workout:null})});await r.api.compute(1);assert.equal(r.saved[0].rows[0].J,80);assert.equal(r.saved[0].rows[0].S,60);assert.equal(r.saved[0].rows[0].A,40);assert.equal(r.saved[0].rows[0].E,64);
+ const missing=runtime({fetchContext:async()=>({ok:true,connections:{attempted:true,jockey:{verified:true,score:null}},workout:null})});await missing.api.compute(1);assert.equal(missing.saved[0].rows[0].J,null);assert.equal(missing.saved[0].rows[0].E,null);
+});
+test('failed connection statistics retry independently without repeating origin and workout',async()=>{
+ const state=fixture();state.races[0].horses.forEach(h=>{h.links={jockey:{url:'https://www.tjk.org/TR/YarisSever/Query/Grouped/JokeyIstatistikleri?QueryParameter_JokeyId=1'}}});const requests=[];
+ const r=runtime({state,fetchContext:async url=>{requests.push(url.searchParams.get('section'));return {ok:true,workout:null,connections:{attempted:true,jockey:url.searchParams.get('section')==='connections'?{verified:true,score:70}:null}}}});await r.api.compute(1);assert.equal(requests.filter(x=>x==='connections').length,3);assert.ok(r.saved[0].rows.every(h=>h.J===70&&h.E===70));
+});
+test('missing degree samples in a saved current analysis are restored from the verified horse history',async()=>{
+ const state=fixture();state.analyses.current.races[0].horses.forEach(h=>{h.history={rowCount:5};h.degreeModel={predictedSec:null,referenceOnly:true}});const r=runtime({state});let calls=0;
+ r.context.fetchCareer=async(id,before)=>{calls++;assert.equal(before,date);return{ok:true,history:[{date:'2026-09-01',degree:'1.32.00'}]}};
+ r.window.ATDegreeSpeedF6090={rawDegreeSamples:()=>[{date:'2026-09-01',sec:92,distance:1400,track:'Sentetik'}],enrichCurrent:async({result})=>{result.races[0].horses.forEach(h=>{if(h.history.degreeSamples?.length)h.degreeModel={predictedSec:92,referenceOnly:false}})}};
+ await r.api.compute(1);assert.equal(calls,3);assert.ok(r.saved[0].rows.every(h=>Number.isFinite(h.D)));assert.ok(state.analyses.current.races[0].horses.every(h=>h.degreeModel.predictedSec===null),'repair must not mutate shared current results');
+});
+test('workout failure does not hide already verified team scores in the partial result',async()=>{const r=runtime({fetchContext:async()=>({ok:true,errors:{workout:'timeout'},connections:{attempted:true,jockey:{verified:true,score:80},owner:{verified:true,score:60},trainer:{verified:true,score:40}},workout:null})});const host={innerHTML:''};r.elements.set('fogdResultsF609431',host);await r.api.compute(1);assert.equal(r.saved.length,0);assert.match(host.innerHTML,/80\.0/);assert.match(host.innerHTML,/64\.0/);});
+test('an initial FOG request failure still allows an independent connection retry',async()=>{const state=fixture();state.races[0].horses.forEach(h=>{h.links={jockey:{url:'https://www.tjk.org/TR/YarisSever/Query/Grouped/JokeyIstatistikleri?QueryParameter_JokeyId=1'}}});const r=runtime({state,fetchContext:async url=>{const section=url.searchParams.get('section');if(!section)throw Error('FOG timeout');return {ok:true,errors:{workout:null},workout:null,connections:{attempted:true,jockey:section==='connections'?{verified:true,score:70}:null}}}});await r.api.compute(1);assert.ok(r.saved[0].rows.every(h=>h.J===70));});
