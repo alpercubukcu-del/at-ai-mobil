@@ -1,36 +1,16 @@
-/* AT AI Mobil - final canonical drawer V17.4.14 */
+/* AT AI Mobil - canonical drawer V17.4.16: static DOM, event binding only */
 (()=>{
 'use strict';
-const VERSION='CANONICAL-DRAWER-V17.4.15',$=id=>document.getElementById(id);
-const clean=v=>String(v??'').replace(/\s+/g,' ').trim();
-let busy=false;
-function find(re){return [...document.querySelectorAll('#drawer button')].find(b=>re.test(clean(b.textContent)))||null}
-function close(){try{window.closeDrawer?.()}catch{}$('drawer')?.classList.remove('open');$('overlay')?.classList.remove('show');$('drawer')?.setAttribute('aria-hidden','true')}
-function apply(){
- if(busy)return false;const d=$('drawer');if(!d)return false;busy=true;
- try{
-  const head=d.querySelector('.drawer-head'),note=d.querySelector('.drawer-note');
-  const guide=$('programGuideBtnV661')||find(/Kullanım Talimatı/i);
-  const current=d.querySelector('[data-view="current"]')||find(/Güncel Analiz/i);
-  const career=d.querySelector('[data-view="career"]')||find(/Kariyer Yol Haritası/i);
-  const fogd=$('fogdCalibrationMenuBtn')||find(/FOGD Kalibrasyon Merkezi/i);
-  const scenario=d.querySelector('[data-view="scenario"]')||find(/Günün Koşu Kalibrasyonu|Koşu Senaryosu/i);
-  const coupon=$('couponMenuBtn')||find(/Kupon Oluştur/i);
-  const annual=$('annualArchiveBtn')||find(/Tarihsel Sonuç Arşivi/i);
-  const eight=$('archiveHubBtnF60943123')||$('trackMaintenanceMenuBtnF60944')||find(/Gerçek Yarış Arşivi|Pist \/ Bakım \/ Hava/i);
-  const nine=find(/F\s*\/\s*O\s*\/\s*G\s*\/\s*D.*Toplam Puan/i);
-  const rows=[[guide,'1. Kullanım Talimatı'],[current,'2. Güncel Analiz'],[career,'3. Kariyer Yol Haritası'],[fogd,'4. FOGD Kalibrasyon Merkezi'],[scenario,'5. Günün Koşu Kalibrasyonu'],[coupon,'6. Kupon Oluştur'],[annual,'7. Tarihsel Sonuç Arşivi'],[eight,'8. Gerçek Yarış Arşivi + Pist / Bakım / Hava'],[nine,'9. F / O / G / D Toplam Puan']];
-  if(rows.some(x=>!x[0]))return false;
-  let style=$('canonicalDrawerStyleV17415');if(!style){style=document.createElement('style');style.id='canonicalDrawerStyleV17415';style.textContent='#drawer{display:flex!important;flex-direction:column!important}#drawer>.drawer-head{order:0!important}#drawer>button{order:initial!important}#drawer>.drawer-note{order:10!important}';document.head.appendChild(style)}
-  fogd.onclick=e=>{e.preventDefault();e.stopPropagation();close();setTimeout(()=>window.ATFogdHistoryCalibrationF60943111?.open?.(),0)};
-  for(let i=0;i<rows.length;i++){const [b,label]=rows[i];b.textContent=label;b.style.setProperty('order',String(i+1),'important');b.hidden=false;b.style.removeProperty('display');b.style.removeProperty('visibility');b.style.removeProperty('pointer-events')}
-  const desired=[head,...rows.map(x=>x[0]),note].filter(Boolean);
-  if(desired.some((x,i)=>d.children[i]!==x))d.replaceChildren(...desired);
-  d.dataset.canonicalDrawer=VERSION;return true;
- }finally{busy=false}
+const VERSION='CANONICAL-DRAWER-V17.4.16',$=id=>document.getElementById(id);
+function closeDrawer(){try{window.closeDrawer?.()}catch{}$('drawer')?.classList.remove('open');$('overlay')?.classList.remove('show');$('drawer')?.setAttribute('aria-hidden','true')}
+function openFogd(){closeDrawer();const open=()=>{const fn=window.ATFogdHistoryCalibrationF60943111?.open;if(typeof fn==='function')return fn();console.warn('[AT AI]',VERSION,'FOGD history center not ready');return false};if(open()===false)setTimeout(open,120)}
+function bind(){
+ const ids=['programGuideBtnV661','fogdCalibrationMenuBtn','annualArchiveBtn','archiveHubBtnF60943123','fogdScoreMenuBtnV17'];
+ const d=$('drawer');if(!d||ids.some(id=>!$(id)))return false;
+ const fogd=$('fogdCalibrationMenuBtn');if(fogd.dataset.canonicalBound!==VERSION){fogd.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();openFogd()},true);fogd.dataset.canonicalBound=VERSION}
+ d.dataset.canonicalDrawer=VERSION;return true
 }
-function schedule(){for(const ms of[0,50,180,500])setTimeout(apply,ms)}
-document.addEventListener('click',e=>{if(e.target?.closest?.('#menuBtn'))schedule()},true);
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',schedule,{once:true});else schedule();
-window.ATCanonicalDrawerV17414={version:VERSION,apply};
+function boot(){if(bind())return;let n=0;const t=setInterval(()=>{if(bind()||++n>25)clearInterval(t)},100)}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+window.ATCanonicalDrawerV17416={version:VERSION,bind,openFogd};
 })();
