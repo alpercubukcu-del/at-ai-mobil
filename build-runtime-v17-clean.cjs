@@ -61,7 +61,7 @@ for(const token of obsoleteMenuTokens)app=stripIifeByToken(app,token);
 for(const token of obsoleteMenuTokens)if(app.includes(token))throw Error('[V17 CLEAN] obsolete menu layer survived '+token);
 const canonicalDrawer=fs.readFileSync(path.join(R,'canonical-drawer-v17414.js'),'utf8');new Function(canonicalDrawer);app+=String.fromCharCode(10,10)+canonicalDrawer.trim()+String.fromCharCode(10);
 new Function(app);
-for(const token of ['CAREER-WINNER-JOURNEY-MENU-V1.0','FULL_DAY_CARD_AUDIT','queryArchive','WINNER_ONLY + SEASON','CANONICAL-DRAWER-V17.4.16','DEGREE-AUTO-CALIBRATION-V17.4.4','DEGREE-STABLE-INPUTS-V17.4.4','uncalibratedSec'])if(!app.includes(token))throw Error('[V17 CLEAN] calibration missing '+token);
+for(const token of ['CAREER-WINNER-JOURNEY-MENU-V1.0','FULL_DAY_CARD_AUDIT','queryArchive','WINNER_ONLY + FULL_CAREER','CANONICAL-DRAWER-V17.4.16','DEGREE-AUTO-CALIBRATION-V17.4.4','DEGREE-STABLE-INPUTS-V17.4.4','uncalibratedSec'])if(!app.includes(token))throw Error('[V17 CLEAN] calibration missing '+token);
 fs.writeFileSync(APP,app,'utf8');
 for(const token of['ARCHIVE-PROGRAM-V17.4.2','ARCHIVE-DIRECTORY-V17.4.1','ARCHIVE-MENU-V17.4.2','TRACK-LONGTERM-ARCHIVE-V17.4.1','TRACK-MAINT-ARCHIVE-V17.4.1'])if(!app.includes(token))throw Error('[V17 CLEAN] archive menu fix missing '+token);
 let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1700413');

@@ -27,6 +27,18 @@ function load(oldFetch){
  return {api:window.ATWinnerJourneyMenuV1,context,window};
 }
 const h=no=>({raceNo:no,class:'ŞARTLI '+no,group:'3 Yaşlı Araplar',track:'Kum',distance:1400});
+test('long incompatible careers never create false matches through accumulated skip penalties',()=>{
+ const {api}=load(),a={class:'Maiden',ageGroup:'3 Yaşlı İngilizler',track:'Kum',distance:1500,finish:2},b={...a,class:'ŞARTLI 4'};
+ const j=api.journey(Array.from({length:30},()=>({...a})),Array.from({length:90},()=>({...b})));
+ assert.equal(j.pairs.length,0);assert.equal(j.score,null);
+});
+test('full-career scoring retains earlier-year evidence and excludes the winning target race',()=>{
+ const {api,context}=load(),a={isoDate:'2024-04-01',class:'Maiden',ageGroup:'3 Yaşlı İngilizler',track:'Kum',distance:1500,finish:2};
+ context.state.date='2026-10-03';const current=[a,{...a,isoDate:'2025-04-01'},{...a,isoDate:'2026-10-03'}];
+ const result=context.calculateGalibiyetBenzerligi(current,{historicalRaces:[{date:'2023-10-03',top3:[{finish:1,horseName:'REF',career:{fullPathBefore:[{...a,isoDate:'2021-04-01'},{...a,isoDate:'2022-04-01'},{...a,isoDate:'2023-10-03'}]}}]}]});
+ assert.equal(result.byYear[0].currentPathCount,2);assert.equal(result.byYear[0].historicalPathCount,2);assert.equal(result.byYear[0].matchedSteps,2);
+ assert.equal(api.lifetime(current,'2026-10-03').length,2);
+});
 test('each actual archived year loads its selected winner career directly with an exclusive date cutoff',async()=>{
  const {context,window}=load(),current=real.programs[0];context.state.date=current.date;context.state.city=current.city;context.state.races=current.races;
  window.ATReferenceArchiveV17412={queryArchive:async()=>real.programs.slice(1).flatMap(p=>p.races.map(r=>({...r,date:p.date,city:p.city})))};
