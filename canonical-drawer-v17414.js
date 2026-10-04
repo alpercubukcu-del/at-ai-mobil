@@ -8,9 +8,10 @@ function bind(){
  const ids=['programGuideBtnV661','fogdCalibrationMenuBtn','annualArchiveBtn','archiveHubBtnF60943123','fogdMenuBtnF609431'];
  const d=$('drawer');if(!d||ids.some(id=>!$(id)))return false;
  // Keep the live DNA button: it owns the dialog listener. The static copy has none.
+ d.querySelector('[data-view="scenario"]')?.remove();
  const duplicate=d.querySelector('#fogdScoreMenuBtnV17');if(duplicate)duplicate.remove();
- const selectors=['#programGuideBtnV661','[data-view="current"]','[data-view="career"]','#fogdCalibrationMenuBtn','[data-view="scenario"]','#couponMenuBtn','#annualArchiveBtn','#archiveHubBtnF60943123','#fogdMenuBtnF609431'];
- const labels=['1. Kullanım Talimatı','2. Güncel Analiz','3. Kariyer Yol Haritası','4. FOGD Kalibrasyon Merkezi','5. Günün Koşu Kalibrasyonu','6. Kupon Oluştur','7. Tarihsel Sonuç Arşivi','8. Gerçek Yarış Arşivi + Pist / Bakım / Hava','9. F / O / G / D Toplam Puan'];
+ const selectors=['#programGuideBtnV661','[data-view="current"]','[data-view="career"]','#fogdCalibrationMenuBtn','#couponMenuBtn','#annualArchiveBtn','#archiveHubBtnF60943123','#fogdMenuBtnF609431'];
+ const labels=['1. Kullanım Talimatı','2. Güncel Analiz','3. Kariyer Yol Haritası','4. FOGD Kalibrasyon Merkezi','6. Kupon Oluştur','7. Tarihsel Sonuç Arşivi','8. Gerçek Yarış Arşivi + Pist / Bakım / Hava','9. F / O / G / D Toplam Puan'];
  selectors.forEach((selector,i)=>{const b=d.querySelector(selector);if(b&&b.textContent!==labels[i])b.textContent=labels[i]});
  d.style.setProperty('display','flex');d.style.setProperty('flex-direction','column');
  selectors.forEach((selector,i)=>{const b=d.querySelector(selector);if(b&&b.style.getPropertyValue('order')!==String(i+1))b.style.setProperty('order',String(i+1),'important')});

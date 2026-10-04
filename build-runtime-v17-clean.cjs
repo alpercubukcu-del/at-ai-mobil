@@ -59,6 +59,13 @@ const obsoleteMenuTokens=['DRAWER-ORDER-ONLY-V16.9.1F60.94.24','FINAL-DRAWER-ORD
 function stripIifeByToken(src,token){const hit=src.indexOf(token);if(hit<0)return src;let begin=src.lastIndexOf('/* AT AI Mobil',hit);if(begin<0)begin=src.lastIndexOf('(()=>{',hit);const end=src.indexOf('\n})();',hit);if(begin<0||end<0)throw Error('[V17 CLEAN] cannot isolate obsolete menu layer '+token);return src.slice(0,begin)+src.slice(end+6)}
 for(const token of obsoleteMenuTokens)app=stripIifeByToken(app,token);
 for(const token of obsoleteMenuTokens)if(app.includes(token))throw Error('[V17 CLEAN] obsolete menu layer survived '+token);
+// Replace the executing guide module with the current step-by-step workflow.
+const guide=fs.readFileSync(path.join(R,'program-workflow-guide-v1691f661.js'),'utf8');new Function(guide);
+const guideMarker=app.indexOf("const VERSION='PROGRAM-WORKFLOW-GUIDE-V16.9.1F60.61';");
+const guideBegin=app.lastIndexOf(';(() => {',guideMarker),guideEnd=app.indexOf('\n})();',guideMarker);
+if(guideMarker<0||guideBegin<0||guideEnd<0)throw Error('Workflow guide boundary missing');
+app=app.slice(0,guideBegin)+guide.trim()+app.slice(guideEnd+6);
+const quickCalendar=fs.readFileSync(path.join(R,'quick-calendar-v18.js'),'utf8');new Function(quickCalendar);app+='\n'+quickCalendar+'\n';
 const canonicalDrawer=fs.readFileSync(path.join(R,'canonical-drawer-v17414.js'),'utf8');new Function(canonicalDrawer);app+=String.fromCharCode(10,10)+canonicalDrawer.trim()+String.fromCharCode(10);
 new Function(app);
 for(const token of ['CAREER-WINNER-JOURNEY-MENU-V1.0','FULL_DAY_CARD_AUDIT','queryArchive','WINNER_ONLY + FULL_CAREER','CANONICAL-DRAWER-V17.4.16','DEGREE-AUTO-CALIBRATION-V17.4.4','DEGREE-STABLE-INPUTS-V17.4.4','uncalibratedSec'])if(!app.includes(token))throw Error('[V17 CLEAN] calibration missing '+token);
