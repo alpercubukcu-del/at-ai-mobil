@@ -142,6 +142,7 @@ async function updateRange(from,to){
 }
 async function deleteYear(year){const y=Number(year);if(!y)return false;await dbDeleteWhereYear(STORE_RACES,y);await dbDeleteWhereYear(STORE_DAYS,y);const db=await openDb();if(db){try{const tx=db.transaction(STORE_META,'readwrite');tx.objectStore(STORE_META).delete(`year:${y}`)}catch{}}await refreshMetaUi();return true}
 async function permanentResult(date,city,raceNo){try{const q=window.ATReferenceArchiveV17412?.queryArchive;if(!q)return null;const rows=await q({start:date,end:date,city,limit:100});const ref=rows.find(r=>Number(r.raceNo)===Number(raceNo));if(!ref)return null;return{key:raceKey(date,city,raceNo),year:yearFromDate(date),date,city,raceNo:Number(raceNo),source:'PERMANENT_KOSU_SORGULAMA_ARCHIVE',referenceQuery:ref,race:{no:Number(raceNo),class:ref.race?.class||ref.referenceQuery?.raceClass||'',ageGroup:ref.race?.ageGroup||ref.referenceQuery?.ageGroup||'',distance:Number(ref.race?.distance||ref.referenceQuery?.distance)||0,track:ref.race?.track||ref.referenceQuery?.track||'',winner:{horseName:ref.race?.winner?.horseName||ref.referenceQuery?.winner||'',degree:ref.race?.winner?.degree||ref.referenceQuery?.winnerDegree||''},rows:[]}}}catch(e){console.warn('[AT AI]',VERSION,'kalıcı Koşu Sorgulama okuma:',e);return null}}
+async function listPermanentFullResults(year){const y=Number(year);if(!y||!window.ATArchiveDirectoryV1741?.ready?.())return[];try{const dir=await fullResultFolder(),yd=await dir.getDirectoryHandle(String(y)),out=[];for await(const entry of yd.values()){if(entry.kind!=='file'||!entry.name.endsWith('.json'))continue;try{const data=JSON.parse(await(await entry.getFile()).text()),rec=data?.record;if(rec?.race?.rows?.some(a=>Number(a?.finish)>0))out.push(rec)}catch{}}return out}catch{return[]}}
 async function getLocalResult(date,city,raceNo){const disk=await readPermanentFullResult(date,city,raceNo);if(disk)return disk;const full=await dbGet(STORE_RACES,raceKey(date,city,raceNo));if(full?.race?.rows?.length){void writePermanentFullResult(full);return full}const ref=await permanentResult(date,city,raceNo);return ref||full||null}
 
 async function storageText(){
@@ -207,6 +208,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 setTimeout(installHooks,400);
 setTimeout(installHooks,1200);
 window.addEventListener('at-ai:annual-archive-open',()=>setTimeout(()=>{installPanel();void refreshMetaUi()},0));
-window.ATAnnualResultsArchiveV661={version:VERSION+'+PERMANENT-FULL-RESULTS',updateYear,updateRange,syncDay,getLocalResult,permanentResult,readPermanentFullResult,writePermanentFullResult,refresh:refreshMetaUi,deleteYear,isDomestic};
+window.ATAnnualResultsArchiveV661={version:VERSION+'+PERMANENT-FULL-RESULTS',updateYear,updateRange,syncDay,getLocalResult,permanentResult,readPermanentFullResult,writePermanentFullResult,listPermanentFullResults,refresh:refreshMetaUi,deleteYear,isDomestic};
 console.info('[AT AI]',VERSION,'aktif — yerli yıllık sonuçlar telefonda IndexedDB arşivine yazılır; /api/tjk-history önce yerel arşivi, yoksa TJK fallback yöntemini kullanır.');
 })();
