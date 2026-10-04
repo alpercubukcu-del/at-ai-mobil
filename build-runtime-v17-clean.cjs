@@ -55,6 +55,9 @@ for(const token of['FOGD-NINE-COUPON-CORE-V17.3','FOGD-ALL-RACES-TEMPLATE-V17.3'
 for(const forbidden of['id="buildAllBtn"','Kupon kaynağı: Kariyer/Hazırlık'])if(coupon.includes(forbidden))throw new Error('[V17 CLEAN] legacy coupon route leaked into V17.3 runtime: '+forbidden);
 const reference=fs.readFileSync(path.join(R,'reference-archive-v17412.js'),'utf8');new Function(reference);app=reference+'\n'+app;
 const winnerJourney=fs.readFileSync(path.join(R,'career-winner-journey-menu-v1.js'),'utf8');new Function(winnerJourney);app+=String.fromCharCode(10,10)+winnerJourney.trim()+String.fromCharCode(10);
+const obsoleteMenuTokens=['DRAWER-ORDER-ONLY-V16.9.1F60.94.24','FINAL-DRAWER-ORDER-V16.9.1F60.94.14','MENU-AUTHORITY-GUARD-V16.9.1F60.94.6','AT_HOME_MENU_ORDER_FIX_F60943123','AT_HOME_MENU_DEDUPE_FIX_F60943124'];
+for(const token of obsoleteMenuTokens){let at;while((at=app.indexOf('/* AT AI Mobil',Math.max(0,app.lastIndexOf('/* AT AI Mobil',app.indexOf(token)))))>=0&&app.indexOf(token,at)>=0){const hit=app.indexOf(token,at);if(hit<0)break;const end=app.indexOf('\n})();',hit);if(end<0)break;app=app.slice(0,at)+app.slice(end+6);break}}
+for(const token of obsoleteMenuTokens)if(app.includes(token))throw Error('[V17 CLEAN] obsolete menu layer survived '+token);
 const canonicalDrawer=fs.readFileSync(path.join(R,'canonical-drawer-v17414.js'),'utf8');new Function(canonicalDrawer);app+=String.fromCharCode(10,10)+canonicalDrawer.trim()+String.fromCharCode(10);
 new Function(app);
 for(const token of ['CAREER-WINNER-JOURNEY-MENU-V1.0','FULL_DAY_CARD_AUDIT','queryArchive','WINNER_ONLY + SEASON','CANONICAL-DRAWER-V17.4.15','DEGREE-AUTO-CALIBRATION-V17.4.4','DEGREE-STABLE-INPUTS-V17.4.4','uncalibratedSec'])if(!app.includes(token))throw Error('[V17 CLEAN] calibration missing '+token);
