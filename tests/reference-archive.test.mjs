@@ -7,3 +7,18 @@ test('query summaries use the exact store schema consumed by the degree history 
 test('importing references preserves existing full results and actual finish data',()=>{const old={key:'old',race:{rows:[{horseName:'AT 1',finish:1}],winner:{degree:'1.36.96'},class:'Handikap 14'}};const merged=api.mergeRecord(old,api.normalize(row));assert.deepEqual(merged.race.rows,old.race.rows);assert.equal(merged.race.class,old.race.class);assert.equal(merged.referenceOnly,false);assert.equal(merged.referenceQuery.winner,row.winner)});
 test('page checkpoint advances only with complete distinct and in-range rows',()=>{const a=api.advance(job,{rows:[row],total:2,rawRowCount:1});assert.equal(a.next.page,1);assert.equal(a.next.cursor,job.cursor);assert.throws(()=>api.advance(a.next,{rows:[row],total:2}),/aynı sayfayı/);assert.throws(()=>api.advance(a.next,{rows:[],total:2}),/boş/);assert.throws(()=>api.advance(job,{rows:[row,row],total:2}),/tekrar/);assert.throws(()=>api.advance(job,{rows:[{...row,date:'2026-10-01'}],total:1}),/dışında/);const b=api.advance(a.next,{rows:[{...row,raceNo:2}],total:2,rawRowCount:1});assert.equal(b.next.status,'complete');assert.equal(b.next.processed,2)});
 test('free date ranges are validated without fixed historical limits',()=>{assert.equal(api.validRange('2007-02-11','2026-09-30'),true);assert.equal(api.validRange('2026-02-30','2026-03-01'),false);assert.equal(api.validRange('2026-10-01','2026-09-30'),false)});
+
+test('automatic permanent writes preserve existing full results and commit the job after data',async()=>{
+ const files=new Map(),writes=[];
+ const dir={async getFileHandle(name,opts){if(!files.has(name)&&!opts?.create){const e=Error('missing');e.name='NotFoundError';throw e}return{async getFile(){return{text:async()=>files.get(name)}},async createWritable(){let data;return{async write(s){data=s},async close(){files.set(name,data);writes.push(name)},async abort(){}}}}}};
+ window.ATArchiveDirectoryV1741={ensure:async()=>({getDirectoryHandle:async()=>dir})};
+ const normalized=api.normalize(row),full={...normalized,race:{...normalized.race,rows:[{finish:1,horseName:'AT 1'}]}};
+ files.set('Kosu-Sorgulama-2026.json',JSON.stringify({rows:[full]}));
+ await api.savePermanentPage([normalized],{cursor:'2026-10-01'});
+ const data=JSON.parse(files.get('Kosu-Sorgulama-2026.json'));assert.equal(data.rows.length,1);assert.equal(data.rows[0].race.rows.length,1);
+ assert.deepEqual(writes,['Kosu-Sorgulama-2026.json','Kosu-Sorgulama-ISLEM.json']);assert.equal(JSON.parse(files.get('Kosu-Sorgulama-ISLEM.json')).job.cursor,'2026-10-01');
+});
+test('folder write failure cannot be reported as a completed checkpoint',async()=>{
+ let checkpoint=false;window.ATArchiveDirectoryV1741={ensure:async()=>({getDirectoryHandle:async()=>({async getFileHandle(name,opts){if(!opts){const e=Error('missing');e.name='NotFoundError';throw e}if(name.includes('ISLEM'))checkpoint=true;return{createWritable:async()=>({write:async()=>{throw Error('disk full')},abort:async()=>{}})}}})})};
+ await assert.rejects(api.savePermanentPage([api.normalize(row)],{cursor:'2026-10-01'}),e=>e.code==='PERMANENT_ARCHIVE_WRITE');assert.equal(checkpoint,false);
+});
