@@ -100,7 +100,7 @@ function claimSafeButtons(){
  if(b&&!b.dataset.safeDay17413){b.dataset.safeDay17413='1';b.onclick=()=>void runSafe('','',{resume:true}).catch(e=>status('İndirme durdu: '+e.message))}
  const r=$('refRetryFailed17415');if(r&&!r.dataset.retryFailed17415){r.dataset.retryFailed17415='1';r.onclick=()=>void retryFailed().catch(e=>status('Hatalı gün taraması durdu: '+e.message))}
  const bk=$('refBackupPermanent17416');if(bk&&!bk.dataset.permanent17416){bk.dataset.permanent17416='1';bk.onclick=()=>void backupPermanent({pick:!window.ATArchiveDirectoryV1741?.ready?.()}).catch(e=>status('Kalıcı yedekleme durdu: '+e.message))}
- const rs=$('refRestorePermanent17416');if(rs&&!rs.dataset.permanent17416){rs.dataset.permanent17416='1';rs.onclick=()=>void restorePermanent({pick:!window.ATArchiveDirectoryV1741?.ready?.()}).catch(e=>status('Geri yükleme durdu: '+e.message))}}
+ const rs=$('refRestorePermanent17416');if(rs&&!rs.dataset.permanent17416){rs.dataset.permanent17416='1';rs.onclick=()=>void restorePermanent({pick:!window.ATArchiveDirectoryV1741?.ready?.()}).catch(e=>status('Geri yükleme durdu: '+e.message))}
 }
 const _ensure17413=ensure;
 ensure=function(){const d=_ensure17413();claimSafeButtons();return d};
