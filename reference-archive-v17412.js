@@ -90,7 +90,8 @@ async function retryFailed(){
 function claimSafeButtons(){
  const a=$('refRun17412'),b=$('refResume17412');
  if(a&&!a.dataset.safeDay17413){a.dataset.safeDay17413='1';a.onclick=()=>void runSafe($('refStart17412').value,$('refEnd17412').value).catch(e=>status('İndirme durdu: '+e.message))}
- if(b&&!b.dataset.safeDay17413){b.dataset.safeDay17413='1';b.onclick=()=>void runSafe('','',{resume:true}).catch(e=>status('İndirme durdu: '+e.message))}\n const r=$('refRetryFailed17415');if(r&&!r.dataset.retryFailed17415){r.dataset.retryFailed17415='1';r.onclick=()=>void retryFailed().catch(e=>status('Hatalı gün taraması durdu: '+e.message))}
+ if(b&&!b.dataset.safeDay17413){b.dataset.safeDay17413='1';b.onclick=()=>void runSafe('','',{resume:true}).catch(e=>status('İndirme durdu: '+e.message))}
+ const r=$('refRetryFailed17415');if(r&&!r.dataset.retryFailed17415){r.dataset.retryFailed17415='1';r.onclick=()=>void retryFailed().catch(e=>status('Hatalı gün taraması durdu: '+e.message))}
 }
 const _ensure17413=ensure;
 ensure=function(){const d=_ensure17413();claimSafeButtons();return d};
