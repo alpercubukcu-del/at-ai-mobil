@@ -22,6 +22,7 @@ public class MainActivity extends Activity {
  static { System.loadLibrary("node"); System.loadLibrary("ataimobil"); }
  public native int startNode(String[] args);
  private static boolean started=false;
+ private static volatile Integer runtimeExit;
  private static int port;
  private static String token;
  private WebView web;
@@ -41,9 +42,9 @@ public class MainActivity extends Activity {
   io.execute(()->{try{
    File runtime=new File(getFilesDir(),"runtime");String version=readAsset("node/bundle-version.txt");File stamp=new File(runtime,"bundle-version.txt");
    if(!stamp.isFile()||!readFile(stamp).equals(version)){delete(runtime);copyAssets("node",runtime);}
-   synchronized(MainActivity.class){if(!started){port=18743;token=UUID.randomUUID().toString()+UUID.randomUUID();started=true;new Thread(()->startNode(new String[]{"node",new File(runtime,"server.mjs").getAbsolutePath(),String.valueOf(port),token}),"AT-AI-runtime").start();}}
+   synchronized(MainActivity.class){if(!started){port=18743;token=UUID.randomUUID().toString()+UUID.randomUUID();started=true;new Thread(()->{runtimeExit=startNode(new String[]{"node",new File(runtime,"bootstrap.cjs").getAbsolutePath(),String.valueOf(port),token});},"AT-AI-runtime").start();}}
    boolean ready=false;for(int i=0;i<100;i++){try{HttpURLConnection c=(HttpURLConnection)new URL("http://127.0.0.1:"+port+"/__health").openConnection();c.setRequestProperty("Cookie","at_session="+token);c.setConnectTimeout(500);c.setReadTimeout(500);ready=c.getResponseCode()==200;c.disconnect();if(ready)break;}catch(Exception ignored){}Thread.sleep(150);}
-   if(!ready)throw new IOException("Telefon içindeki analiz servisi başlatılamadı.");runOnUiThread(this::openWeb);
+   if(!ready){File log=new File(runtime,"startup-error.txt");String detail=log.isFile()?readFile(log):"Servis yanıt vermedi"+(runtimeExit==null?"":" · çıkış kodu "+runtimeExit);throw new IOException("Telefon içindeki analiz servisi başlatılamadı.\n"+detail.replace(token,"[oturum]"));}runOnUiThread(this::openWeb);
   }catch(Exception e){runOnUiThread(()->loading.setText("Başlatılamadı: "+e.getMessage()));}});
  }
  private void openWeb(){

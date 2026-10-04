@@ -2,7 +2,7 @@ import fs from 'node:fs';import path from 'node:path';import {fileURLToPath} fro
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..'),runtime=path.join(root,'android/runtime'),target=path.join(root,'android/app/src/main/assets/node');
 if(!fs.existsSync(path.join(runtime,'node_modules/cheerio')))throw Error('Önce npm ci --prefix android/runtime çalıştırın.');
 fs.rmSync(target,{recursive:true,force:true});fs.mkdirSync(target,{recursive:true});
-for(const name of ['server.mjs','package.json','android-filesystem.js'])fs.copyFileSync(path.join(runtime,name),path.join(target,name));
+for(const name of ['bootstrap.cjs','server.mjs','package.json','android-filesystem.js'])fs.copyFileSync(path.join(runtime,name),path.join(target,name));
 for(const [from,to]of [[path.join(root,'public'),'public'],[path.join(root,'api'),'api'],[path.join(runtime,'node_modules'),'node_modules']])fs.cpSync(from,path.join(target,to),{recursive:true});
 for(const name of fs.readdirSync(path.join(target,'api'))){if(!name.endsWith('.js'))continue;const file=path.join(target,'api',name);let content=fs.readFileSync(file,'utf8');content=content.replace("from 'pdf-parse'","from 'pdf-parse/lib/pdf-parse.js'");content=content.replace(/(['"])https:\/\/at-ai-mobil\.vercel\.app\1/g,'process.env.AT_AI_LOCAL_API_BASE').replace(/(['"])at-ai-mobil\.vercel\.app\1/g,"new URL(process.env.AT_AI_LOCAL_API_BASE).host");fs.writeFileSync(file,content)}
 fs.copyFileSync(path.join(root,'universal-v5-prototype-v165.js'),path.join(target,'universal-v5-prototype-v165.js'));

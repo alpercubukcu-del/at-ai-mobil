@@ -31,8 +31,10 @@ export function createApp({token,publicDir=path.join(root,'public'),apiDir=path.
   }catch(error){if(!res.headersSent){res.statusCode=500;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ok:false,error:error.message}))}else res.destroy(error)}
  });
 }
-if(process.argv[1]===fileURLToPath(import.meta.url)){
- const port=Number(process.argv[2]),token=process.argv[3],base='http://127.0.0.1:'+port;process.chdir(root);process.env.AT_AI_LOCAL_API_BASE=base;
+export function startLocalServer(port,token){
+ const base='http://127.0.0.1:'+port;process.chdir(root);process.env.AT_AI_LOCAL_API_BASE=base;
  const nativeFetch=globalThis.fetch;globalThis.fetch=(input,options={})=>{const url=typeof input==='string'?input:input.url||String(input);if(url.startsWith(base+'/api/')){const headers=new Headers(options.headers||{});headers.set('Cookie','at_session='+token);return nativeFetch(input,{...options,headers})}if(/https?:\/\/[^/]*(?:vercel\.app|github\.com)(?:\/|$)/i.test(url))throw Error('APK uzak uygulama servisine bağlanamaz.');return nativeFetch(input,options)};
  createApp({token}).listen(port,'127.0.0.1');
 }
+
+if(process.argv[1]===fileURLToPath(import.meta.url))startLocalServer(Number(process.argv[2]),process.argv[3]);
