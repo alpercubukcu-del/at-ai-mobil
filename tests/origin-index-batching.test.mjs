@@ -13,3 +13,10 @@ test('a failed index write stays dirty and can be retried',async()=>{
  vm.createContext(ctx);vm.runInContext(functions,ctx);await assert.rejects(ctx.touchOriginIndex('dam','N','1','key','today'));
  assert.equal(ctx.originIndexSavedRevision,0);failed=false;await ctx.flushOriginIndex();assert.equal(ctx.originIndexSavedRevision,1);
 });
+
+test('phone origin file writing admits at most two writers and releases every waiting job',async()=>{
+ const code=source.slice(source.indexOf('let originFileActive='),source.indexOf('async function saveOriginLineage(')),ctx={};vm.createContext(ctx);vm.runInContext(code,ctx);
+ let active=0,max=0,finished=0;
+ await Promise.all(Array.from({length:8},async()=>{await ctx.originFileSlot();active++;max=Math.max(max,active);try{await new Promise(r=>setTimeout(r,2));finished++}finally{active--;ctx.releaseOriginFileSlot()}}));
+ assert.equal(max,2);assert.equal(finished,8);assert.equal(active,0);
+});
