@@ -54,8 +54,14 @@ app+='\n\n'+couponCore.trim()+'\n\n'+conditionCore.trim()+'\n\n'+condition.trim(
 for(const token of['FOGD-NINE-COUPON-CORE-V17.3','FOGD-ALL-RACES-TEMPLATE-V17.3','FOGD-CONDITION-CORE-V17.4','FOGD-CONDITION-COUPON-V17.4','FOGD-COUPON-V17.4','FOGD_ALL_RACES_V173','fogdAllRacesBuildV173','9 BAĞIMSIZ TÜM-KOŞU ŞABLONU','10 · Koşul Uyumlu Yakınlık'])if(!app.includes(token))throw new Error('[V17 CLEAN] coupon invariant missing '+token);
 for(const forbidden of['id="buildAllBtn"','Kupon kaynağı: Kariyer/Hazırlık'])if(coupon.includes(forbidden))throw new Error('[V17 CLEAN] legacy coupon route leaked into V17.3 runtime: '+forbidden);
 const reference=fs.readFileSync(path.join(R,'reference-archive-v17412.js'),'utf8');new Function(reference);app=reference+'\n'+app;
+const winnerJourney=fs.readFileSync(path.join(R,'career-winner-journey-menu-v1.js'),'utf8');new Function(winnerJourney);app+=String.fromCharCode(10,10)+winnerJourney.trim()+String.fromCharCode(10);
+const obsoleteMenuTokens=['DRAWER-ORDER-ONLY-V16.9.1F60.94.24','FINAL-DRAWER-ORDER-V16.9.1F60.94.14','MENU-AUTHORITY-GUARD-V16.9.1F60.94.6','AT_HOME_MENU_ORDER_FIX_F60943123','AT_HOME_MENU_DEDUPE_FIX_F60943124','PROGRAM-WORKFLOW-GUIDE-V16.6.1','READY-ONCE-MENU-V16.9.1F60.94.10','PROCESS-FLOW-PLANNER-V16.9.1F60.45'];
+function stripIifeByToken(src,token){const hit=src.indexOf(token);if(hit<0)return src;let begin=src.lastIndexOf('/* AT AI Mobil',hit);if(begin<0)begin=src.lastIndexOf('(()=>{',hit);const end=src.indexOf('\n})();',hit);if(begin<0||end<0)throw Error('[V17 CLEAN] cannot isolate obsolete menu layer '+token);return src.slice(0,begin)+src.slice(end+6)}
+for(const token of obsoleteMenuTokens)app=stripIifeByToken(app,token);
+for(const token of obsoleteMenuTokens)if(app.includes(token))throw Error('[V17 CLEAN] obsolete menu layer survived '+token);
+const canonicalDrawer=fs.readFileSync(path.join(R,'canonical-drawer-v17414.js'),'utf8');new Function(canonicalDrawer);app+=String.fromCharCode(10,10)+canonicalDrawer.trim()+String.fromCharCode(10);
 new Function(app);
-for(const token of ['DEGREE-AUTO-CALIBRATION-V17.4.4','DEGREE-STABLE-INPUTS-V17.4.4','uncalibratedSec'])if(!app.includes(token))throw Error('[V17 CLEAN] calibration missing '+token);
+for(const token of ['CAREER-WINNER-JOURNEY-MENU-V1.0','FULL_DAY_CARD_AUDIT','queryArchive','WINNER_ONLY + FULL_CAREER','CANONICAL-DRAWER-V17.4.16','DEGREE-AUTO-CALIBRATION-V17.4.4','DEGREE-STABLE-INPUTS-V17.4.4','uncalibratedSec'])if(!app.includes(token))throw Error('[V17 CLEAN] calibration missing '+token);
 fs.writeFileSync(APP,app,'utf8');
 for(const token of['ARCHIVE-PROGRAM-V17.4.2','ARCHIVE-DIRECTORY-V17.4.1','ARCHIVE-MENU-V17.4.2','TRACK-LONGTERM-ARCHIVE-V17.4.1','TRACK-MAINT-ARCHIVE-V17.4.1'])if(!app.includes(token))throw Error('[V17 CLEAN] archive menu fix missing '+token);
 let html=fs.readFileSync(INDEX,'utf8').replace(/\/at-ai-app-v142\.js\?v=\d+/,'/at-ai-app-v142.js?v=1700413');

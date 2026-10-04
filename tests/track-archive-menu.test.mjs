@@ -5,7 +5,7 @@ import vm from 'node:vm';
 const source=fs.readFileSync(new URL('../track-longterm-archive-f609448.js',import.meta.url),'utf8');
 function harness({ensureError=null,syncError=null,metaDate='2026-09-30',rows=[]}={}){
  const calls=[],written=[],root={name:'Gerçek Yarış Arşivi',async getDirectoryHandle(name){return directory(name)}};
- function directory(name){return{async getDirectoryHandle(child){return directory(child)},async getFileHandle(file){return{async createWritable(){return{async write(data){written.push({file,data:JSON.parse(data)})},async close(){}}}}}}}
+ const files=new Map();function directory(name){return{async getDirectoryHandle(child){return directory(child)},async getFileHandle(file,options){if(!options?.create&&!files.has(file)){const e=Error('missing');e.name='NotFoundError';throw e}return{async getFile(){return{text:async()=>files.get(file)}},async createWritable(){let pending;return{async write(data){pending=data},async close(){files.set(file,pending);written.push({file,data:JSON.parse(pending)})},async abort(){}}}}}}}
  const engine={setProgressListener(fn){this.progress=fn},async backfillYears(...args){calls.push({kind:'backfill',args});if(syncError)throw Error(syncError);this.progress?.({text:'1/2 sayfa alındı',pct:50})},async autoSync(...args){calls.push({kind:'sync',args});if(syncError)throw Error(syncError);this.progress?.({text:'1/2 rapor alındı',pct:50})}};
  const shared={subscribe(fn){fn({handle:root})},async ensure(){if(ensureError)throw Error(ensureError);return root},async select(){return root}};
  const window={ATArchiveDirectoryV1741:shared,ATTrackMaintenanceV1:engine};
@@ -23,5 +23,7 @@ test('Manual track update propagates errors instead of displaying false success'
  const h=harness({syncError:'TJK HTTP 502'}),progress=[];h.api.setProgressListener(p=>progress.push(p));await assert.rejects(h.api.resumeTo('2026-10-01'),/502/);assert.equal(h.calls[0].args[1].throwOnError,true);assert.equal(h.written.length,0);assert.ok(!progress.some(p=>p.text.startsWith('✓')));
 });
 test('Resuming across a month boundary exports the next calendar day',async()=>{
- const h=harness({rows:[{date:'2026-09-30',city:'İstanbul'},{date:'2026-10-01',city:'Adana'}]});await h.api.resumeTo('2026-10-01');assert.equal(h.written.length,1);assert.equal(h.written[0].file,'2026-10-01_Adana.json');
+ const h=harness({rows:[{date:'2026-09-30',city:'İstanbul'},{date:'2026-10-01',city:'Adana'}]});await h.api.resumeTo('2026-10-01');assert.equal(h.written.length,2);assert.equal(h.written[0].file,'2026-10-01_Adana.json');
 });
+
+test('unchanged track exports reuse the persistent inventory without rewriting report files',async()=>{const h=harness({rows:[{date:'2026-10-01',city:'Adana',updatedAt:'2026-10-01T10:00:00Z'}]});await h.api.backfillYears(2026,2026);assert.equal(h.written.length,2);await h.api.backfillYears(2026,2026);assert.equal(h.written.length,2)});

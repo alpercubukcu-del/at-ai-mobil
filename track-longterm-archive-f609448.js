@@ -1,6 +1,9 @@
 /* F60.94.48 — persistent long-term Pist / Bakım / Hava file archive.
    Wraps the proven ATTrackMaintenanceV1 engine; does not alter its source. */
 ;(()=>{'use strict';
+const archiveChild=(h,n,o)=>window.ATArchiveDirectoryV1741?.child?window.ATArchiveDirectoryV1741.child(h,n,o):h.getDirectoryHandle(n,o);
+const archiveWriter=h=>window.ATArchiveDirectoryV1741?.writer?window.ATArchiveDirectoryV1741.writer(h):h.createWritable();
+
 if(window.__AT_TRACK_LONGTERM_F609448__)return;
 window.__AT_TRACK_LONGTERM_F609448__=1;
 const VERSION='TRACK-LONGTERM-ARCHIVE-V17.4.1';
@@ -15,10 +18,17 @@ function openDb(){return new Promise(r=>{let q;try{q=indexedDB.open(DB)}catch{re
 async function getAll(store){let db=await openDb();if(!db)return[];if(!db.objectStoreNames.contains(store)){db.close();return[]}return new Promise(r=>{let q=db.transaction(store,'readonly').objectStore(store).getAll();q.onsuccess=()=>{let x=q.result||[];db.close();r(x)};q.onerror=()=>{db.close();r([])}})}
 async function getMeta(key){let db=await openDb();if(!db)return null;if(!db.objectStoreNames.contains(META)){db.close();return null}return new Promise(r=>{let q=db.transaction(META,'readonly').objectStore(META).get(key);q.onsuccess=()=>{let x=q.result||null;db.close();r(x)};q.onerror=()=>{db.close();r(null)}})}
 async function selectFolder(){if(!directory())throw Error('Arşiv klasör yönetimi hazır değil. Sayfayı yenileyin.');root=await directory().select();return{name:root.name}}
-async function baseDir(){if(!directory())throw Error('Arşiv klasör yönetimi hazır değil. Sayfayı yenileyin.');root=await directory().ensure({pick:true});let d=root;if(root.name!=='Gerçek Yarış Arşivi')d=await root.getDirectoryHandle('Gerçek Yarış Arşivi',{create:true});return d.getDirectoryHandle('Pist-Bakım-Hava',{create:true})}
-async function writeJson(dir,name,data){let f=await dir.getFileHandle(name,{create:true}),w=await f.createWritable();await w.write(JSON.stringify(data,null,2));await w.close()}
+async function baseDir(){if(!directory())throw Error('Arşiv klasör yönetimi hazır değil. Sayfayı yenileyin.');root=await directory().ensure({pick:true});let d=root;if(root.name!=='Gerçek Yarış Arşivi')d=await archiveChild(root,'Gerçek Yarış Arşivi',{create:true});return archiveChild(d,'Pist-Bakım-Hava',{create:true})}
+async function writeJson(dir,name,data){let f=await dir.getFileHandle(name,{create:true}),w=await archiveWriter(f);await w.write(JSON.stringify(data,null,2));await w.close()}
 function exportRow(r){return{version:VERSION,savedAt:new Date().toISOString(),date:r.date||'',city:r.city||'',surface:r.track||r.surface||'',trackCondition:r.trackCondition||r.condition||'',temperature:r.temperature??null,humidity:r.humidity??null,pressure:r.pressure??null,sky:r.sky||'',wind:r.wind||'',windSpeedKmh:r.windSpeedKmh??null,windDirection:r.windDirection||'',maintenance:r.maintenance||null,reportUrl:r.reportUrl||'',source:r}}
-async function exportRows(rows,label='Pist arşivi'){let base=await baseDir(),list=(rows||[]).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(String(x.date||''))&&x.city),n=list.length;for(let i=0;i<n;i++){let r=list[i],yr=await base.getDirectoryHandle(String(r.date).slice(0,4),{create:true});await writeJson(yr,r.date+'_'+safe(r.city)+'.json',exportRow(r));emit(label+' · '+(i+1)+'/'+n+' · '+r.city+' '+r.date,Math.round((i+1)*100/Math.max(1,n)),r)}return n}
+async function exportRows(rows,label='Pist arşivi'){
+ const base=await baseDir(),list=(rows||[]).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(String(x.date||''))&&x.city);let index={};
+ try{const h=await base.getFileHandle('_download-index-v1.json');index=JSON.parse(await(await h.getFile()).text()).entries||{}}catch(e){if(e.name!=='NotFoundError')throw e}
+ let cursor=0,done=0,written=0;async function worker(){for(;;){const i=cursor++;if(i>=list.length)return;const r=list[i],key=r.date+'_'+safe(r.city),stamp=r.updatedAt||'';
+  if(!stamp||index[key]!==stamp){const yr=await archiveChild(base,String(r.date).slice(0,4),{create:true});await writeJson(yr,key+'.json',exportRow(r));index[key]=stamp;written++}
+  done++;emit(label+' · '+done+'/'+list.length+' · yeni '+written+' · '+r.city+' '+r.date,Math.round(done*100/Math.max(1,list.length)),r)
+ }}await Promise.all([worker(),worker()]);if(written)await writeJson(base,'_download-index-v1.json',{version:1,entries:index});return written
+}
 async function rowsBetween(a,b){return(await getAll(STORE)).filter(r=>r.date>=a&&r.date<=b).sort((x,y)=>String(x.date).localeCompare(String(y.date))||String(x.city).localeCompare(String(y.city),'tr'))}
 function bridgeProgress(m){m.setProgressListener?.(p=>emit(p.text,p.pct))}
 async function backfillYears(from,to){if(running)throw Error('Pist arşivi güncellemesi sürüyor. Tamamlanmasını bekleyin.');running=true;try{let m=window.ATTrackMaintenanceV1;if(!m?.backfillYears)throw Error('Pist arşiv motoru hazır değil');await baseDir();await m.initialize?.();let a=Math.min(Number(from),Number(to)),b=Math.max(Number(from),Number(to));bridgeProgress(m);emit(a+'–'+b+' TJK pist verileri alınıyor…',0);await m.backfillYears(a,b,{throwIfBusy:true});let rows=await rowsBetween(a+'-01-01',b+'-12-31');let count=await exportRows(rows,a+'–'+b+' dosyalanıyor');emit('✓ '+a+'–'+b+' tamamlandı · '+count+' gün/hipodrom dosyası',100);return{from:a,to:b,count}}finally{running=false}}

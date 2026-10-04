@@ -42,5 +42,19 @@ async function ensure({pick=false}={}){
  if(p!=='granted')p=await deadline(h.requestPermission({mode:'readwrite'}),'Klasör yazma izni');
  permissionState=p;notify();if(p!=='granted')throw Error('Klasör yazma izni yok. Arşiv Klasörünü Seç düğmesiyle erişime izin verin.');return h
 }
-window.ATArchiveDirectoryV1741={version:VERSION,select,restore,ensure,getHandle:()=>handle,ready:()=>!!handle&&permissionState==='granted',picking:()=>!!selecting,subscribe(fn){listeners.add(fn);fn({handle,picking:!!selecting,permission:permissionState});return()=>listeners.delete(fn)}};
+// One shared disk queue for every archive menu; native handles remain persistable.
+const childCaches=new WeakMap();let diskActive=0;const diskWaiters=[];
+async function child(parent,name,options={}){
+ let cache=childCaches.get(parent);if(!cache){cache=new Map();childCaches.set(parent,cache)}
+ const key=String(name);if(cache.has(key))return cache.get(key);
+ const pending=parent.getDirectoryHandle(name,options);cache.set(key,pending);
+ try{return await pending}catch(e){if(cache.get(key)===pending)cache.delete(key);throw e}
+}
+async function writer(file){
+ if(diskActive<2)diskActive++;else await new Promise(resolve=>diskWaiters.push(resolve));
+ let released=false;const release=()=>{if(released)return;released=true;const next=diskWaiters.shift();if(next)next();else diskActive--};
+ let native;try{native=await file.createWritable()}catch(e){release();throw e}
+ return {async write(value){try{return await native.write(value)}catch(e){try{await native.abort()}catch{}release();throw e}},async close(){try{return await native.close()}finally{release()}},async abort(){try{return await native.abort()}finally{release()}}};
+}
+window.ATArchiveDirectoryV1741={version:VERSION,child,writer,diskStats:()=>({active:diskActive,waiting:diskWaiters.length}),select,restore,ensure,getHandle:()=>handle,ready:()=>!!handle&&permissionState==='granted',picking:()=>!!selecting,subscribe(fn){listeners.add(fn);fn({handle,picking:!!selecting,permission:permissionState});return()=>listeners.delete(fn)}};
 })();

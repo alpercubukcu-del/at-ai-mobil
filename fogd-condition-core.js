@@ -151,6 +151,8 @@ function prepareRows(snapshot,race,{date,city,standards=new Map(),eligible}={}){
 function band(gap){return gap<=RULES.strongGap+1e-9?1:gap<=RULES.followGap+1e-9?.5:0}
 function assessPrepared(prepared){
   const{rows,context}=prepared,columns={};
+  const degreeComparable=rows.filter(x=>Number.isFinite(x.degree.predictedSec)&&x.degree.samples>0);
+  const degreeFastest=degreeComparable.length>=2?Math.min(...degreeComparable.map(x=>x.degree.predictedSec)):null;
   for(const key of KEYS){
     const valid=rows.filter(x=>x.scores[key]!==null),leader=valid.length?Math.max(...valid.map(x=>x.scores[key])):null;
     const strong=valid.filter(x=>band(leader-x.scores[key])===1).length,follow=valid.filter(x=>band(leader-x.scores[key])===.5).length;
@@ -172,7 +174,8 @@ function assessPrepared(prepared){
       return[key,value!==null&&leader!==null&&leader-value<=RULES.followGap+1e-9];
     }));
     const group=score>=RULES.main?'main':score>=RULES.watch&&(confirmations.E||confirmations.T)?'watch':item.history.protectedCandidate?'condition':'outside';
-    return{no:item.row.no,name:item.row.name,id:item.row?.program?.id||null,score:Number(score.toFixed(3)),group,
+    const degreeReview=degreeFastest!==null&&item.degree.samples===1&&!item.degree.trusted&&Math.abs(item.degree.predictedSec-degreeFastest)<.005;
+    return{no:item.row.no,name:item.row.name,id:item.row?.program?.id||null,score:Number(score.toFixed(3)),group,degreeReview,
       contributions,gaps,strongSources,confirmations,scores:item.scores,history:item.history,degree:item.degree,
       historyAvailable:item.historyAvailable,historyError:item.historyError,formSource:item.formSource};
   }).sort((a,b)=>b.score-a.score||Number(a.no)-Number(b.no));
@@ -191,7 +194,7 @@ function assessPrepared(prepared){
   if(missingDegree)warnings.push(`${missingDegree} at için doğrulanabilir D puanı yok; yarış medyanıyla doldurulmadı.`);
   if(!context.surface||!(context.distance>0))warnings.push('Program pist/mesafe bilgisi eksik; koşul geçmişi değerlendirilemedi.');
   if(picks.length>Math.max(4,rows.length*.6))warnings.push('Aday grubu geniş; ilk dört sınırıyla otomatik daraltılmadı.');
-  return{ranking,picks,main,watch,condition,columns,historyCoverage,contextCoverage,singleQualified,uncertainty,warnings};
+  return{ranking,picks,main,watch,condition,degreeReviews:ranking.filter(x=>x.degreeReview),columns,historyCoverage,contextCoverage,singleQualified,uncertainty,warnings};
 }
 function buildAllRacesTemplate({races,snapshotsByRace,eligibleByRace,date,city,standards=new Map()}){
   const legs=(races||[]).slice().sort((a,b)=>Number(a.no)-Number(b.no)).map(race=>{
@@ -206,7 +209,7 @@ function buildAllRacesTemplate({races,snapshotsByRace,eligibleByRace,date,city,s
     return{...base,available:true,automaticReady:result.picks.length>0,coverage:result.historyCoverage,single:result.singleQualified,
       cut:{selectedWidth:result.picks.length,automatic:true,singleQualified:result.singleQualified,
         reason:`${result.main.length} ana · ${result.watch.length} izleme · ${result.condition.length} koşul uyumu · ${result.uncertainty} belirsizlik`},
-      selections:result.picks.map(row=>({...row,analysisMode:'C',modelRank:row.rank})),ranking:result.ranking,
+      selections:result.picks.map(row=>({...row,analysisMode:'C',modelRank:row.rank})),ranking:result.ranking,degreeReviews:result.degreeReviews,
       conditionSummary:{columns:result.columns,warnings:result.warnings,uncertainty:result.uncertainty,historyCoverage:result.historyCoverage,contextCoverage:result.contextCoverage}};
   });
   const ready=legs.filter(x=>x.available&&x.automaticReady).length;
