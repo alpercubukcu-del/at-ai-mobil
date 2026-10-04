@@ -56,3 +56,14 @@ test('Blocked persistence does not prevent use of the selected writable folder',
 test('Unavailable file picker reports an actionable browser message',async()=>{
  const h=harness();delete h.window.showDirectoryPicker;await assert.rejects(h.api.select(),/Chrome/);
 });
+test('shared child cache coalesces directory opens and retries rejected opens',async()=>{
+ const h=harness();let calls=0;const child={name:'Yıl'},parent={async getDirectoryHandle(){calls++;if(calls===1)throw Error('disk');return child}};
+ await assert.rejects(h.api.child(parent,'2026'));assert.equal(await h.api.child(parent,'2026'),child);await Promise.all(Array.from({length:20},()=>h.api.child(parent,'2026')));assert.equal(calls,2);
+});
+test('shared disk queue releases failed writers and limits all menus together',async()=>{
+ const h=harness();let active=0,max=0,closed=0;
+ const file={async createWritable(){active++;max=Math.max(max,active);return{async write(){},async close(){await new Promise(r=>setTimeout(r,2));active--;closed++},async abort(){active--}}}};
+ await Promise.all(Array.from({length:12},async()=>{const w=await h.api.writer(file);await w.write('{}');await w.close()}));assert.equal(max,2);assert.equal(closed,12);assert.equal(h.api.diskStats().active,0);
+ await assert.rejects(h.api.writer({createWritable:async()=>{throw Error('disk')}}));assert.equal(h.api.diskStats().active,0);
+ const broken=await h.api.writer({createWritable:async()=>({write:async()=>{throw Error('full')},abort:async()=>{}})});await assert.rejects(broken.write('x'));assert.equal(h.api.diskStats().active,0);
+});

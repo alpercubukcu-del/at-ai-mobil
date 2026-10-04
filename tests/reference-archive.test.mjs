@@ -16,7 +16,7 @@ test('automatic permanent writes preserve existing full results and commit the j
  files.set('Kosu-Sorgulama-2026.json',JSON.stringify({rows:[full]}));
  await api.savePermanentPage([normalized],{cursor:'2026-10-01'});
  const data=JSON.parse(files.get('Kosu-Sorgulama-2026.json'));assert.equal(data.rows.length,1);assert.equal(data.rows[0].race.rows.length,1);
- assert.deepEqual(writes,['Kosu-Sorgulama-2026.json','Kosu-Sorgulama-ISLEM.json']);assert.equal(JSON.parse(files.get('Kosu-Sorgulama-ISLEM.json')).job.cursor,'2026-10-01');
+ assert.deepEqual(writes,['Kosu-Sorgulama-2026-09-30.json','Kosu-Sorgulama-ISLEM.json']);assert.equal(JSON.parse(files.get('Kosu-Sorgulama-2026-09-30.json')).rows.length,1);assert.equal(JSON.parse(files.get('Kosu-Sorgulama-ISLEM.json')).job.cursor,'2026-10-01');
 });
 test('folder write failure cannot be reported as a completed checkpoint',async()=>{
  let checkpoint=false;window.ATArchiveDirectoryV1741={ensure:async()=>({getDirectoryHandle:async()=>({async getFileHandle(name,opts){if(!opts){const e=Error('missing');e.name='NotFoundError';throw e}if(name.includes('ISLEM'))checkpoint=true;return{createWritable:async()=>({write:async()=>{throw Error('disk full')},abort:async()=>{}})}}})})};
