@@ -156,3 +156,12 @@ test('TJK parser matches the real short headers and ignores summary tables',()=>
   const parsed=parseHorseHistory(source);assert.equal(parsed.races.length,1);
   const row=parsed.races[0];assert.equal(row.distance,'1500');assert.equal(row.finish,'1');assert.equal(row.weight,'57');assert.equal(row.odds,'12,2');assert.equal(row.raceType,'Handikap 17');assert.equal(row.raceNo,'8');
 });
+
+test('a single-record degree leader is visible for review without changing picks or D points',()=>{
+ const target={no:5,distance:1700,track:'Kum',class:'ŞARTLI 3/Dişi',ageGroup:'3 ve Yukarı İngilizler'};
+ const history=(sec)=>[{isoDate:'2026-05-02',city:'Diyarbakır',track:'Kum',distance:1700,finish:7,degree:sec}];
+ const snapshot={rows:[{no:6,name:'PROMISE',conditionHistoryRecords:history('1.59.10')},{no:10,name:'HIGH',conditionHistoryRecords:history('2.01.32')}]};
+ const prepared=core.prepareRows(snapshot,target,{date:'2026-10-03',city:'Diyarbakır'}),result=core.assessPrepared(prepared);
+ assert.equal(result.degreeReviews.length,1);assert.equal(result.degreeReviews[0].no,6);
+ assert.equal(result.degreeReviews[0].scores.D,null);assert.equal(result.degreeReviews[0].group,'outside');assert.equal(result.picks.length,0);
+});
