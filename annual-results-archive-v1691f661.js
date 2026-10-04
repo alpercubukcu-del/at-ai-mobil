@@ -85,14 +85,15 @@ async function fetchDay(group){
   if(!res.ok||data?.ok===false)throw new Error(data?.error||`API ${res.status}`);
   return data;
 }
+async function fullResultFolder({pick=false}={}){if(!window.ATArchiveDirectoryV1741)return null;const root=await window.ATArchiveDirectoryV1741.ensure({pick});const real=await root.getDirectoryHandle('Gerçek Yarış Arşivi',{create:true});return real.getDirectoryHandle('Tam Sonuçlar',{create:true})}
+async function writePermanentFullResult(rec){try{if(!window.ATArchiveDirectoryV1741?.ready?.())return false;const dir=await fullResultFolder(),year=String(rec.year||yearFromDate(rec.date));const yd=await dir.getDirectoryHandle(year,{create:true}),name=`${rec.date}__${fold(rec.city)}__K${Number(rec.raceNo)}.json`,fh=await yd.getFileHandle(name,{create:true}),w=await fh.createWritable();await w.write(JSON.stringify({format:'AT_AI_FULL_RACE_RESULT_V1',savedAt:new Date().toISOString(),record:rec}));await w.close();return true}catch(e){console.warn('[AT AI]',VERSION,'kalıcı tam sonuç yazma:',e);return false}}
+async function readPermanentFullResult(date,city,raceNo){try{if(!window.ATArchiveDirectoryV1741?.ready?.())return null;const dir=await fullResultFolder(),yd=await dir.getDirectoryHandle(String(yearFromDate(date))),name=`${clean(date)}__${fold(city)}__K${Number(raceNo)}.json`,fh=await yd.getFileHandle(name),data=JSON.parse(await(await fh.getFile()).text()),rec=data?.record;return rec?.race?.rows?.length?rec:null}catch{return null}}
 async function saveDay(group,data){
   const races=Array.isArray(data?.races)?data.races:[];
   for(const race of races){
     const no=Number(race?.no||race?.raceNo||0);if(!no)continue;
-    await dbPut(STORE_RACES,{
-      key:raceKey(group.date,group.city,no),year:group.year,date:group.date,city:group.city,cityId:group.cityId,raceNo:no,
-      source:'LOCAL_ANNUAL_RESULTS_ARCHIVE',version:VERSION,updatedAt:new Date().toISOString(),race:clone(race)
-    });
+    const rec={key:raceKey(group.date,group.city,no),year:group.year,date:group.date,city:group.city,cityId:group.cityId,raceNo:no,source:'LOCAL_ANNUAL_RESULTS_ARCHIVE',version:VERSION,updatedAt:new Date().toISOString(),race:clone(race)};
+    await dbPut(STORE_RACES,rec);await writePermanentFullResult(rec);
   }
   const expected=Math.max(1,group.rows.length),got=races.length,status=got>=expected?'complete':(got>0?'partial':'error');
   await dbPut(STORE_DAYS,{key:group.key,year:group.year,date:group.date,city:group.city,cityId:group.cityId,expectedRaceCount:expected,raceCount:got,status,sourceVersion:data?.version||'',updatedAt:new Date().toISOString(),error:got?null:'Sonuç yarışı bulunamadı'});
@@ -141,7 +142,7 @@ async function updateRange(from,to){
 }
 async function deleteYear(year){const y=Number(year);if(!y)return false;await dbDeleteWhereYear(STORE_RACES,y);await dbDeleteWhereYear(STORE_DAYS,y);const db=await openDb();if(db){try{const tx=db.transaction(STORE_META,'readwrite');tx.objectStore(STORE_META).delete(`year:${y}`)}catch{}}await refreshMetaUi();return true}
 async function permanentResult(date,city,raceNo){try{const q=window.ATReferenceArchiveV17412?.queryArchive;if(!q)return null;const rows=await q({start:date,end:date,city,limit:100});const ref=rows.find(r=>Number(r.raceNo)===Number(raceNo));if(!ref)return null;return{key:raceKey(date,city,raceNo),year:yearFromDate(date),date,city,raceNo:Number(raceNo),source:'PERMANENT_KOSU_SORGULAMA_ARCHIVE',referenceQuery:ref,race:{no:Number(raceNo),class:ref.race?.class||ref.referenceQuery?.raceClass||'',ageGroup:ref.race?.ageGroup||ref.referenceQuery?.ageGroup||'',distance:Number(ref.race?.distance||ref.referenceQuery?.distance)||0,track:ref.race?.track||ref.referenceQuery?.track||'',winner:{horseName:ref.race?.winner?.horseName||ref.referenceQuery?.winner||'',degree:ref.race?.winner?.degree||ref.referenceQuery?.winnerDegree||''},rows:[]}}}catch(e){console.warn('[AT AI]',VERSION,'kalıcı Koşu Sorgulama okuma:',e);return null}}
-async function getLocalResult(date,city,raceNo){const full=await dbGet(STORE_RACES,raceKey(date,city,raceNo));if(full?.race?.rows?.length)return full;const ref=await permanentResult(date,city,raceNo);return ref||full||null}
+async function getLocalResult(date,city,raceNo){const disk=await readPermanentFullResult(date,city,raceNo);if(disk)return disk;const full=await dbGet(STORE_RACES,raceKey(date,city,raceNo));if(full?.race?.rows?.length){void writePermanentFullResult(full);return full}const ref=await permanentResult(date,city,raceNo);return ref||full||null}
 
 async function storageText(){
   try{const e=await navigator.storage?.estimate?.();if(!e)return'Depolama bilgisi alınamadı.';const mb=n=>`${(Number(n||0)/1048576).toFixed(1)} MB`;const gb=n=>`${(Number(n||0)/1073741824).toFixed(2)} GB`;return`Tarayıcı depolaması: ${mb(e.usage)} kullanılıyor · kota ${e.quota>=1073741824?gb(e.quota):mb(e.quota)}`}
@@ -206,6 +207,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 setTimeout(installHooks,400);
 setTimeout(installHooks,1200);
 window.addEventListener('at-ai:annual-archive-open',()=>setTimeout(()=>{installPanel();void refreshMetaUi()},0));
-window.ATAnnualResultsArchiveV661={version:VERSION+'+FULL-RESULT-PREFERRED',updateYear,updateRange,syncDay,getLocalResult,permanentResult,refresh:refreshMetaUi,deleteYear,isDomestic};
+window.ATAnnualResultsArchiveV661={version:VERSION+'+PERMANENT-FULL-RESULTS',updateYear,updateRange,syncDay,getLocalResult,permanentResult,readPermanentFullResult,writePermanentFullResult,refresh:refreshMetaUi,deleteYear,isDomestic};
 console.info('[AT AI]',VERSION,'aktif — yerli yıllık sonuçlar telefonda IndexedDB arşivine yazılır; /api/tjk-history önce yerel arşivi, yoksa TJK fallback yöntemini kullanır.');
 })();
