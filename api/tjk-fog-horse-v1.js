@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 
-const VERSION='TJK-FOG-HORSE-V1.13-ORIGIN-LINEAGE';
+const VERSION='TJK-FOG-HORSE-V18.0.7-CONNECTION-RECOVERY';
 const TJK='https://www.tjk.org';
 const TIMEOUT=10000;
 const ROLE_TIMEOUT=18000;
@@ -51,7 +51,7 @@ function connectionRowStrength(row){
 function connectionStrength(html,role,raceDate,requestedName=''){
   const table=findTable(html,['SEHIRLER','YILLAR','KOSU'])||tables(html).find(t=>t.keys.some(k=>k==='KOSU')&&t.keys.some(k=>k==='YILLAR'))||null;
   if(!table?.rows?.length)return null;
-  const year=String(raceDate||'').slice(0,4),allCity=r=>fold(val(r,['Şehirler','Sehirler']))==='TUMSEHIRLER',yearOf=r=>fold(val(r,['Yıllar','Yillar']));
+  const year=String(raceDate||'').slice(0,4),allCity=r=>fold(val(r,['Şehirler','Sehirler','Şehir','Sehir'])).match(/^TUMSEHIR(?:LER)?$/)!==null,yearOf=r=>fold(val(r,['Yıllar','Yillar']));
   const currentRow=table.rows.find(r=>allCity(r)&&clean(val(r,['Yıllar','Yillar']))===year)||null;
   const careerRow=table.rows.find(r=>allCity(r)&&yearOf(r)==='TUMYILLAR')||null;
   const current=connectionRowStrength(currentRow),career=connectionRowStrength(careerRow);
@@ -59,6 +59,7 @@ function connectionStrength(html,role,raceDate,requestedName=''){
   if(!Number.isFinite(score))return null;
   const nameAliases=role==='jockey'?['Jokey']:role==='owner'?['At Sahibi','Sahip']:['Antrenör','Antrenor'];
   const officialName=clean(val(currentRow||careerRow||table.rows[0],nameAliases));
+  if(officialName&&requestedName&&fold(officialName)!==fold(requestedName.replace(/\s*\((?:Y\d+|AP)\)\s*/gi,'')))return null;
   return{role,verified:true,score,name:officialName||requestedName,current,career,rowCount:table.rows.length,source:'TJK_GROUPED_STATISTICS'};
 }
 function sireStrength(row){if(!row)return null;const runners=num(val(row,['Koşan Tay Adet','Koşan Tay'])),winners=num(val(row,['Kazanan Yavru Adet','Kazanan Yavru'])),p1=pct(val(row,['1.%'])),p2=pct(val(row,['2.%'])),p3=pct(val(row,['3.%']));const winnerRate=Number.isFinite(runners)&&runners>0&&Number.isFinite(winners)?winners/runners*100:null,top3=[p1,p2,p3].filter(Number.isFinite).reduce((a,b)=>a+b,0);const score=weighted([{value:Number.isFinite(p1)?clamp(p1*5):null,weight:.4},{value:Number.isFinite(winnerRate)?clamp(winnerRate*2):null,weight:.35},{value:Number.isFinite(top3)?clamp(top3*2.5):null,weight:.25}]);return{score,runners,winners,winnerRate:Number.isFinite(winnerRate)?Number(winnerRate.toFixed(1)):null,firstPct:p1,top3Pct:Number.isFinite(top3)?top3:null,races:num(val(row,['Koşu'])),earnings:num(val(row,['Kazanç']))}}
@@ -69,7 +70,7 @@ function parseWorkout(html,raceDate){const all=tables(html),t=findTable(html,['A
 async function safe(url,attempts=2,timeout=TIMEOUT){let last=null;for(let i=0;i<attempts;i++){try{return{ok:true,html:await fetchHtml(url,timeout),url,attempt:i+1}}catch(e){last=e}}return{ok:false,html:'',url,error:last?.message||String(last||'TJK veri alınamadı'),attempt:attempts}}
 export default async function handler(req,res){
   res.setHeader('Cache-Control','no-store, max-age=0');
-  const section=['sire','dam','damSire','workout'].includes(String(req.query.section||''))?String(req.query.section):'';
+  const section=['sire','dam','damSire','workout','connections'].includes(String(req.query.section||''))?String(req.query.section):'';
   const atId=String(req.query.atId||'').replace(/\D/g,''),horse=clean(req.query.horse||''),raceDate=clean(req.query.raceDate||'');
   const sire=clean(req.query.sire||''),dam=clean(req.query.dam||''),damSire=clean(req.query.damSire||'');
   const sireId=String(req.query.sireId||'').replace(/\D/g,''),damId=String(req.query.damId||'').replace(/\D/g,''),damSireCode=String(req.query.damSireCode||'').replace(/\D/g,'');
@@ -101,10 +102,10 @@ export default async function handler(req,res){
     owner:ownerId?`${TJK}/TR/YarisSever/Query/Grouped/SahipIstatistikleri?1=1&QueryParameter_SahipId=${encodeURIComponent(ownerId)}`:'',
     trainer:trainerId?`${TJK}/TR/YarisSever/Query/Grouped/AntrenorIstatistikleri?1=1&QueryParameter_AntrenorId=${encodeURIComponent(trainerId)}`:''
   };
-  const need=k=>!section||section===k,needProfile=!section;
+  const need=k=>!section||section===k,needProfile=!section||section==='connections';
   const empty={ok:false,html:''};
   let [p,w,s,d,ds,jr,ow,tr]=await Promise.all([
-    needProfile&&urls.profile?safe(urls.profile):Promise.resolve(empty),
+    !section&&urls.profile?safe(urls.profile):Promise.resolve(empty),
     need('workout')&&urls.workout?safe(urls.workout):Promise.resolve(empty),
     need('sire')&&urls.sire?safe(urls.sire):Promise.resolve(empty),
     need('dam')&&urls.dam?safe(urls.dam):Promise.resolve(empty),
@@ -128,9 +129,9 @@ export default async function handler(req,res){
   const ownerData=ow.ok?connectionStrength(ow.html,'owner',raceDate,ownerName):null;
   const trainerData=tr.ok?connectionStrength(tr.html,'trainer',raceDate,trainerName):null;
   const connectionErrors={
-    jockey:jockeyId&&!jockeyData?(jr.error||'Jokey istatistiği doğrulanamadı'):null,
-    owner:ownerId&&!ownerData?(ow.error||'Sahip istatistiği doğrulanamadı'):null,
-    trainer:trainerId&&!trainerData?(tr.error||'Antrenör istatistiği doğrulanamadı'):null
+    jockey:!jockeyId?'Programda jokey kimlik bağlantısı eksik':!jockeyData?(jr.error||'Jokey istatistiği doğrulanamadı'):null,
+    owner:!ownerId?'Programda sahip kimlik bağlantısı eksik':!ownerData?(ow.error||'Sahip istatistiği doğrulanamadı'):null,
+    trainer:!trainerId?'Programda antrenör kimlik bağlantısı eksik':!trainerData?(tr.error||'Antrenör istatistiği doğrulanamadı'):null
   };
   const connectionScore=weighted([{value:jockeyData?.score,weight:.5},{value:ownerData?.score,weight:.2},{value:trainerData?.score,weight:.3}]);
   const connections={attempted:true,verified:[jockeyData,ownerData,trainerData].filter(Boolean).length,score:connectionScore,weights:{jockey:.5,owner:.2,trainer:.3},jockey:jockeyData,owner:ownerData,trainer:trainerData,ids:{jockeyId:jockeyId||null,ownerId:ownerId||null,trainerId:trainerId||null},errors:connectionErrors};

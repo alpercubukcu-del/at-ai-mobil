@@ -73,7 +73,7 @@ async function selectedRows() {
   return rows.filter(Boolean);
 }
 function historyKey(date, city, raceNo) { return `${clean(date)}|${fold(city)}|${Number(raceNo || 0)}`; }
-function cacheableHistory(data) { return data && data.ok !== false && Array.isArray(data.top3) && data.top3.length > 0; }
+function cacheableHistory(data) { return data && data.ok !== false && Array.isArray(data.top3) && data.top3.some(x=>Number(x?.finish)===1&&clean(x?.horseId)&&clean(x?.horseName)); }
 function setStatus(text, warn = false) {
   const el = document.getElementById('aaTop3Status');
   if (!el) return;
@@ -111,7 +111,7 @@ window.fetch = async function annualTop3CachedFetch(input, init) {
   const open = !!document.getElementById('tjkAnnualArchiveDialog')?.open;
   if (!req || !open) return nativeFetch(input, init);
   const cached = await dbGet(openCacheDb, CACHE_STORE, req.key);
-  if (cached?.history) return new Response(JSON.stringify(cached.history), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'x-at-ai-cache': 'annual-top3-v14' } });
+  if (cached?.history && cacheableHistory(cached.history)) return new Response(JSON.stringify(cached.history), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'x-at-ai-cache': 'annual-top3-v14' } });
   const response = await nativeFetch(input, init);
   try {
     if (response.ok) {

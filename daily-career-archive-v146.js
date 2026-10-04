@@ -208,7 +208,7 @@ function recordHasCareerEvidenceA(record) {
 }
 
 function recordCanRestoreA(record) {
-  return recordMatchesProgramA(record) && recordHasCareerEvidenceA(record);
+  return recordMatchesProgramA(record) && recordHasCareerEvidenceA(record) && (!window.ATWinnerJourneyMenuV1?.isCurrentResult || window.ATWinnerJourneyMenuV1.isCurrentResult({races:[record.race]}));
 }
 
 function resultMetaA(result = {}) {

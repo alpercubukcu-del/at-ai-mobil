@@ -105,7 +105,7 @@ window.fetch = async function(input, init = {}) {
 
   if (parts.url.pathname === '/api/tjk-career-v10' || parts.url.pathname === '/api/tjk-career') {
     const originalSignal = init?.signal || (input instanceof Request ? input.signal : null);
-    const combined = combineSignal(originalSignal, CAREER_ABORT_MS);
+    const combined = combineSignal(originalSignal, parts.url.searchParams.get('complete')==='1'?120000:CAREER_ABORT_MS);
     try {
       // Keep the abort active through the response body; omit only the cache-busting timestamp.
       const url=new URL(parts.url);url.searchParams.delete('t');

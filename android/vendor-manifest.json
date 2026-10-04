@@ -1,0 +1,27 @@
+[
+  {
+    "name": "html2pdf.bundle.min.js",
+    "url": "https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js",
+    "sha256": "73b512869d64d0f2828e436b24b23b7d84f24b7028bba6c49cb4d1c988103da4"
+  },
+  {
+    "name": "pdfmake.min.js",
+    "url": "https://cdn.jsdelivr.net/npm/pdfmake@0.2.12/build/pdfmake.min.js",
+    "sha256": "af1c878d756812912bf24f0068f3c7dd3ba1adbe578cf9ad8052f55eb78378ea"
+  },
+  {
+    "name": "vfs_fonts.js",
+    "url": "https://cdn.jsdelivr.net/npm/pdfmake@0.2.12/build/vfs_fonts.js",
+    "sha256": "fe4856f1904c96bf4db7111edaee4d4749176d824095fa08aa5b7b7519e169c2"
+  },
+  {
+    "name": "xlsx.full.min.js",
+    "url": "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js",
+    "sha256": "c9506197caf809a075b6dee1da0d36fb19da7158ffe8a88e7b0c96c5d8623c99"
+  },
+  {
+    "name": "Node-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/nodejs/node/v18.20.4/LICENSE",
+    "sha256": "66233b87054d6bca9b0c2f23b027bb2caf1ebd961a6f981616d098dade33af34"
+  }
+]
