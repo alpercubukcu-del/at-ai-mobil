@@ -76,9 +76,10 @@ function renderSummary(){
   box.innerHTML=`<b>Tam Eşleşme kazanan-sıra koruması</b><br>Geçmiş gerçek kazananların kesin model sıralarıyla kupon genişliği denetlendi.${added}${rec}`;
 }
 
+function isFogdNineTicket(ticket){const mode=clean(ticket?.couponMode);const id=clean(ticket?.modelId);return mode==='FOGD_ALL_RACES_V173'||mode==='FOGD_OFFICIAL_BET_V173'||/^dna-(?:f|o|g|d|j|s|e|a|t)$/i.test(id)}
 async function applyGuard(){
   if(busy){queued=true;return}
-  const s=st(),tickets=Array.isArray(s?.tickets)?s.tickets:[];
+  const s=st(),tickets=(Array.isArray(s?.tickets)?s.tickets:[]).filter(t=>!isFogdNineTicket(t));
   if(!tickets.length)return;
   const pending=tickets.filter(t=>t?.exactRankGuardVersion!==VERSION);
   if(!pending.length){renderSummary();return}
@@ -132,6 +133,6 @@ document.addEventListener('click',event=>{
   for(const ms of[350,1000,2500,5000,9000])setTimeout(()=>{installObserver();void applyGuard()},ms);
 },true);
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{installObserver();setTimeout(()=>void applyGuard(),700)},{once:true});else{installObserver();setTimeout(()=>void applyGuard(),700)}
-window.ATExactRankCouponGuardV661={version:VERSION,apply:applyGuard,coverageRule,rankRows,getSummary:()=>summary};
+window.ATExactRankCouponGuardV661={version:VERSION+'+FOGD-NINE-ISOLATED',apply:applyGuard,coverageRule,rankRows,isFogdNineTicket,getSummary:()=>summary};
 console.info('[AT AI]',VERSION,'aktif — TAM eşleşmelerde gerçek kazananın kesin model sırası kuponu yalnız genişletebilir; puan/sıralama değişmez ve bütçe aşılmaz.');
 })();
