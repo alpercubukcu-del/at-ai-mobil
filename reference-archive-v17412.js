@@ -8,7 +8,8 @@ const $=id=>document.getElementById(id),iso=v=>/^\d{4}-\d{2}-\d{2}$/.test(v)&&ne
 const addDays=(v,n)=>{const d=new Date(v+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
 const validRange=(start,end)=>{try{return iso(start)&&iso(end)&&start<=end}catch{return false}};
 const seconds=v=>{const m=clean(v).replace(/,/g,'.').match(/^(\d+)\.(\d{2})\.(\d{1,2})$/);return m&&Number(m[2])<60?Number(m[1])*60+Number(m[2])+Number(m[3])/100:null};
-let busy=false,stopped=false,controller=null,currentJob=null;\nconst FAILED='reference-query:failed-days';
+let busy=false,stopped=false,controller=null,currentJob=null;
+const FAILED='reference-query:failed-days';
 // Close legacy connections on a schema change so this page cannot block itself.
 if(typeof indexedDB!=='undefined'){const originalOpen=indexedDB.open.bind(indexedDB);indexedDB.open=function(name,...args){const q=originalOpen(name,...args);if(name===DB)q.addEventListener('success',()=>{const db=q.result;db.addEventListener('versionchange',()=>db.close())});return q};void openDb().then(db=>db.close()).catch(()=>{});}
 
