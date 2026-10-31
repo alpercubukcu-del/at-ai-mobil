@@ -61,10 +61,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for p in assets/node/public/classic/app.js assets/node/public/at-ai-app-v142.js assets/node/api/tjk-son800-v1.js; do
+          for p in assets/node/public/classic/core.js assets/node/public/classic/app.js assets/node/public/at-ai-app-v142.js assets/node/api/tjk-son800-v1.js assets/node/android-filesystem.js; do
             test -s "integration/overlay/$p" || { echo "::error::Missing integrated engine: $p"; exit 1; }
             node --check "integration/overlay/$p"
           done
+          test -s integration/VALIDATION.md || { echo "::error::Historical backtest report missing"; exit 1; }
           test -f integration/READY_FOR_APK || { echo "::error::Integration not verified; READY_FOR_APK gate missing"; exit 1; }
       - name: Replace APK assets without changing Android package metadata
         shell: bash
