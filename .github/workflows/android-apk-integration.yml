@@ -10,11 +10,6 @@ on:
         description: "SHA256 of original APK"
         required: true
         type: string
-      source_ref:
-        description: "Integration branch containing overlay"
-        required: true
-        default: "work/apk-three-engine-integration"
-        type: string
 permissions:
   contents: read
 jobs:
@@ -31,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source_ref }}
+          ref: work/apk-three-engine-integration
           persist-credentials: false
       - name: Verify secrets and inputs
         shell: bash
