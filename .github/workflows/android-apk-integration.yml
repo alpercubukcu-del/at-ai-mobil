@@ -99,6 +99,12 @@ jobs:
           apksigner sign --ks signing.jks --ks-key-alias "$APK_KEY_ALIAS" --ks-pass env:APK_KEYSTORE_PASSWORD --key-pass env:APK_KEY_PASSWORD --out AT-AI-Mobil-Integrated.apk aligned.apk
           apksigner verify --verbose --print-certs AT-AI-Mobil-Integrated.apk
           zipalign -c -p 4 AT-AI-Mobil-Integrated.apk
+          # An in-place Android update requires the original signing certificate.
+          original_cert="$(apksigner verify --print-certs original.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
+          new_cert="$(apksigner verify --print-certs AT-AI-Mobil-Integrated.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
+          test -n "$original_cert" && test "$original_cert" = "$new_cert" || { echo "::error::Signing certificate mismatch: this APK cannot update the installed app"; exit 1; }
+          # This is an APK repack, not a rebuilt Android app: the versionCode stays unchanged.
+          echo "::warning::versionCode is unchanged; verify the installed versionCode is not greater before distributing."
           sha256sum AT-AI-Mobil-Integrated.apk > APK-SHA256.txt
           rm -f signing.jks
       - name: Upload signed APK
