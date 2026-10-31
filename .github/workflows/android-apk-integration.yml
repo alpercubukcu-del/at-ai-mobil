@@ -1,0 +1,116 @@
+name: Android APK integration (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      base_apk_url:
+        description: "HTTPS URL of original APK (do not provide signing keys)"
+        required: true
+        type: string
+      base_apk_sha256:
+        description: "SHA256 of original APK"
+        required: true
+        type: string
+      source_ref:
+        description: "Integration branch containing overlay"
+        required: true
+        default: "work/apk-three-engine-integration"
+        type: string
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      APK_KEYSTORE_PASSWORD: ${{ secrets.APK_KEYSTORE_PASSWORD }}
+      APK_KEY_PASSWORD: ${{ secrets.APK_KEY_PASSWORD }}
+      APK_KEY_ALIAS: ${{ secrets.APK_KEY_ALIAS }}
+      APK_KEYSTORE_BASE64: ${{ secrets.APK_KEYSTORE_BASE64 }}
+      BASE_URL: ${{ inputs.base_apk_url }}
+      BASE_SHA: ${{ inputs.base_apk_sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+          persist-credentials: false
+      - name: Verify secrets and inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in APK_KEYSTORE_PASSWORD APK_KEY_PASSWORD APK_KEY_ALIAS APK_KEYSTORE_BASE64; do
+            test -n "${!name}" || { echo "::error::Missing secret $name"; exit 1; }
+          done
+          [[ "$BASE_URL" == https://* ]] || { echo "::error::HTTPS APK URL required"; exit 1; }
+          [[ "$BASE_SHA" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "::error::Invalid SHA256"; exit 1; }
+      - name: Install Android build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "y" | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "build-tools;35.0.0" >/dev/null
+          echo "${ANDROID_HOME}/build-tools/35.0.0" >> "$GITHUB_PATH"
+      - name: Download and verify original APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --max-time 180 -o original.apk "$BASE_URL"
+          printf '%s  %s\n' "$BASE_SHA" original.apk | sha256sum --check --status
+          unzip -tqq original.apk
+      - name: Restore signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "$APK_KEYSTORE_BASE64" | base64 --decode > signing.jks
+          test -s signing.jks
+      - name: Require all three integrated engines
+        shell: bash
+        run: |
+          set -euo pipefail
+          for p in assets/node/public/classic/app.js assets/node/public/at-ai-app-v142.js assets/node/api/tjk-son800-v1.js; do
+            test -s "integration/overlay/$p" || { echo "::error::Missing integrated engine: $p"; exit 1; }
+            node --check "integration/overlay/$p"
+          done
+          test -f integration/READY_FOR_APK || { echo "::error::Integration not verified; READY_FOR_APK gate missing"; exit 1; }
+      - name: Replace APK assets without changing Android package metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,zipfile
+          base=pathlib.Path('original.apk')
+          overlay=pathlib.Path('integration/overlay')
+          with zipfile.ZipFile(base) as src,zipfile.ZipFile('unsigned.apk','w') as dst:
+              names=set(src.namelist())
+              replacements={}
+              for p in overlay.rglob('*'):
+                  if p.is_file():
+                      rel=p.relative_to(overlay).as_posix()
+                      if rel not in names: raise RuntimeError('Not in original APK: '+rel)
+                      replacements[rel]=p.read_bytes()
+              for item in src.infolist():
+                  if item.filename.startswith('META-INF/') and item.filename.endswith(('.SF','.RSA','.DSA')): continue
+                  if item.filename=='META-INF/MANIFEST.MF': continue
+                  dst.writestr(item,replacements.get(item.filename,src.read(item.filename)))
+          with zipfile.ZipFile('unsigned.apk') as apk:
+              for rel,data in replacements.items():
+                  assert apk.read(rel)==data
+          print('Verified replacements:',len(replacements))
+          PY
+      - name: Align, sign, verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          zipalign -f -p 4 unsigned.apk aligned.apk
+          apksigner sign --ks signing.jks --ks-key-alias "$APK_KEY_ALIAS" --ks-pass env:APK_KEYSTORE_PASSWORD --key-pass env:APK_KEY_PASSWORD --out AT-AI-Mobil-Integrated.apk aligned.apk
+          apksigner verify --verbose --print-certs AT-AI-Mobil-Integrated.apk
+          zipalign -c -p 4 AT-AI-Mobil-Integrated.apk
+          sha256sum AT-AI-Mobil-Integrated.apk > APK-SHA256.txt
+          rm -f signing.jks
+      - name: Upload signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: at-ai-mobil-signed-apk
+          path: |
+            AT-AI-Mobil-Integrated.apk
+            APK-SHA256.txt
+          retention-days: 7
