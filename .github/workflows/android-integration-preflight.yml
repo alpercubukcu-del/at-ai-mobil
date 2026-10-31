@@ -1,0 +1,33 @@
+name: Three-engine integration preflight
+on:
+  push:
+    branches: [work/apk-three-engine-integration]
+    paths: [integration/**, .github/workflows/android-integration-preflight.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: work/apk-three-engine-integration
+          persist-credentials: false
+      - name: Check integration files and syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            integration/overlay/assets/node/public/classic/app.js \
+            integration/overlay/assets/node/public/at-ai-app-v142.js \
+            integration/overlay/assets/node/api/tjk-son800-v1.js; do
+            test -s "$file" || { echo "::error::Missing live engine overlay $file"; exit 1; }
+            node --check "$file"
+          done
+      - name: Require calibration evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s integration/READY_FOR_APK || { echo "::error::Three-engine validation is not complete"; exit 1; }
+          test -s integration/VALIDATION.md || { echo "::error::Missing calibration and historical backtest report"; exit 1; }
