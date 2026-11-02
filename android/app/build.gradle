@@ -1,0 +1,22 @@
+plugins { id 'com.android.application' }
+android {
+ namespace 'tr.ataimobil.app'
+ compileSdk 35
+ buildToolsVersion '35.0.0'
+ buildFeatures { buildConfig true }
+ ndkVersion '27.2.12479018'
+ defaultConfig {
+  applicationId 'tr.ataimobil.app'
+  minSdk 24
+  targetSdk 35
+  versionCode 9
+  versionName '18.0.8-test9'
+  ndk { abiFilters (project.findProperty('testAbi') ?: 'arm64-v8a') }
+  externalNativeBuild { cmake { arguments '-DANDROID_STL=c++_shared'; cppFlags '-std=c++17' } }
+ }
+ externalNativeBuild { cmake { path 'src/main/cpp/CMakeLists.txt'; version '3.22.1' } }
+ sourceSets { main { jniLibs.srcDirs = ['libnode/bin'] } }
+ packagingOptions { jniLibs { useLegacyPackaging true } }
+ signingConfigs { standalone { if(System.getenv('AT_AI_KEYSTORE')) { storeFile file(System.getenv('AT_AI_KEYSTORE')); storePassword System.getenv('AT_AI_STORE_PASSWORD'); keyAlias 'ataimobil'; keyPassword System.getenv('AT_AI_STORE_PASSWORD') } } }
+ buildTypes { debug { debuggable true }; release { minifyEnabled false; signingConfig signingConfigs.standalone } }
+}

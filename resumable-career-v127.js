@@ -55,7 +55,7 @@ async function prune(){
 function requestKey(input){
   try{
     const raw=typeof input==='string'?input:(input instanceof Request?input.url:String(input||''));
-    const url=new URL(raw,location.href); if(url.origin!==location.origin||!PATHS.has(url.pathname))return null;
+    const url=new URL(raw,location.href); if(url.origin!==location.origin||!PATHS.has(url.pathname)||url.searchParams.get('complete')==='1')return null;
     const pairs=[...url.searchParams.entries()].filter(([k])=>k!=='t').sort((a,b)=>a[0].localeCompare(b[0])||String(a[1]).localeCompare(String(b[1])));
     const q=new URLSearchParams(); for(const [k,v] of pairs)q.append(k,v);
     return `http|${VERSION}|${url.pathname}?${q}`;

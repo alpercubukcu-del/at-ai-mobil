@@ -22,3 +22,26 @@ test('folder write failure cannot be reported as a completed checkpoint',async()
  let checkpoint=false;window.ATArchiveDirectoryV1741={ensure:async()=>({getDirectoryHandle:async()=>({async getFileHandle(name,opts){if(!opts){const e=Error('missing');e.name='NotFoundError';throw e}if(name.includes('ISLEM'))checkpoint=true;return{createWritable:async()=>({write:async()=>{throw Error('disk full')},abort:async()=>{}})}}})})};
  await assert.rejects(api.savePermanentPage([api.normalize(row)],{cursor:'2026-10-01'}),e=>e.code==='PERMANENT_ARCHIVE_WRITE');assert.equal(checkpoint,false);
 });
+test('historical comparison requires the selected class, group, track and distance and excludes target/future dates',()=>{
+ const target={date:'2026-10-04',city:'Adana',raceType:'Maiden/Dişi',group:'2 Yaşlı İngilizler',distance:1400,track:'Sentetik'};
+ const r=api.normalize({...row,date:'2025-10-04',city:'Adana',raceType:'Maiden /Dişi',group:target.group,distance:1400,track:'Sentetik',hp:0,winnerWeight:55.5,origin:'BABA - ANNE',age:'2y d d'});
+ assert.equal(api.comparisonMatches(r,target,{city:'Adana'}),true);
+ for(const patch of [{date:'2026-10-04'},{date:'2027-10-04'},{referenceQuery:{...r.referenceQuery,group:'3 Yaşlı İngilizler'}},{referenceQuery:{...r.referenceQuery,track:'Kum'}},{referenceQuery:{...r.referenceQuery,distance:1500}},{referenceQuery:{...r.referenceQuery,raceType:'ŞARTLI 3/Dişi'}}])assert.equal(api.comparisonMatches({...r,...patch},target,{city:'Adana'}),false);
+ assert.equal(api.comparisonMatches({...r,city:'İzmir'},target,{city:'Adana'}),false);assert.equal(api.comparisonMatches({...r,city:'İzmir'},target,{city:''}),true);
+ assert.equal(api.comparisonMatches(r,target,{start:'2025-10-05'}),false);
+ const output=api.comparisonRow(r);assert.equal(output.hp,0);assert.equal(output.winnerWeight,55.5);assert.equal(output.age,'2y d d');assert.equal(output.origin,'BABA - ANNE');
+});
+test('all TJK comparison columns render, unsafe links and markup cannot enter the table',()=>{
+ const output=api.comparisonRow(api.normalize({...row,date:'2025-10-04',origin:'<img src=x>',hp:0,age:'4y d k',winnerWeight:56,prize:280000,resultUrl:'javascript:alert(1)',winnerUrl:'https://evil.test/'}));
+ const html=api.comparisonTable([output]);assert.equal((html.match(/<th scope=/g)||[]).length,15);for(const label of ['Apr. Koş. Cinsi','Sıklet','Orijin (Baba-Anne)','İkramiye','Birinci','Yaş','H. Puanı'])assert.ok(html.includes(label));assert.ok(html.includes('&lt;img'));assert.ok(!html.includes('javascript:'));assert.ok(!html.includes('evil.test'));assert.ok(html.includes('GunlukYarisSonuclari'));
+});
+test('full results supply the actual winning horse fields; a conflicting query winner cannot inherit another horse\'s HP or weight',()=>{
+ const r={date:'2025-10-04',city:'Adana',raceNo:1,race:{class:'Maiden/Dişi',ageGroup:'2 Yaşlı İngilizler',distance:1400,track:'Sentetik',winner:{horseName:'KAZANAN',degree:'1.26.62'},rows:[{finish:2,horseName:'İKİNCİ',hp:80,weight:60},{finish:1,horseName:'KAZANAN',hp:0,actualWeight:54.5,age:'2y d d',origin:'BABA - ANNE',degree:'1.26.62'}]}};
+ const output=api.comparisonRow(r);assert.equal(output.hp,0);assert.equal(output.winnerWeight,54.5);assert.equal(output.origin,'BABA - ANNE');
+ const conflict=api.comparisonRow({...r,referenceQuery:{winner:'BAŞKA AT',winnerDegree:'1.28.00'}});assert.equal(conflict.winner,'BAŞKA AT');assert.equal(conflict.hp,null);assert.equal(conflict.winnerWeight,null);
+});
+test('comparison initially orders historical winners by newest date',()=>{
+ const rows=api.sortComparison([{date:'2025-10-04',raceNo:2},{date:'2024-10-04',raceNo:1},{date:'2026-10-03',raceNo:3}]);assert.deepEqual(Array.from(rows,r=>r.date),['2026-10-03','2025-10-04','2024-10-04']);
+});
+
+test('condition flags match in either order without dropping female or handicap qualifiers',()=>{const target={date:'2026-10-04',group:'3 ve Yukarı İngilizler',distance:1700,track:'Kum',raceType:'Handikap 14 /Dişi /H2'};const r=api.normalize({...row,date:'2025-10-04',group:target.group,distance:1700,track:'Kum',raceType:'Handikap 14/H2/Dişi'});assert.equal(api.comparisonMatches(r,target),true);assert.equal(api.comparisonMatches({...r,referenceQuery:{...r.referenceQuery,raceType:'Handikap 14/H2'}},target),false)});

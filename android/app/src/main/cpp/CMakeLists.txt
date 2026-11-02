@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(ataimobil)
+add_library(node SHARED IMPORTED)
+set_target_properties(node PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../../../libnode/bin/${ANDROID_ABI}/libnode.so)
+add_library(ataimobil SHARED native.cpp)
+target_include_directories(ataimobil PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../../libnode/include/node)
+target_link_libraries(ataimobil node log)

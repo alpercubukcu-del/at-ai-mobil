@@ -30,10 +30,11 @@ export function parseRows(html){
     const field=(names,fallback)=>cellByClass($,tr,names)||at(fallback);
     const date=iso(field(['Tarih'],0)),city=field(['SehirAdi','Sehir'],1);
     if(!date||!city)return;
-    const raceNo=Number(dec(field(['KosuSirasi','KosuNo','Kosu'],2))||0)||null,group=field(['KosuGrubuAdi','Grup'],3),raceType=field(['KosuCinsiAdi','KosuCinsi'],4),apprenticeType=field(['AprantiKosuTipi','AprKosuCinsi','AprKosCinsi'],5),distance=Number(dec(field(['Mesafe'],6))||0)||null,track=field(['PistAdi','Pist'],7),winnerWeight=dec(field(['Kilo','Siklet'],8)),origin=field(['BabaAnne','Orijin'],9),prize=num(field(['Ikramiye'],10)),winner=field(['BirinciAtAdi','Birinci','Kazanan'],11),age=field(['BirinciAtAdiYas','Yas'],12),winnerDegree=field(['BirinciAtDerece','Derece'],13),hp=Number(dec(field(['HandikapPuani','HPuani','HPuan','HP'],14))||0)||null;
+    const raceNo=Number(dec(field(['KosuSirasi','KosuNo','Kosu'],2))||0)||null,group=field(['KosuGrubuAdi','Grup'],3),raceType=field(['KosuCinsiAdi','KosuCinsi'],4),apprenticeType=field(['AprantiKosuTipi','AprKosuCinsi','AprKosCinsi'],5),distance=Number(dec(field(['Mesafe'],6))||0)||null,track=field(['PistAdi','Pist'],7),winnerWeight=dec(field(['Kilo','Siklet'],8)),origin=field(['BabaAnne','Orijin'],9),prize=num(field(['Ikramiye'],10)),winner=field(['BirinciAtAdi','Birinci','Kazanan'],11),age=field(['BirinciAtAdiYas','Yas'],12),winnerDegree=field(['BirinciAtDerece','Derece'],13),hp=dec(field(['HandikapPuani','HPuani','HPuan','HP'],14));
+    const href=i=>{const raw=$(cells[i]).find('a').first().attr('href');if(!raw)return'';try{const u=new URL(raw,TJK+PAGE);return u.protocol==='https:'&&u.hostname==='www.tjk.org'?u.href:''}catch{return''}},resultUrl=href(0),winnerUrl=href(11);
     if(!Number.isInteger(raceNo)||raceNo<=0)return;
     const key=`query|${date}|${fold(city)}|${raceNo}`;
-    out.push({key,canonicalRaceId:key,queryKeyVersion:'F60.94.33',raceNoSource:'TJK_KOSU_COLUMN',date,year:Number(date.slice(0,4)),city,raceNo,group,raceType,apprenticeType,distance,track,winnerWeight,origin,prize,winner,age,winnerDegree,hp});
+    out.push({key,canonicalRaceId:key,queryKeyVersion:'F60.94.33',raceNoSource:'TJK_KOSU_COLUMN',date,year:Number(date.slice(0,4)),city,raceNo,group,raceType,apprenticeType,distance,track,winnerWeight,origin,prize,winner,age,winnerDegree,hp,resultUrl,winnerUrl});
   });
   const text=clean($.root().text()),tm=text.match(/Toplam\s+([\d.]+)\s+sonuçtan/i),total=tm?Number(String(tm[1]).replace(/\./g,'')):out.length;
   return{rows:out,total:Number.isFinite(total)?total:out.length};

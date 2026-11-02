@@ -87,15 +87,23 @@ async function saveRows(rows,{loadReports=true,onProgress=null}={}){
 async function syncWindow(start,end,{loadReports=true,label='Pist bilgileri'}={}){
  const first=await fetchPage(start,end,0),total=Number(first?.total||0),size=(first?.rows||[]).length||PAGE_SIZE,pages=Math.max(1,Math.ceil(total/size));
  if(pages>MAX_PAGES)throw Error('Pist arşivi pencere sınırını aşıyor; eksik indirme tamamlandı sayılmadı.');
- const rows=[],seen=new Set();
+ const rows=[],byKey=new Map(),pageFingerprints=new Set();let rawCount=0;
  for(let page=0;page<pages;page++){
   const data=page===0?first:await fetchPage(start,end,page),part=data?.rows||[];
   if(part.some(r=>!r.city||!r.date||r.date<start||r.date>end))throw Error('Pist sayfası tarih aralığı dışında; ilerleme kaydedilmedi.');
-  if(!part.length&&rows.length<total)throw Error('Pist arşivinde beklenen sayfa boş; ilerleme kaydedilmedi.');
-  for(const r of part){const key=reportKey(r.date,r.city);if(seen.has(key))throw Error('TJK aynı pist kaydını tekrar döndürdü; indirme tamamlandı sayılmadı.');seen.add(key);rows.push(r)}
+  if(!part.length&&rawCount<total)throw Error('Pist arşivinde beklenen sayfa boş; ilerleme kaydedilmedi.');
+  const fingerprint=JSON.stringify(part.map(r=>[r.date,r.city,r.time,r.reportUrl]));
+  if(part.length&&pageFingerprints.has(fingerprint))throw Error('TJK aynı pist sayfasını tekrar döndürdü; eksik sayfa için ilerleme kaydedilmedi.');
+  pageFingerprints.add(fingerprint);rawCount+=Number(data.rawRowCount??part.length);
+  for(const r of part){const key=reportKey(r.date,r.city),old=byKey.get(key);
+   // A city can publish several observations on the same day. Keep each observation,
+   // and expose the latest dated observation as the daily archive record.
+   if(!old){const record={...r,observations:[r]};byKey.set(key,record);rows.push(record)}
+   else{const observations=[...old.observations,r];if(String(r.time||'')>=String(old.time||''))Object.assign(old,r);old.observations=observations}
+  }
   setStatus(`${label}: ${page+1}/${pages} sayfa alındı…`,Math.round((page+1)/pages*45));
  }
- if(rows.length<total)throw Error(`Pist arşivi eksik (${rows.length}/${total}); ilerleme kaydedilmedi.`);
+ if(rawCount<total)throw Error(`Pist arşivi eksik (${rawCount}/${total}); ilerleme kaydedilmedi.`);
  await saveRows(rows,{loadReports,onProgress:(done,n,row)=>setStatus(`${label}: ${done}/${n} rapor · ${row.city} ${row.date}`,45+Math.round(done/Math.max(1,n)*50))});
  return rows;
 }
@@ -103,7 +111,7 @@ async function syncRangeInternal(start,end,options={}){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end)||start>end)throw Error('Geçerli pist arşivi tarih aralığı seçin.');
  const key=`verified-range:${start}:${end}`,saved=await dbGet(META,key),rows=[];if(end>=isoDate(new Date())&&saved?.nextDate>end)saved.nextDate=end;
  let cursor=saved?.validationVersion===17413?saved.nextDate:start;
- while(cursor<=end){const last=[addDays(cursor,6),end].sort()[0];rows.push(...await syncWindow(cursor,last,options));const next=addDays(last,1);
+ while(cursor<=end){const last=[addDays(cursor,6),end].sort()[0];const windowRows=await syncWindow(cursor,last,options);if(options.onWindowSaved)await options.onWindowSaved(await Promise.all(windowRows.map(r=>dbGet(STORE,reportKey(r.date,r.city)))));rows.push(...windowRows);const next=addDays(last,1);
   if(!await dbPut(META,{key,startDate:start,lastDate:last,nextDate:next,validationVersion:17413,updatedAt:new Date().toISOString()}))throw Error('Pist arşivi ilerlemesi kaydedilemedi.');cursor=next;await new Promise(resolve=>setTimeout(resolve,0));
  }
  const archived=(await allRows()).filter(r=>r.date>=start&&r.date<=end),repairs=options.loadReports===false?[]:archived.filter(r=>r.reportUrl&&(r.maintenance?.observationKind!=='DOCUMENTED_SCHEDULE'||!r.maintenanceAvailableAt||r.reportError));if(repairs.length)await saveRows(repairs,{loadReports:true});
@@ -162,14 +170,14 @@ function installPanel(){
   const s=document.createElement('div');s.className='aa-section';s.id='trackMaintenanceSectionF6089';s.innerHTML=`
     <h3>Pist / Bakım / Hava Arşivi</h3>
     <div class="aa-note">Bir kez geçmiş yılları indirir. Sonrasında her TJK program yüklemesinde son kaldığı tarihten itibaren otomatik güncellenir. Sıcaklık, nem, basınç, gökyüzü ve rüzgâr derece modeline birlikte aktarılır.</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px"><label>Başlangıç yılı<select id="tmFromF6089">${years}</select></label><label>Bitiş yılı<select id="tmToF6089">${years}</select></label></div>
-    <button id="tmBackfillF6089" class="primary" type="button" style="margin-top:8px">Seçili Yılları Bir Kez İndir</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px"><label>Başlangıç tarihi<input id="tmFromF6089" type="date"></label><label>Bitiş tarihi<input id="tmToF6089" type="date"></label></div>
+    <button id="tmBackfillF6089" class="primary" type="button" style="margin-top:8px">Seçili Tarih Aralığını İndir</button>
     <button id="tmNowF6089" type="button" style="margin-top:6px">Bugüne Kadar Eksikleri Güncelle</button>
     <div style="height:6px;background:rgba(255,255,255,.08);border-radius:99px;overflow:hidden;margin-top:8px"><div id="tmBarF6089" style="height:100%;width:0;background:currentColor;opacity:.65"></div></div>
     <div id="tmStatusF6089" class="aa-note" style="margin-top:6px">Hazır.</div><div id="tmMetaF6089" class="aa-note"></div>`;
   anchor.insertAdjacentElement('afterend',s);
-  $('tmFromF6089').value=String(Math.max(2000,current-5));$('tmToF6089').value=String(current);
-  $('tmBackfillF6089').onclick=()=>backfillYears($('tmFromF6089').value,$('tmToF6089').value).catch(e=>setStatus(`Hata: ${e?.message||e}`,0));
+  $('tmFromF6089').value='';$('tmToF6089').value=isoDate(new Date());
+  $('tmBackfillF6089').onclick=()=>syncRange($('tmFromF6089').value,$('tmToF6089').value).catch(e=>setStatus(`Hata: ${e?.message||e}`,0));
   $('tmNowF6089').onclick=()=>autoSync((typeof state!=='undefined'&&state?.date)||isoDate(new Date())).catch(e=>setStatus(`Hata: ${e?.message||e}`,0));
   refreshUi();return true;
 }
