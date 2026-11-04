@@ -20,6 +20,7 @@
         <a href="#sonuclar" class="navitem" data-target="sonuclar">▤ &nbsp; Sonuç Arşivi</a>
         <a href="#analiz" class="navitem" data-target="analiz">▥ &nbsp; Klasik Analiz</a>
         <a href="#kupon" class="navitem" data-target="kupon">▧ &nbsp; Kupon Hazırla</a>
+        <a href="#toplu" class="navitem" data-target="toplu">⬇ &nbsp; Toplu İndirme</a>
         <a href="#arsiv" class="navitem" data-target="arsiv">▣ &nbsp; Arşiv Yönetimi</a>
         <section class="mini-status"><b>Veri güvenliği</b><p>Gerçek TJK verileri gösterilir; tahmin değerleri uydurulmaz.</p></section>
       </nav>
@@ -41,6 +42,22 @@
           <button id="loadResults" type="button">Sonuçları İndir</button>
           <button id="loadAgf" type="button">AGF1 / AGF2 Getir</button>
         </section>
+        <section class="panel" id="toplu">
+          <div class="section-head"><div><small>TJK RESMÎ TAKVİMİ · 10 YURT İÇİ HİPODROM</small><h2>Toplu Bülten ve Sonuç İndir</h2></div><b id="bulkProgress" class="count">Hazır</b></div>
+          <p class="detail-note">İndirilecek şehirleri o tarihteki TJK programından otomatik bulur. Yarış yapılmayan şehirler hata değildir. Gerçek bağlantı hataları ve henüz yayımlanmamış sonuçlar ayrı gösterilir. IndexedDB kullanılmaz.</p>
+          <div class="filters bulk-filters">
+            <label>Başlangıç tarihi<input id="dateStart" type="date" required></label>
+            <label>Bitiş tarihi<input id="dateEnd" type="date" required></label>
+          </div>
+          <div class="action-bar bulk-actions">
+            <button id="bulkPrograms" class="primary" type="button">Toplu Bülten İndir</button>
+            <button id="bulkResults" class="primary" type="button">Toplu Sonuç İndir</button>
+            <button id="bulkBoth" type="button">Bülten + Sonuç İndir</button>
+            <button id="bulkCancel" type="button" disabled>İşlemi Durdur</button>
+          </div>
+          <div class="detail-note" id="batchAudit" aria-live="polite">Aralık seçin. Tamamlanan kayıtları ZIP olarak indirebilir, daha sonra ZIP veya seçtiğiniz klasörden devam edebilirsiniz.</div>
+          <progress id="bulkBar" value="0" max="100" style="width:100%;height:12px" aria-label="Toplu indirme ilerlemesi"></progress>
+        </section>
         <section class="panel" id="programPanel">
           <div class="section-head"><div><small>TEK BÜLTEN ARŞİVİ</small><h2>Günlük Koşular</h2></div><b id="raceCount" class="count">0 koşu</b></div>
           <div class="race-cards" id="races"><p class="empty">Henüz bülten yüklenmedi.</p></div>
@@ -61,19 +78,22 @@
           <button disabled title="Klasik kupon motoru bu sürümde bağlı değil" type="button">Kupon Oluştur · Yakında</button>
         </section>
         <section class="panel" id="arsiv">
-          <div class="section-head"><div><small>YEREL SONUÇ ARŞİVİ</small><h2>Doğrulama ve Dışa Aktarım</h2></div><b id="archiveStatus" class="count">0 gün</b></div>
+          <div class="section-head"><div><small>DOSYA TABANLI YILLIK ARŞİV · INDEXEDDB YOK</small><h2>Arşiv ve Yedek</h2></div><b id="archiveStatus" class="count">0 gün</b></div>
           <div class="action-bar">
-            <button id="saveArchive" type="button">Bu Günü Kaydet</button>
-            <button id="openArchive" type="button">Kayıtlı Günü Aç</button>
-            <button id="exportJson" type="button">39 Alanlı JSON İndir</button>
+            <button id="chooseFolder" type="button">Klasör Seç / Devam Et</button>
+            <button id="downloadZip" class="primary" type="button">Arşivi ZIP İndir</button>
+            <button id="importZip" type="button">ZIP Yedeği Aç</button>
+            <button id="exportJson" type="button">Seçili Günün 39 Alan JSON'u</button>
+            <input id="zipFile" type="file" accept=".zip,application/zip" hidden aria-label="ZIP arşivi seç">
           </div>
+          <p class="detail-note" id="folderStatus">Klasör seçimi destekleniyorsa her gün ve şehir otomatik dosyalara yazılır. Desteklenmiyorsa toplu işlemin sonunda ZIP indirilir.</p>
           <div class="detail-note" id="audit">Kayıt yüklenmedi. Eksik resmî AGF sıraları raporlanır, uydurulmaz.</div>
         </section>
         <footer>AT AI MOBİL · Klasik V3.2 çalışma dalı · Canlı tahmin ve APK henüz tamamlanmadı.</footer>
       </main>
     </div>
     <nav class="mobile-nav" aria-label="Mobil alt menü">
-      <a href="#bulten">Bülten</a><a href="#sonuclar">Sonuçlar</a><a href="#analiz">Analiz</a><a href="#kupon">Kupon</a><a href="#arsiv">Arşiv</a>
+      <a href="#toplu">Toplu</a><a href="#sonuclar">Sonuçlar</a><a href="#analiz">Analiz</a><a href="#kupon">Kupon</a><a href="#arsiv">Arşiv</a>
     </nav>
   </div>
   <script type="module" src="./app.mjs"></script>
