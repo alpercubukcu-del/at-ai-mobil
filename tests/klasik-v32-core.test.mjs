@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {CITIES,FIELDS,NEARBY_DISTANCE,distanceMatches,canonical39,flattenResultDay,audit39} from "../klasik-v32/core.mjs";
+import {CITIES,FIELDS,NEARBY_DISTANCE,distanceMatches,canonical39,flattenResultDay,flattenResultDayWithRaceNumbers,audit39} from "../klasik-v32/core.mjs";
 
 const race={no:5,distance:1400,class:"SATIŞ 2",ageGroup:"3 Yaşlı Araplar",pist:"Çim",trackCondition:"Normal"};
-const horse={programNo:7,horseName:"AT 7",finish:2,actualWeight:57.5,gny:6.5,hp:45,degree:"1.35.21",age:"3 y a e"};
+const horse={programNo:7,horseName:"AT 7",finish:2,actualWeight:57.5,gny:6.5,hp:45,st:11,degree:"1.35.21",age:"3 y a e"};
 const agf={pool1:{startRace:1,byRace:{"5":{"7":28.4}}},pool2:{startRace:5,byRace:{"5":{"7":12.3}}}};
 const record=(extra={})=>canonical39({date:"2026-08-14",city:"Bursa",race,horse,agf,...extra});
 
@@ -24,7 +24,7 @@ test("5 mesafe filtresi ve ±0 aynı mesafe",()=>{
 test("TJK sonuç at bilgisi canonical39'a doğru geçer",()=>{
   const r=record();
   assert.deepEqual(Object.keys(r),FIELDS);
-  assert.deepEqual([r.der,r.pno,r.kilo,r.ganyan,r.mes,r.kno,r.hpu],[2,7,57.5,6.5,1400,5,45]);
+  assert.deepEqual([r.der,r.pno,r.kilo,r.ganyan,r.mes,r.kno,r.hpu],[2,7,57.5,6.5,1400,11,45]);
   assert.equal(r.muddet,"1.35.21");
   assert.equal(r.atadi,"AT 7");
   assert.equal(r.irk,"Arap");
@@ -60,7 +60,7 @@ test("Gerçek yarış sonuçları her at için ayrı satır üretir",()=>{
   const rows=flattenResultDay(d,agf);
   assert.equal(rows.length,2);
   assert.equal(rows[1].der,1);
-  assert.equal(audit39(rows).ok,true);
+  assert.equal(audit39(rows,{raceNumbers:[5,5]}).ok,true);
 });
 test("Mükerrer yarış atı işaretlenir; silinmez",()=>{
   const r=record();
@@ -72,4 +72,23 @@ test("Resmi AGF sırası eksikliği uyarı olarak raporlanır",()=>{
   const a=audit39([record()]);
   assert.equal(a.ok,true);
   assert.equal(a.warnings.length,2);
+});
+
+test("KN resmî kulvardır; koşu no ayrı metaveri olarak saklanır",()=>{
+  const d={ok:true,date:"2026-08-14",city:"Bursa",races:[
+    {...race,no:5,rows:[horse]},
+    {...race,no:6,rows:[{...horse,horseName:"AT 8",programNo:8,st:11}]}
+  ]};
+  const output=flattenResultDayWithRaceNumbers(d,agf);
+  assert.deepEqual(output.raceNumbers,[5,6]);
+  assert.deepEqual(output.rows.map(x=>x.kno),[11,11]);
+  assert.equal(output.rows[0].agfo1,28.4);
+  assert.equal(output.rows[0].agfo2,12.3);
+  assert.equal(output.rows[1].agfo2,null);
+  assert.equal(audit39(output.rows,{raceNumbers:output.raceNumbers}).ok,true);
+});
+test("Aynı kulvar numarası farklı koşularda mükerrer at değildir",()=>{
+  const rows=[record(),record({race:{...race,no:6}})];
+  const data=audit39(rows,{raceNumbers:[5,6]});
+  assert.equal(data.ok,true);
 });
