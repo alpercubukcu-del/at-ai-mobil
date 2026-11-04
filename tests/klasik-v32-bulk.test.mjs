@@ -66,6 +66,6 @@ test("Bültenler / Sonuçlar / Raporlar ayrı klasörlü gerçek ZIP",()=>{
 });
 test("ZIP bütünlük denetimi bozulan içeriği reddeder",()=>{
   const zip=zipFiles({"Bultenler/örnek.json":'{"ad":"Yıldız"}'});
-  zip[zip.length-80]^=0x40;
+  zip[30+new TextEncoder().encode("Bultenler/örnek.json").length]^=0x40;
   assert.throws(()=>unzipFiles(zip));
 });
