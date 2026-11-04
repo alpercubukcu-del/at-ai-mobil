@@ -1,10 +1,10 @@
-import {CITIES,FIELDS,flattenResultDay,audit39} from "./core.mjs";
+import {CITIES,FIELDS,flattenResultDayWithRaceNumbers,audit39} from "./core.mjs";
 
 const id = key => document.getElementById(key);
 const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, ch => (
   {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]
 ));
-const state={program:[],results:null,agf:null,rows:[]};
+const state={program:[],results:null,agf:null,rows:[],rowRaceNos:[]};
 const DB_NAME="at_ai_klasik_v32_readonly_archive_v1";
 const KEY_RESULTS="results",KEY_PROGRAM="programs";
 
@@ -75,12 +75,14 @@ function renderProgram(){
 }
 function renderResults(){
   const raceNo=visibleRaceNos();
-  const rows=state.rows.filter(r=>raceNo===null||Number(r.kno)===raceNo);
-  const raceNos=[...new Set(rows.map(r=>Number(r.kno)))].sort((a,b)=>a-b);
-  id("resultCount").textContent=rows.length+" at";
-  if(!rows.length){id("results").innerHTML='<p class="empty">Bu tarih ve koşuda kaydedilmiş gerçek sonuç bulunmuyor.</p>';return;}
+  const pairs=state.rows.map((row,i)=>({row,raceNo:state.rowRaceNos[i]}))
+    .filter(x=>raceNo===null||Number(x.raceNo)===raceNo);
+  const raceNos=[...new Set(pairs.map(x=>Number(x.raceNo)).filter(n=>Number.isInteger(n)&&n>0))].sort((a,b)=>a-b);
+  id("resultCount").textContent=pairs.length+" at";
+  if(!pairs.length){id("results").innerHTML='<p class="empty">Bu tarih ve koşuda kaydedilmiş gerçek sonuç bulunmuyor.</p>';return;}
   id("results").innerHTML=raceNos.map(no=>{
-    const horses=rows.filter(r=>Number(r.kno)===no).sort((a,b)=>(a.der??999)-(b.der??999));
+    const horses=pairs.filter(x=>Number(x.raceNo)===no).map(x=>x.row)
+      .sort((a,b)=>(a.der??999)-(b.der??999));
     const horseRows=horses.map(r=>{
       return '<div class="horse-row"><span class="number">'+escapeHtml(r.der??"—")+'</span><b>'+escapeHtml(r.atadi??"—")+
         '</b><span class="result-time">'+escapeHtml(r.muddet??"—")+
@@ -90,7 +92,7 @@ function renderResults(){
   }).join("");
 }
 function renderAudit(){
-  const audit=audit39(state.rows);
+  const audit=audit39(state.rows,{raceNumbers:state.rowRaceNos});
   id("audit").textContent=state.rows.length
     ?state.rows.length+" satır · "+audit.errors.length+" hata · "+audit.warnings.length+
      " uyarı. AGF yüzdeleri alınsa bile resmî sırası doğrulanmadıysa null kalır."+
@@ -98,7 +100,7 @@ function renderAudit(){
     :"Henüz sonuç satırı yüklenmedi.";
 }
 function resetForSelection(){
-  state.program=[];state.results=null;state.agf=null;state.rows=[];
+  state.program=[];state.results=null;state.agf=null;state.rows=[];state.rowRaceNos=[];
   updateSelect();renderProgram();renderResults();renderAudit();
 }
 async function loadProgram(){
@@ -111,7 +113,8 @@ async function loadProgram(){
   setStatus(s.name+" · "+s.date+" · "+rows.length+" koşu TJK programından alındı.","ok");
 }
 function rebuildRows(){
-  state.rows=state.results?flattenResultDay(state.results,state.agf):[];
+  const converted=state.results?flattenResultDayWithRaceNumbers(state.results,state.agf):{rows:[],raceNumbers:[]};
+  state.rows=converted.rows;state.rowRaceNos=converted.raceNumbers;
   updateSelect();renderResults();renderAudit();
 }
 async function loadResults(){
@@ -119,7 +122,7 @@ async function loadResults(){
   const data=await json("/api/tjk-day-results-v1",{date:s.date,city:s.name,cityId:s.id});
   if(!Array.isArray(data.races)||!data.races.length)throw new Error("Doğrulanabilir sonuç koşusu bulunamadı");
   state.results=data;rebuildRows();
-  const audit=audit39(state.rows);
+  const audit=audit39(state.rows,{raceNumbers:state.rowRaceNos});
   setStatus(s.name+" · "+data.races.length+" koşu · "+state.rows.length+" at sonucu. "+
     (audit.errors.length?"Arşiv hatası: "+audit.errors.join(" ; "):"Satırlar incelenebilir."),audit.errors.length?"error":"ok");
 }
@@ -133,11 +136,11 @@ async function loadAgf(){
 }
 async function saveArchive(){
   if(!state.results||!state.rows.length)throw new Error("Önce sonuçları indirin");
-  const audit=audit39(state.rows);
+  const audit=audit39(state.rows,{raceNumbers:state.rowRaceNos});
   if(!audit.ok)throw new Error("Arşiv denetimi başarısız: "+audit.errors.slice(0,2).join("; "));
   const k=key(),old=await dbAction(KEY_RESULTS,"readonly","get",k);
   if(old)throw new Error("Bu gün/şehir zaten kayıtlı. Güvenlik için mevcut arşiv üzerine yazılmadı.");
-  await dbAction(KEY_RESULTS,"readwrite","add",{key:k,results:state.results,agf:state.agf,rows:state.rows,createdAt:new Date().toISOString()});
+  await dbAction(KEY_RESULTS,"readwrite","add",{key:k,results:state.results,agf:state.agf,rows:state.rows,raceNumbers:state.rowRaceNos,createdAt:new Date().toISOString()});
   if(state.program.length) {
     const existing=await dbAction(KEY_PROGRAM,"readonly","get",k);
     if(!existing)await dbAction(KEY_PROGRAM,"readwrite","add",{key:k,date:selection().date,city:selection().name,races:state.program,createdAt:new Date().toISOString()});
@@ -160,12 +163,12 @@ async function refreshCount(){
 }
 function exportJson(){
   if(!state.rows.length)throw new Error("Dışa aktarılacak sonuç verisi yok");
-  const audit=audit39(state.rows),s=selection();
+  const audit=audit39(state.rows,{raceNumbers:state.rowRaceNos}),s=selection();
   if(!audit.ok)throw new Error("Dosya dışa aktarılmadı: "+audit.errors.slice(0,2).join("; "));
   const payload={format:"AT_AI_KLASIK_V32_39_FIELD_DRAFT",date:s.date,city:s.name,
     fieldOrder:FIELDS,source:"TJK gün sonuçları + TJK resmî AGF yüzdeleri (varsa)",
     warning:"Eksik alanlar null. Resmî AGF sırası doğrulanmadan doldurulmaz. Tahmin verisi değildir.",
-    audit,rows:state.rows};
+    audit,raceNumbers:state.rowRaceNos,rows:state.rows};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json;charset=utf-8"});
   const url=URL.createObjectURL(blob),a=document.createElement("a");
   a.href=url;a.download="klasik-v32-"+s.date+"-"+s.id+"-39-alan.json";document.body.append(a);a.click();a.remove();
