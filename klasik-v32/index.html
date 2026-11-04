@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101e3a">
+  <title>AT AI MOBİL · Klasik Analiz V3.2</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="horse" aria-hidden="true">♞</span><span><small>AT AI MOBİL</small><strong>Klasik Analiz V3.2</strong></span></div>
+      <div class="scope-label">Yalnızca Klasik Analiz</div>
+    </header>
+    <div class="layout">
+      <nav class="sidebar" aria-label="Klasik Analiz bölümleri">
+        <h2>Klasik Analiz Merkezi</h2>
+        <a href="#bulten" class="navitem" data-target="bulten">◫ &nbsp; Bülten İndir</a>
+        <a href="#sonuclar" class="navitem" data-target="sonuclar">▤ &nbsp; Sonuç Arşivi</a>
+        <a href="#analiz" class="navitem" data-target="analiz">▥ &nbsp; Klasik Analiz</a>
+        <a href="#kupon" class="navitem" data-target="kupon">▧ &nbsp; Kupon Hazırla</a>
+        <a href="#arsiv" class="navitem" data-target="arsiv">▣ &nbsp; Arşiv Yönetimi</a>
+        <section class="mini-status"><b>Veri güvenliği</b><p>Gerçek TJK verileri gösterilir; tahmin değerleri uydurulmaz.</p></section>
+      </nav>
+      <main id="main">
+        <div class="steps" aria-label="İşlem akışı">
+          <div><span>1</span><b>Bülteni indir</b><small>Resmî program</small></div>
+          <div><span>2</span><b>Sonuçları indir</b><small>Bütün erişilen atlar</small></div>
+          <div><span>3</span><b>Klasik Analiz</b><small>Entegrasyon bekliyor</small></div>
+        </div>
+        <div id="notice" class="notice" role="status" aria-live="polite">Hazır. Tarih ve şehir seçip TJK bültenini yükleyin.</div>
+        <section id="filters" class="filters" aria-label="Yarış filtreleri">
+          <label>Şehir<select id="city"></select></label>
+          <label>Tarih<input id="date" type="date" required></label>
+          <label>Koşu<select id="race"><option value="all">Tüm Koşular</option></select></label>
+          <label>Mesafe yakınlığı<select id="tolerance"><option value="0">±0 m</option><option value="100">±100 m</option><option selected value="200">±200 m</option><option value="300">±300 m</option><option value="400">±400 m</option></select></label>
+        </section>
+        <section class="action-bar" id="bulten">
+          <button id="loadProgram" class="primary" type="button">Bülteni Yükle</button>
+          <button id="loadResults" type="button">Sonuçları İndir</button>
+          <button id="loadAgf" type="button">AGF1 / AGF2 Getir</button>
+        </section>
+        <section class="panel" id="programPanel">
+          <div class="section-head"><div><small>TEK BÜLTEN ARŞİVİ</small><h2>Günlük Koşular</h2></div><b id="raceCount" class="count">0 koşu</b></div>
+          <div class="race-cards" id="races"><p class="empty">Henüz bülten yüklenmedi.</p></div>
+        </section>
+        <section class="panel" id="sonuclar">
+          <div class="section-head"><div><small>TEK SONUÇ ARŞİVİ · 39 ALAN</small><h2>Gerçek Sonuçlar</h2></div><b id="resultCount" class="count">0 at</b></div>
+          <div class="detail-note">39 alanın yalnızca TJK'dan doğrulanabilenleri doldurulur. AGF sırası doğrulanmadıysa boş kalır. Tahminî derece değildir.</div>
+          <div id="results" class="result-list"><p class="empty">Önce yarış sonuçlarını yükleyin.</p></div>
+        </section>
+        <section class="panel" id="analiz">
+          <div class="section-head"><div><small>KLASİK ANALİZ</small><h2>Tahmini Bitiriş Dereceleri</h2></div></div>
+          <p class="muted">Dinamik pist/şehir, mesafe, durum, kilo ve günlük pist hızı hesabı mevcut Klasik motorla doğrulandıktan sonra açılacak. Bu sürüm gerçek verileri doğrulama ekranıdır.</p>
+          <button disabled title="Hesaplama motoru bu sürümde bağlı değil" type="button">Klasik Hesabı Çalıştır · Yakında</button>
+        </section>
+        <section class="panel" id="kupon">
+          <div class="section-head"><div><small>KLASİK KUPON</small><h2>Bütçeye Göre Kupon</h2></div></div>
+          <p class="muted">Manuel at ekleme, bütçeye göre ayak dağılımı ve otomatik tek seçimi mevcut Klasik kupon hesabı bağlandığında açılacak. Sahte kupon oluşturulmaz.</p>
+          <button disabled title="Klasik kupon motoru bu sürümde bağlı değil" type="button">Kupon Oluştur · Yakında</button>
+        </section>
+        <section class="panel" id="arsiv">
+          <div class="section-head"><div><small>YEREL SONUÇ ARŞİVİ</small><h2>Doğrulama ve Dışa Aktarım</h2></div><b id="archiveStatus" class="count">0 gün</b></div>
+          <div class="action-bar">
+            <button id="saveArchive" type="button">Bu Günü Kaydet</button>
+            <button id="openArchive" type="button">Kayıtlı Günü Aç</button>
+            <button id="exportJson" type="button">39 Alanlı JSON İndir</button>
+          </div>
+          <div class="detail-note" id="audit">Kayıt yüklenmedi. Eksik resmî AGF sıraları raporlanır, uydurulmaz.</div>
+        </section>
+        <footer>AT AI MOBİL · Klasik V3.2 çalışma dalı · Canlı tahmin ve APK henüz tamamlanmadı.</footer>
+      </main>
+    </div>
+    <nav class="mobile-nav" aria-label="Mobil alt menü">
+      <a href="#bulten">Bülten</a><a href="#sonuclar">Sonuçlar</a><a href="#analiz">Analiz</a><a href="#kupon">Kupon</a><a href="#arsiv">Arşiv</a>
+    </nav>
+  </div>
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>
