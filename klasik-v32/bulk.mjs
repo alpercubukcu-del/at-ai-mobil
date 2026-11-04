@@ -55,7 +55,7 @@ export function classifyResultFailure({status,notFound,scheduled=true}={}){
   return "INDIRME_HATASI";
 }
 export function reportArchive(archive){
-  const stats={days:0,scheduledMeetings:0,unplannedCities:0,programs:0,results:0,horses:0,pendingResults:0,errors:0,warnings:0};
+  const stats={days:0,scheduledMeetings:0,unplannedCities:0,programs:0,results:0,horses:0,pendingResults:0,partialResults:0,errors:0,warnings:0};
   for(const day of Object.values(archive.days||{})){
     stats.days++;
     stats.scheduledMeetings+=(day.scheduledCityIds||[]).length;
@@ -65,6 +65,7 @@ export function reportArchive(archive){
     for(const x of Object.values(day.results||{}))stats.horses+=x.rows?.length||0;
     for(const status of Object.values(day.statuses||{}))for(const val of Object.values(status)){
       if(val==="SONUC_YAYIMLANMADI")stats.pendingResults++;
+      if(val==="KISMEN_SONUCLANDI")stats.partialResults++;
       if(val==="INDIRME_HATASI"||val==="KATALOG_HATASI"||val==="PARSE_BELIRSIZ")stats.errors++;
     }
     stats.warnings+=(day.warnings||[]).length;
