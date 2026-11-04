@@ -135,7 +135,7 @@ function refreshArchiveUI(){
   id("archiveStatus").textContent=stats.days+" gün";
   id("batchAudit").textContent="Arşiv: "+stats.days+" gün, "+stats.programs+" şehir bülteni, "+
     stats.results+" şehir sonucu, "+stats.horses+" at sonucu, "+stats.unplannedCities+
-    " yarış düzenlenmeyen şehir/gün. "+stats.pendingResults+" sonuç yayımlanmamış, "+stats.errors+" gerçek sorun.";
+    " yarış düzenlenmeyen şehir/gün. "+stats.partialResults+" kısmi sonuç, "+stats.pendingResults+" sonuç yayımlanmamış, "+stats.errors+" gerçek sorun.";
 }
 function openSelectedFromArchive(){
   const s=selection(),day=state.archive.days[s.date],key=String(s.id);
@@ -194,7 +194,7 @@ function refreshArchiveCountOnly(){
   id("archiveStatus").textContent=reportArchive(state.archive).days+" gün";
 }
 function formatSummary(s){return s.programs+" bülten, "+s.results+" sonuç, "+s.horses+
-  " at; "+s.unplannedCities+" yarışsız şehir, "+s.pendingResults+" bekleyen, "+s.errors+" gerçek sorun";}
+  " at; "+s.unplannedCities+" yarışsız şehir, "+s.partialResults+" kısmi sonuç, "+s.pendingResults+" bekleyen, "+s.errors+" gerçek sorun";}
 async function bulkScan(mode){
   if(state.busy)throw Error("Zaten toplu indirme sürüyor");
   const dates=datesBetween(id("dateStart").value,id("dateEnd").value,366);
@@ -238,20 +238,21 @@ async function bulkScan(mode){
             if(!Array.isArray(races))throw Error("Koşu dizisi bulunamadı");
             if(!races.length){
               mark(state.archive,date,cityId,"program","PROGRAM_BOS_KONTROL","TJK takviminde şehir var ama koşu tablosu boş; yarışsız gün ile ayrıştırıcı sorunu henüz ayrıştırılamadı");
-              continue;
-            }
-            const program={date,cityId:c.id,cityName:c.name,races,sourceUrl:data.sourceUrl||null};
+            }else{
+              const program={date,cityId:c.id,cityName:c.name,races,sourceUrl:data.sourceUrl||null};
             record.programs[key]=program;
             mark(state.archive,date,cityId,"program","INDIRILDI");
             await persistRecord("program",date,c.id,program);
+            }
           }catch(e){
             if(state.abort.signal.aborted){stopped=true;break;}
             mark(state.archive,date,cityId,"program","INDIRME_HATASI",e.message);
-            continue;
+            // Sonuç varsa program parserından bağımsız yine indirilmeli.
           }
         }
         if(mode==="program")continue;
-        if(record.results[key])continue;
+        // Eksik koşuların sonradan yayımlanmasına fırsat ver; tam kayıtları yeniden indirme.
+        if(record.results[key] && record.statuses?.[key]?.result!=="KISMEN_SONUCLANDI")continue;
         try{
           const result=await requestApi("/api/tjk-day-results-v1",{date,cityId:c.id,city:c.name},state.abort.signal);
           if(!Array.isArray(result.races)||!result.races.length)throw Error("TJK sonuçları boş");
@@ -268,6 +269,11 @@ async function bulkScan(mode){
           if(!audit.ok)throw Error("39 sütun: "+audit.errors.slice(0,2).join("; "));
           const data={date,cityId:c.id,cityName:c.name,raw:result,agf,rows:converted.rows,
             raceNumbers:converted.raceNumbers,audit};
+          const oldRaceCount=record.results[key]?.raw?.races?.length||0;
+          if(oldRaceCount > result.races.length){
+            mark(state.archive,date,c.id,"result","KISMEN_SONUCLANDI","Yeni sorguda daha az koşu bulundu; mevcut geniş kayıt korundu.");
+            continue;
+          }
           record.results[key]=data;
           const officialCount=record.programs[key]?.races?.length||0;
           if(officialCount && result.races.length < officialCount){
