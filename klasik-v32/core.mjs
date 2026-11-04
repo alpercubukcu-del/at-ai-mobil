@@ -41,7 +41,7 @@ export function canonical39({date,city,race,horse,agf} = {}) {
   row.yarrno=null; // TJK kimlik alanı henüz doğrulanmadı
   const ageMatch=String(horse.age??"").match(/^(\d{1,2})\b/);
   row.yas=ageMatch?Number(ageMatch[1]):null;
-  row.kno=numberOrNull(race.no ?? race.raceNo);
+  row.kno=numberOrNull(horse.st ?? horse.startGate ?? horse.gate ?? horse.kno); // KN = kulvar, koşu no değildir
   row.hpu=numberOrNull(horse.hp);
   // hsi/gsi/hpo/ghpo/g2hpo/sno resmi kaynaktan doğrulanmadan hesaplanmaz
   row.atadi=optional(horse.horseName ?? horse.name);
@@ -65,29 +65,41 @@ export function canonical39({date,city,race,horse,agf} = {}) {
   row.yaradi4=optional(race.yaradi4);
   // Resmi sıra bulunmadığı sürece türetilmiş yüzde sırasını resmî gibi kaydetme.
   row.agfs1=null;row.agfs2=null;
-  row.agfo1=findPoolShare(agf?.pool1,row.kno,row.pno);
-  row.agfo2=findPoolShare(agf?.pool2,row.kno,row.pno);
+  row.agfo1=findPoolShare(agf?.pool1,race.no ?? race.raceNo,row.pno);
+  row.agfo2=findPoolShare(agf?.pool2,race.no ?? race.raceNo,row.pno);
   return row;
 }
-export function flattenResultDay(results,agf=null) {
+/**
+ * Koşu no 39 resmî sütunun içinde yer almaz: KN kulvardır.
+ * Yarış numaraları JSON meta dizisinde satır indisiyle paralel korunur.
+ */
+export function flattenResultDayWithRaceNumbers(results,agf=null) {
   if (!results?.ok || !Array.isArray(results.races)) throw new TypeError("Doğrulanabilir sonuç dizisi yok");
-  const rows=[];
+  const rows=[],raceNumbers=[];
   for(const race of results.races) {
-    if (!Number.isInteger(Number(race.no)) || !Array.isArray(race.rows)) continue;
-    for(const horse of race.rows) rows.push(canonical39({date:results.date,city:results.city,race,horse,agf}));
+    const raceNo=Number(race.no ?? race.raceNo);
+    if (!Number.isInteger(raceNo)||raceNo<1||!Array.isArray(race.rows)) continue;
+    for(const horse of race.rows) {
+      rows.push(canonical39({date:results.date,city:results.city,race,horse,agf}));
+      raceNumbers.push(raceNo);
+    }
   }
-  return rows;
+  return {rows,raceNumbers};
 }
-export function audit39(rows) {
+export function flattenResultDay(results,agf=null) {
+  return flattenResultDayWithRaceNumbers(results,agf).rows;
+}
+export function audit39(rows,{raceNumbers=[]}={}) {
   const seen=new Set(),errors=[],warnings=[];
   if (!Array.isArray(rows)) return {ok:false,errors:["Satırlar dizi değil"],warnings};
   for(let i=0;i<rows.length;i++) {
     const r=rows[i];
     if (FIELDS.some(f=>!Object.prototype.hasOwnProperty.call(r,f))) errors.push("Eksik alan: satır "+(i+1));
-    if (!r.tarih || !r.sehir || !r.kno || !r.atadi) errors.push("Eksik yarış kimliği: satır "+(i+1));
+    if (!r.tarih || !r.sehir || !r.pno || !r.atadi) errors.push("Eksik at kimliği: satır "+(i+1));
+    if (raceNumbers.length && (!Number.isInteger(Number(raceNumbers[i])) || Number(raceNumbers[i])<1)) errors.push("Eksik koşu numarası metaverisi: satır "+(i+1));
     if (r.agfo2!==null && r.agfs2===null) warnings.push("AGF2 yüzdesi var, resmî sıra eksik: satır "+(i+1));
     if (r.agfo1!==null && r.agfs1===null) warnings.push("AGF1 yüzdesi var, resmî sıra eksik: satır "+(i+1));
-    const key=[r.tarih,r.sehir,r.kno,r.pno||"",r.atadi].join("|");
+    const key=[r.tarih,r.sehir,raceNumbers.length?raceNumbers[i]:"?",r.pno||"",r.atadi].join("|");
     if (seen.has(key)) errors.push("Mükerrer at: "+key);
     seen.add(key);
   }
